@@ -87,7 +87,115 @@
 }
 .dw-path:focus { outline: none; border-color: #4493f8; }
 
-.dw-body { flex: 1 1 auto; overflow: auto; }
+/* 搜索栏（与过滤栏二选一显示） */
+.dw-searchbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dw-searchbar[hidden], .dw-filterbar[hidden], .dw-breadcrumb[hidden] {
+  display: none;
+}
+.dw-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e6edf3;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+}
+.dw-search::placeholder { color: #6e7681; }
+.dw-search:focus { outline: none; border-color: #4493f8; }
+.dw-kind {
+  flex: 0 0 auto;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e6edf3;
+  border-radius: 6px;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 12px;
+}
+.dw-kind option { background: #161b22; color: #e6edf3; }
+
+/* 路径面包屑 */
+.dw-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: #8b949e;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  max-height: 62px;
+  overflow: auto;
+}
+.dw-crumb {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 4px;
+  max-width: 130px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dw-crumb:hover { color: #79c0ff; background: rgba(255, 255, 255, 0.08); }
+.dw-crumb-sep { opacity: .5; }
+
+/* 搜索结果表：多一列"所在目录" */
+.dw-table.dw-result td.dir-path {
+  max-width: 160px;
+  color: #8b949e;
+  font-size: 12px;
+}
+
+/* 开关类按钮的关闭态 */
+.dw-btn.dw-off { opacity: .45; }
+
+/* 过滤栏 */
+.dw-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dw-filter {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e6edf3;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+}
+.dw-filter::placeholder { color: #6e7681; }
+.dw-filter:focus { outline: none; border-color: #4493f8; }
+
+.dw-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  /* Firefox：细滚动条，滑块灰色、轨道透明 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 148, 158, 0.45) transparent;
+}
+/* Chromium/Safari：深色主题滚动条 */
+.dw-body::-webkit-scrollbar { width: 10px; height: 10px; }
+.dw-body::-webkit-scrollbar-track { background: transparent; }
+.dw-body::-webkit-scrollbar-thumb {
+  background: rgba(139, 148, 158, 0.45);
+  background-clip: content-box;   /* 两边留 2px 透明边，不顶满 */
+  border: 2px solid transparent;
+  border-radius: 6px;
+}
+.dw-body::-webkit-scrollbar-thumb:hover { background-color: rgba(139, 148, 158, 0.7); }
+.dw-body::-webkit-scrollbar-corner { background: transparent; }
 .dw-table { width: 100%; border-collapse: collapse; }
 .dw-table th, .dw-table td {
   text-align: left;
@@ -104,6 +212,11 @@
   font-weight: 500;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
+/* 可排序表头 */
+.dw-table th.dw-sortable { cursor: pointer; user-select: none; }
+.dw-table th.dw-sortable:hover { color: #e6edf3; }
+.dw-table th.dw-sorted { color: #58a6ff; }
+.dw-arrow { font-size: 10px; }
 .dw-table td.name { max-width: 180px; }
 .dw-table tr { border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
 .dw-table tbody tr:hover { background: rgba(255, 255, 255, 0.06); }
@@ -111,6 +224,12 @@
 .dw-table td.mtime { text-align: left; }
 .dw-dir { color: #58a6ff; cursor: pointer; }
 .dw-dir:hover { text-decoration: underline; }
+/* 文件名（点击查看/下载） */
+.dw-file { cursor: pointer; }
+.dw-file:hover { color: #79c0ff; text-decoration: underline; }
+/* 列表首行的 ".."（返回上级） */
+.dw-table tbody tr.dw-up-row td { background: rgba(255, 255, 255, 0.03); }
+.dw-parent { color: #79c0ff; font-weight: 600; }
 .dw-ico { display: inline-block; width: 18px; text-align: center; margin-right: 6px; }
 .dw-type-pill {
   font-size: 11px;
@@ -131,4 +250,81 @@
   font-size: 12px;
   color: #8b949e;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ===================== 文件预览层（覆盖在卡片上） ===================== */
+.dw-preview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(13, 17, 23, 0.98);
+  z-index: 5;
+}
+.dw-preview[hidden] { display: none; }
+.dw-pv-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dw-pv-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+/* 下载按钮是 <a>，需要补上行内元素默认缺的居中 */
+.dw-pv-dl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+.dw-pv-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 148, 158, 0.45) transparent;
+}
+.dw-pv-body::-webkit-scrollbar { width: 10px; height: 10px; }
+.dw-pv-body::-webkit-scrollbar-track { background: transparent; }
+.dw-pv-body::-webkit-scrollbar-thumb {
+  background: rgba(139, 148, 158, 0.45);
+  background-clip: content-box;
+  border: 2px solid transparent;
+  border-radius: 6px;
+}
+.dw-pv-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.dw-pv-media { max-width: 100%; max-height: 100%; outline: none; }
+.dw-pv-audio { text-align: center; }
+.dw-pv-audio-ico { font-size: 44px; margin-bottom: 10px; }
+.dw-pv-text {
+  margin: 0;
+  width: 100%;
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;
+  color: #e6edf3;
+  white-space: pre-wrap;
+  word-break: break-all;
+  text-align: left;
+  align-self: flex-start;
+}
+.dw-pv-status {
+  padding: 5px 10px;
+  font-size: 12px;
+  color: #8b949e;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

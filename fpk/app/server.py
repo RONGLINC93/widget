@@ -27,7 +27,7 @@ import subprocess
 import json
 import mimetypes
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs, unquote
+from urllib.parse import urlparse, parse_qs, unquote, quote
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -36,8 +36,48 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(HERE, "static")
 UI_DIR = os.path.join(HERE, "ui")
 API_BASE = "/api/list"
+API_FILE = "/api/file"
+API_SEARCH = "/api/search"
 APP_NAME = os.environ.get("TRIM_APPNAME", "ronglinc93widget")
 GATEWAY_PREFIX = "/app/" + APP_NAME
+
+# 文本预览：单次最多读取的字节数（超出截断，前端会提示）
+TEXT_PREVIEW_MAX = 512 * 1024
+# 单次列表最多返回的条目数（超大目录不至于把浏览器卡死）
+LIST_MAX_ENTRIES = 3000
+# 递归搜索的保护参数：结果上限 / 最深层级 / 最长耗时
+SEARCH_MAX_RESULTS = 500
+SEARCH_MAX_DEPTH = 6
+SEARCH_TIMEOUT_SEC = 8
+
+# 文件类型分类（供列表的 kind 字段与搜索的类型筛选共用）
+IMG_EXTENSIONS = {
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".ico",
+    ".avif", ".heic",
+}
+VIDEO_EXTENSIONS = {
+    ".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi", ".flv", ".wmv",
+    ".mpg", ".mpeg", ".ts",
+}
+AUDIO_EXTENSIONS = {
+    ".mp3", ".flac", ".wav", ".aac", ".m4a", ".ogg", ".opus", ".wma", ".ape",
+}
+ARCHIVE_EXTENSIONS = {
+    ".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".tgz", ".iso",
+}
+DOC_EXTENSIONS = {
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+}
+
+# 按这些扩展名（或它们的 mimetype 前缀）判定为纯文本
+TEXT_EXTENSIONS = {
+    ".txt", ".md", ".markdown", ".log", ".json", ".jsonl", ".yaml", ".yml",
+    ".ini", ".conf", ".cfg", ".properties", ".env", ".toml", ".csv", ".tsv",
+    ".xml", ".html", ".htm", ".css", ".js", ".jsx", ".ts", ".vue", ".py",
+    ".rb", ".php", ".java", ".go", ".rs", ".c", ".h", ".cpp", ".hpp", ".cs",
+    ".sh", ".bash", ".zsh", ".sql", ".plist", ".gitignore", ".dockerfile",
+    ".service", ".conf.d", ".nfo", ".cue", ".srt", ".ass", ".vtt", ".lrc",
+}
 
 # ======================================================================
 # 飞牛桌面注入（参照 QWeather：nginx alias + ng.conf.zip 持久化）
@@ -125,39 +165,139 @@ except Exception:
 
 
 # ======================================================================
-# 目录读取
+# 目录读取 / 搜索
 # ======================================================================
-def list_directory(path: str) -> list:
+def file_kind(name: str, is_dir: bool) -> str:
+    """把文件名归类成 image/video/audio/text/archive/doc/other。"""
+    if is_dir:
+        return "dir"
+    ext = os.path.splitext(name)[1].lower()
+    if ext in IMG_EXTENSIONS:
+        return "image"
+    if ext in VIDEO_EXTENSIONS:
+        return "video"
+    if ext in AUDIO_EXTENSIONS:
+        return "audio"
+    if ext in TEXT_EXTENSIONS:
+        return "text"
+    if ext in ARCHIVE_EXTENSIONS:
+        return "archive"
+    if ext in DOC_EXTENSIONS:
+        return "doc"
+    return "other"
+
+
+def entry_of(name: str, full_path: str, is_dir: bool, st, extra_items=None) -> dict:
+    """统一的条目结构，列表与搜索共用。"""
+    items = extra_items
+    if is_dir and extra_items is None:
+        try:
+            items = sum(1 for _ in os.scandir(full_path))
+        except OSError:
+            items = None
+    return {
+        "name": name,
+        "path": full_path,
+        "dir": os.path.dirname(full_path.rstrip("/\\")) or "/",
+        "is_dir": is_dir,
+        "size": None if is_dir else st.st_size,
+        "items": items,          # 仅目录有意义
+        "type": "dir" if is_dir
+                else (os.path.splitext(name)[1].lower() or "file"),
+        "kind": file_kind(name, is_dir),
+        "mtime": st.st_mtime,
+        "mtime_str": datetime.fromtimestamp(
+            st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+    }
+
+
+def list_directory(path: str):
+    """列出单层目录。返回 (条目列表, 是否因超上限而被截断)。
+
+    超大目录（上万项）会把浏览器卡住，因此超过 LIST_MAX_ENTRIES 就截断，
+    由前端在状态栏提示"仅显示前 N 项，请用搜索定位"。
+    """
     entries = []
+    truncated = False
     with os.scandir(path) as it:
         for entry in it:
+            if len(entries) >= LIST_MAX_ENTRIES:
+                truncated = True
+                break
             try:
                 st = entry.stat()
             except OSError:
                 continue
             is_dir = entry.is_dir()
-            if is_dir:
-                try:
-                    items = sum(1 for _ in os.scandir(entry.path))
-                except OSError:
-                    items = None
-                size = None
-            else:
-                items = None
-                size = st.st_size
-            ext = os.path.splitext(entry.name)[1].lower()
-            entries.append({
-                "name": entry.name,
-                "is_dir": is_dir,
-                "size": size,
-                "items": items,
-                "type": "dir" if is_dir else (ext or "file"),
-                "mtime": st.st_mtime,
-                "mtime_str": datetime.fromtimestamp(
-                    st.st_mtime).strftime("%Y-%m-%d %H:%M"),
-            })
+            entries.append(entry_of(entry.name, entry.path, is_dir, st))
     entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
-    return entries
+    return entries, truncated
+
+
+def search_tree(root: str, kw: str, kind: str = "all",
+                include_hidden: bool = False):
+    """在 root 下递归按文件名搜索。
+
+    保护：SEARCH_MAX_RESULTS 条上限、SEARCH_MAX_DEPTH 层深度、SEARCH_TIMEOUT_SEC 秒超时，
+    任何一项先到就停（避免对着 /vol1 全盘扫描把服务拖死）。
+    """
+    kwl = (kw or "").lower()
+    want = kind if kind in ("file", "dir", "image", "video", "audio",
+                            "text", "archive", "doc", "other") else "all"
+    base_depth = root.rstrip("/\\").count(os.sep)
+    started = time.time()
+    hits: list = []
+    truncated = False
+
+    def walk_error(e):     # 无权限的目录直接跳过，不让整个搜索失败
+        return None
+
+    for dirpath, dirnames, filenames in os.walk(
+            root, topdown=True, onerror=walk_error, followlinks=False):
+        if len(hits) >= SEARCH_MAX_RESULTS or \
+                time.time() - started > SEARCH_TIMEOUT_SEC:
+            truncated = True
+            break
+        depth = dirpath.rstrip("/\\").count(os.sep) - base_depth
+        if depth >= SEARCH_MAX_DEPTH:
+            dirnames[:] = []          # 到深度上限，不再往下钻
+        if not include_hidden:
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+
+        # 目录也算匹配目标（先按 dirnames 处理，再统一 hit）
+        names = [(d, True) for d in dirnames] + [(f, False) for f in filenames]
+        for name, is_dir in names:
+            if not include_hidden and name.startswith("."):
+                continue
+            k = "dir" if is_dir else file_kind(name, False)
+            if want != "all" and ((want == "file" and is_dir) or
+                                  (want == "dir" and not is_dir) or
+                                  (want not in ("file", "dir") and k != want)):
+                continue
+            if kwl and kwl not in name.lower():
+                continue
+            full = os.path.join(dirpath, name)
+            try:
+                st = os.stat(full)
+            except OSError:
+                continue
+            hits.append(entry_of(name, full, is_dir, st, extra_items=None))
+            if len(hits) >= SEARCH_MAX_RESULTS:
+                truncated = True
+                break
+        if truncated:
+            break
+
+    hits.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
+    return {
+        "root": root,
+        "keyword": kw or "",
+        "kind": want,
+        "entries": hits,
+        "truncated": truncated,
+        "elapsed_ms": int((time.time() - started) * 1000),
+        "limit": SEARCH_MAX_RESULTS,
+    }
 
 
 def human_size(num) -> str:
@@ -171,6 +311,30 @@ def human_size(num) -> str:
             return "%.1f %s" % (size, unit)
         size /= 1024
     return "%.1f TB" % size
+
+
+def is_text_file(path: str) -> bool:
+    """是否按纯文本预览：先看扩展名，再看 mimetype 前缀。"""
+    ext = os.path.splitext(path)[1].lower()
+    if ext in TEXT_EXTENSIONS:
+        return True
+    ctype, _ = mimetypes.guess_type(path)
+    return bool(ctype and ctype.startswith("text/"))
+
+
+def read_text_preview(path: str) -> dict:
+    """读取文本文件内容做预览（限大小、多编码兜底），返回 JSON 可序列化 dict。"""
+    with open(path, "rb") as f:
+        raw = f.read(TEXT_PREVIEW_MAX + 1)
+    truncated = len(raw) > TEXT_PREVIEW_MAX
+    raw = raw[:TEXT_PREVIEW_MAX]
+    for enc in ("utf-8", "gb18030", "latin-1"):
+        try:
+            return {"content": raw.decode(enc), "encoding": enc,
+                    "truncated": truncated}
+        except UnicodeDecodeError:
+            continue
+    return {"content": "", "encoding": "unknown", "truncated": truncated}
 
 
 # ======================================================================
@@ -481,6 +645,71 @@ class DirHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_file_content(self, path: str, download: bool = False):
+        """返回文件内容。支持断点续传（Range），视频/音频才能拖动进度条。
+        download=True 时用 Content-Disposition: attachment 触发浏览器下载。"""
+        try:
+            size = os.stat(path).st_size
+        except OSError:
+            self.send_error(404)
+            return
+
+        ctype, _ = mimetypes.guess_type(path)
+        if ctype is None:
+            ctype = "application/octet-stream"
+        # 文本类带上 charset，浏览器内联打开才不会乱码
+        if is_text_file(path) and ctype.startswith("text/"):
+            ctype += "; charset=utf-8"
+
+        status = 200
+        start, end = 0, size - 1
+        rng = self.headers.get("Range") if self.headers else None
+        if rng and size:
+            m = re.match(r"bytes=(\d*)-(\d*)", rng.strip())
+            if m:
+                if m.group(1):
+                    start = int(m.group(1))
+                if m.group(2):
+                    end = min(int(m.group(2)), size - 1)
+                if start >= size or end < start or start < 0:
+                    self.send_response(416)
+                    self.send_header("Content-Range", "bytes */%d" % size)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                status = 206
+        length = end - start + 1
+
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(length))
+        if status == 206:
+            self.send_header("Content-Range",
+                             "bytes %d-%d/%d" % (start, end, size))
+        if download:
+            fname = quote(os.path.basename(path))
+            self.send_header(
+                "Content-Disposition",
+                "attachment; filename*=UTF-8''%s" % fname)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+
+        if self.command == "HEAD":
+            return
+        try:
+            with open(path, "rb") as f:
+                f.seek(start)
+                left = length
+                while left > 0:
+                    chunk = f.read(min(65536, left))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    left -= len(chunk)
+        except (BrokenPipeError, ConnectionResetError):
+            return   # 客户端取消（关预览 / 快进拖动），正常现象
+
     def do_GET(self):
         parsed = urlparse(self.path)
         # 兼容 fnOS 应用网关：桌面小组件 iframe 可能经 /app/<appname>/ 前缀访问
@@ -507,16 +736,83 @@ class DirHandler(BaseHTTPRequestHandler):
                     {"path": path, "error": "目录不存在或不是文件夹"}, 404)
                 return
             try:
-                entries = list_directory(path)
+                entries, truncated = list_directory(path)
             except PermissionError:
                 self._send_json(
                     {"path": path, "error": "无权限访问该目录"}, 403)
                 return
-            self._send_json({"path": path, "entries": entries})
+            self._send_json({"path": path, "entries": entries,
+                             "truncated": truncated,
+                             "limit": LIST_MAX_ENTRIES})
+            return
+
+        # ===== 递归搜索（按文件名，可筛类型）=====
+        # GET /api/search?path=<起始目录>&kw=<关键字>&kind=<all|dir|file|image|video|audio|text|archive|doc>&hidden=1
+        if parsed.path == API_SEARCH:
+            root = unquote(qs.get("path", [None])[0] or "")
+            if not root:
+                self._send_json({"error": "缺少 path 参数"}, 400)
+                return
+            root = unquote(root)
+            if not within_root(root, load_settings().get("root", "")):
+                self._send_json(
+                    {"path": root,
+                     "error": "路径超出主目录范围，无法搜索"}, 403)
+                return
+            if not os.path.isdir(root):
+                self._send_json({"path": root, "error": "目录不存在"}, 404)
+                return
+            kw = unquote(qs.get("kw", [""])[0] or "")
+            if not kw and qs.get("kind", ["all"])[0] == "all":
+                self._send_json(
+                    {"path": root, "error": "请输入关键字或选择文件类型"}, 400)
+                return
+            kind = qs.get("kind", ["all"])[0] or "all"
+            hidden = bool(qs.get("hidden", [None])[0])
+            try:
+                self._send_json(search_tree(root, kw, kind, hidden))
+            except PermissionError:
+                self._send_json({"path": root, "error": "无权限搜索该目录"}, 403)
             return
 
         if parsed.path == "/health":
             self._send_json({"status": "ok"})
+            return
+
+        # ===== 文件预览 / 下载 =====
+        # GET /api/file?path=<文件>              内联（图片/视频/音频直接播）
+        # GET /api/file?path=<文件>&dl=1         下载（Content-Disposition）
+        # GET /api/file?path=<文件>&mode=text    返回文件内容 JSON（文本预览）
+        # 受主目录边界约束，与 /api/list 同一套校验。
+        if parsed.path == API_FILE:
+            path = qs.get("path", [None])[0]
+            if not path:
+                self._send_json({"error": "缺少 path 参数"}, 400)
+                return
+            path = unquote(path)
+            root = load_settings().get("root", "")
+            if not within_root(path, root):
+                self._send_json(
+                    {"path": path,
+                     "error": "路径超出主目录范围（%s），无法访问" % root}, 403)
+                return
+            if not os.path.isfile(path):
+                self._send_json({"path": path, "error": "文件不存在"}, 404)
+                return
+            try:
+                if qs.get("mode", [None])[0] == "text":
+                    info = read_text_preview(path)
+                    info.update({"path": path, "size": human_size(
+                        os.stat(path).st_size)})
+                    self._send_json(info)
+                    return
+                self._send_file_content(
+                    path, download=bool(qs.get("dl", [None])[0]))
+            except PermissionError:
+                self._send_json({"path": path, "error": "无权限读取该文件"}, 403)
+            except OSError as e:
+                self._send_json(
+                    {"path": path, "error": "读取失败：%s" % e.strerror}, 500)
             return
 
         # 桌面入口

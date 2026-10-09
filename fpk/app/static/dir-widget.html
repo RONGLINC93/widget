@@ -40,7 +40,9 @@
 
     DirWidget.mount({
       path: decodeURIComponent(new URLSearchParams(location.search).get("path") || "."),
-      api: BASE + "/api/list"
+      api: BASE + "/api/list",
+      fileApi: BASE + "/api/file",
+      searchApi: BASE + "/api/search"
     });
 
     var injectBtn = document.getElementById("injectBtn");

@@ -179,6 +179,8 @@
         pos: pos || null,
         size: size || null,
         api: BASE + "/api/list",
+        fileApi: BASE + "/api/file",
+        searchApi: BASE + "/api/search",
         settingsApi: BASE + "/api/settings"
       });
       // 与桌面图标同层：把卡片搬进桌面容器（图标层之后、窗口层之前），
