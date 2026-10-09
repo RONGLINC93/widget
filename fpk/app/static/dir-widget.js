@@ -67,6 +67,11 @@
     document.body.appendChild(root);
     this.el = root;
 
+    // 卡片搬进桌面容器后，点击/按下不能冒泡到桌面
+    // （否则点卡片会误触发桌面自身的处理，如取消图标选中等）
+    root.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+    root.addEventListener("click", function (e) { e.stopPropagation(); });
+
     this.pathInput = root.querySelector(".dw-path");
     this.body = root.querySelector(".dw-body");
     this.status = root.querySelector(".dw-status");

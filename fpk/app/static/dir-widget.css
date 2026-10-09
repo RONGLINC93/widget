@@ -15,7 +15,9 @@
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(12px);
   font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-  z-index: 2147483600;
+  /* 与桌面图标同层：不要给超大值，否则会盖住飞牛原生窗口(10010+)与右键菜单。
+     桌面场景由 inject.js 运行时量出图标层 z-index 并对齐（见 alignWithDesktopIcons）。 */
+  z-index: 0;
   overflow: hidden;
   user-select: none;
 }
