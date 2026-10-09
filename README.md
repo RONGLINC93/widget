@@ -4,7 +4,7 @@
 纯 Python 标准库实现（零第三方依赖），后端自带 HTTP 服务。
 
 - 包名：`ronglinc93widget`
-- 版本：`0.1.2`（开发中）｜已发布：`v0.1.1`
+- 版本：`0.1.3`（开发中）｜已发布：`v0.1.2`
 - 产物：`ronglinc93widget-<版本>-all.fpk`
 - 仓库：<https://github.com/RONGLINC93/widget>
 
@@ -248,7 +248,7 @@ README.md / CHANGELOG.md  # 文档
 |---|---|
 | `python pull.py [分支]` | 从 `origin` 拉取并变基（默认当前分支） |
 | `python push.py ["说明"]` | 提交全部改动 → 变基到远程最新 → 推送；省略说明时用 `release v<版本>: …` |
-| `python release.py [版本]` | 见下方发布流程 |
+| `python release.py [版本]` | 打包 → 打推送标签 → 建 Release 传产物 → **递增 manifest 版本号** → **同步 CHANGELOG.md / README.md** → 以 `chore: bump version to x.y.z` 提交推送（见下方发布流程） |
 | `python _gh_release.py <版本>` | 被 `release.py` 调用：直接用 token 调 GitHub API 建 Release、传资产 |
 
 **发布流程**（`release.py`，版本默认取 `fpk/manifest` 的 `version`）：
@@ -259,9 +259,14 @@ README.md / CHANGELOG.md  # 文档
    - `build_fp.py` 打包并校验产物存在；
    - 推送当前分支 → 打并推送 `vX.Y.Z` 标签；
    - 创建 GitHub Release 并上传 `ronglinc93widget-<版本>-all.fpk` + `ICON_256.PNG`；
-   - **版本号自动 +1**（`version` 补丁号 +1 进入下一开发版，`version_released` 记为刚发布的版本），
-     并以 `chore: bump version to x.y.z` 提交推送，仓库保持干净。
-3. 需要发布到指定版本：`python release.py 0.2.0`；不想递增加 `--no-bump`。
+   - **版本号自动 +1**（`version` 补丁号 +1 进入下一开发版，`version_released` 记为刚发布的版本）；
+   - **同步文档**：`CHANGELOG.md` 里该版本小节补上发布日期、自动开好下一版的
+     `## [x.y.z] — 未发布` 小节；`README.md` 的版本行推进为
+     「下一开发版（开发中）｜已发布：`vX.Y.Z`」；
+   - 连同 manifest 一起以 `chore: bump version to x.y.z` 提交推送，仓库保持干净。
+3. 需要发布到指定版本：`python release.py 0.2.0`；不想递增加 `--no-bump`
+   （同时不同步文档）。
+4. 之后新功能直接写进 `CHANGELOG.md` 顶部那个「未发布」小节即可，发布时日期会自动回填。
 
 > 首次使用需先建仓库并配远端：
 > `git init -b main` → `git remote add origin https://github.com/RONGLINC93/widget.git`
@@ -285,6 +290,13 @@ README.md / CHANGELOG.md  # 文档
 
 ## 已知限制
 
+- ⚠ **`/rl93w/api/*` 无鉴权**：浮层只在登录后的桌面显示（登录页不会显示），
+  但后端接口本身不校验 fnOS 登录态——能访问 NAS 网页端口（5666/5667）的人
+  仍可绕过界面直接请求 `/rl93w/api/list` / `api/file` 读文件。
+  建议在 `conf.d/ronglinc93widget.conf` 的 `location /rl93w/` 里加内网白名单：
+  `allow 192.168.0.0/16; allow 10.0.0.0/8; allow 172.16.0.0/12; deny all;`
+  （改完 `nginx -t` 通过后 `systemctl restart trim_nginx`；同步改
+  `ng.conf.zip` 里的加密条目才能在系统自愈后保留）。
 - 桌面浮层依赖 nginx 注入，与同类注入器（QWeather）**互斥**，不可共存。
 - `ng_keys.json` 中的密钥与 fnOS 版本相关，换版本可能需重新获取密钥。
 - 注入页是系统首页的副本，fnOS 大版本更新后建议重新注入一次。

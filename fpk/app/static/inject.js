@@ -3,6 +3,8 @@
  * 直接把目录浏览器挂载进桌面 DOM（非 iframe），因此桌面其它区域完全点击穿透，
  * 仅卡片本身可交互。挂载后会搬进桌面容器、插在图标层与窗口层之间（同图标层次），
  * 原生窗口照常盖住它。
+ * 注意：/ 与 /login 是同一份注入页，因此必须等桌面容器出现（已登录）才挂载，
+ * 绝不能在登录页显示。
  */
 (function () {
   "use strict";
@@ -12,9 +14,16 @@
   var BASE = "/rl93w";
 
   function ready(cb) {
-    // 等飞牛桌面容器就绪再挂载
-    if (document.querySelector(".desktop") || document.body) cb();
-    else setTimeout(function () { ready(cb); }, 300);
+    // 只在「登录后的桌面」挂载。
+    // 为什么不能放宽到 document.body：conf.d 把 location = /login 也 rewrite 到了
+    // 同一个注入页，登录页和桌面共用这份 HTML —— 若 body 一存在就挂载，
+    // 未登录的人（包括任何能打开这台 NAS 网页的人）在登录界面就能看到目录内容。
+    // 因此必须等到桌面容器 .desktop 出现、且页面上没有登录表单才挂载；
+    // 登录成功 SPA 渲染出桌面后，轮询自然命中，无需刷新。
+    var desktop = document.querySelector(".desktop");
+    var onLogin = !!document.querySelector("input[type=password]");
+    if (desktop && !onLogin) { cb(); return; }
+    setTimeout(function () { ready(cb); }, 500);
   }
 
   function inject() {

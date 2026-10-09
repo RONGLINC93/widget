@@ -3,16 +3,21 @@
 """release.py [版本号] [--no-bump]
 =================================
 构建安装包 -> 推送分支 -> 打版本标签 -> 推送标签 -> 创建 GitHub Release 并上传 fpk
--> 递增 manifest 版本号（进入下一开发版）并提交推送。
+-> 递增 manifest 版本号（进入下一开发版）-> 同步 CHANGELOG.md / README.md -> 提交推送。
 
 版本号：默认读取 fpk/manifest 的 version=；也可显式传入（release.py 0.1.2）。
-发布成功后自动：version 补丁号 +1（0.1.1 -> 0.1.2），version_released 记为刚发布的版本，
-然后以 "chore: bump version to x.y.z" 提交并推送，仓库保持干净。
-加 --no-bump 可关闭递增。
+发布成功后自动：
+  1. manifest：version 补丁号 +1（0.1.1 -> 0.1.2）进入下一开发版，
+     version_released 记为刚发布的版本；
+  2. CHANGELOG.md：给刚发布的 [ver] 小节补上发布日期，并为下一版开一个「未发布」小节；
+  3. README.md：版本行推进为「下一版（开发中）｜已发布：v刚发布版本」；
+  4. 以 "chore: bump version to x.y.z" 提交并推送以上文件，仓库保持干净。
+加 --no-bump 可关闭递增（同时也不同步文档）。
 凭据：优先用 .env 中的 GITHUB_TOKEN（无需装 gh）；其次用 gh（需已登录）。
 仓库: RONGLINC93/widget（可用 .env 的 GITHUB_REPO_URL 覆盖）
 """
 import base64
+import datetime
 import io
 import os
 import re
@@ -207,9 +212,80 @@ def bump_manifest_version(ver):
     return ""
 
 
-def commit_and_push_bump(new_ver, auth):
-    """把递增后的 manifest 提交并推送，保证发布后工作区干净。"""
+def _read_doc(path):
+    """读文档并返回 (统一换行后的文本, 原文件是否 CRLF)。"""
+    with io.open(path, encoding="utf-8", newline="") as f:
+        raw = f.read()
+    return raw.replace("\r\n", "\n"), ("\r\n" in raw)
+
+
+def _write_doc(path, text, crlf):
+    out = text.replace("\n", "\r\n") if crlf else text
+    with io.open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(out)
+
+
+def sync_docs_after_release(ver, new_ver):
+    """发布成功后同步文档，返回确实被改动的文件（相对路径）。
+
+    - CHANGELOG.md：把刚发布版本的 `## [ver] — 未发布` 补成发布日期，
+      并插入下一版的 `## [next] — 未发布` 小节（已存在则不重复插）。
+    - README.md：版本行推进为「下一开发版（开发中）｜已发布：v已发布版本」。
+
+    为什么要自动做：手工改容易漏——版本发出去了却还标着"未发布"，
+    README 的版本行也会停在旧的开发版上（0.1.2 那次就是这么漏的）。
+    """
+    changed = []
+
+    # ---- CHANGELOG.md ----
+    if os.path.exists(CHANGELOG):
+        text, crlf = _read_doc(CHANGELOG)
+        before = text
+        today = datetime.date.today().isoformat()
+
+        m = re.search(r"(?m)^##\s*\[%s\][^\n]*$" % re.escape(ver), text)
+        if m:
+            if not re.search(r"\d{4}-\d{2}-\d{2}", m.group(0)):
+                text = text[:m.start()] + "## [%s] — %s" % (ver, today) + text[m.end():]
+                print("[完成] CHANGELOG.md：[%s] 已标记发布日期 %s" % (ver, today))
+        else:
+            print("[提示] CHANGELOG.md 里没有 [%s] 小节，跳过日期回填" % ver)
+
+        if not re.search(r"(?m)^##\s*\[%s\]" % re.escape(new_ver), text):
+            anchor = re.search(r"(?m)^##\s*\[%s\]" % re.escape(ver), text)
+            if anchor:
+                block = "## [%s] — 未发布\n\n---\n\n" % new_ver
+                text = text[:anchor.start()] + block + text[anchor.start():]
+                print("[完成] CHANGELOG.md：已开新的 [%s] 未发布小节" % new_ver)
+
+        if text != before:
+            _write_doc(CHANGELOG, text, crlf)
+            if "CHANGELOG.md" not in changed:
+                changed.append("CHANGELOG.md")
+
+    # ---- README.md ----
+    readme = os.path.join(ROOT, "README.md")
+    if os.path.exists(readme):
+        text, crlf = _read_doc(readme)
+        line = "- 版本：`%s`（开发中）｜已发布：`v%s`" % (new_ver, ver)
+        new_text, n = re.subn(r"(?m)^-\s*版本：.*$", line, text, count=1)
+        if not n:
+            print("[提示] README.md 没找到「- 版本：…」那一行，跳过")
+        elif new_text != text:
+            _write_doc(readme, new_text, crlf)
+            changed.append("README.md")
+            print("[完成] README.md：版本行 -> %s" % line)
+        else:
+            print("[信息] README.md 版本行已是最新，无需改动")
+
+    return changed
+
+
+def commit_and_push_bump(new_ver, auth, extra_files=None):
+    """把递增后的 manifest（及同步过的文档）提交并推送，保证发布后工作区干净。"""
     run(["git", "add", os.path.join("fpk", "manifest")])
+    for rel in (extra_files or []):
+        run(["git", "add", rel])
     if run(["git", "commit", "-m", "chore: bump version to %s" % new_ver]) != 0:
         print("[警告] 递增后的提交失败（可能无改动），请手动检查")
         return False
@@ -349,9 +425,15 @@ def main():
     print("=== 递增版本号（进入下一开发版）===")
     new_ver = bump_manifest_version(ver)
     if new_ver:
-        commit_and_push_bump(new_ver, auth)
+        print("")
+        print("=== 同步 CHANGELOG.md / README.md ===")
+        changed = sync_docs_after_release(ver, new_ver)
+        if not changed:
+            print("[提示] 文档无需改动")
+        commit_and_push_bump(new_ver, auth, changed)
     print("")
-    print("提示：下一版开发完成后，先在 CHANGELOG.md 加 [x.y.z] 小节，再运行 release.py 发布。")
+    print("提示：下一版开发完成后，直接在 CHANGELOG.md 的 [%s] 未发布小节下写条目，" % (new_ver or "x.y.z"))
+    print("      再运行 release.py 发布即可（日期与版本行会自动回填）。")
     return 0
 
 
