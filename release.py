@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""release.py [版本号]
-======================
-构建安装包 -> 推送分支 -> 打版本标签 -> 推送标签 -> 创建 GitHub Release 并上传 fpk。
+"""release.py [版本号] [--no-bump]
+=================================
+构建安装包 -> 推送分支 -> 打版本标签 -> 推送标签 -> 创建 GitHub Release 并上传 fpk
+-> 递增 manifest 版本号（进入下一开发版）并提交推送。
 
 版本号：默认读取 fpk/manifest 的 version=；也可显式传入（release.py 0.1.2）。
+发布成功后自动：version 补丁号 +1（0.1.1 -> 0.1.2），version_released 记为刚发布的版本，
+然后以 "chore: bump version to x.y.z" 提交并推送，仓库保持干净。
+加 --no-bump 可关闭递增。
 凭据：优先用 .env 中的 GITHUB_TOKEN（无需装 gh）；其次用 gh（需已登录）。
 仓库: RONGLINC93/widget（可用 .env 的 GITHUB_REPO_URL 覆盖）
 """
@@ -169,9 +173,59 @@ def ensure_changelog(ver):
     return True
 
 
+def bump_manifest_version(ver):
+    """发布成功后递增：version 补丁号 +1（下一开发版），version_released 记为刚发布的 ver。
+    仅替换相应行，其余内容（含 UTF-8 无 BOM 与原有换行）原样保留。
+    返回新版本号；失败返回空串。
+    """
+    with io.open(MANIFEST, encoding="utf-8", newline="") as f:
+        text = f.read()
+    m = re.match(r"^([0-9]+)\.([0-9]+)\.([0-9]+)", ver)
+    if not m:
+        print("[警告] 无法解析版本号 %s，跳过自动递增" % ver)
+        return ""
+    ma, mi, pa = m.groups()
+    nxt = "%s.%s.%d" % (ma, mi, int(pa) + 1)
+    cur = get_version(text)
+    text2 = re.sub(r"(?m)^(\s*version\s*=\s*)\S+(\s*)$",
+                   lambda x: x.group(1) + nxt + x.group(2), text, count=1)
+    if re.search(r"(?m)^\s*version_released\s*=", text2):
+        text2 = re.sub(r"(?m)^(\s*version_released\s*=\s*)\S+(\s*)$",
+                       lambda x: x.group(1) + ver + x.group(2), text2, count=1)
+    else:
+        if not text2.endswith("\n"):
+            text2 += "\n"
+        text2 += "version_released = %s\n" % ver
+    with io.open(MANIFEST, "w", encoding="utf-8", newline="") as f:
+        f.write(text2)
+    with io.open(MANIFEST, encoding="utf-8", newline="") as f:
+        back = get_version(f.read())
+    if back == nxt:
+        print("[完成] manifest 已递增：%s -> %s（下一开发版），version_released = %s" % (cur, nxt, ver))
+        return nxt
+    print("[警告] 递增后读回版本为 %s，预期 %s，请手动检查 fpk/manifest" % (back, nxt))
+    return ""
+
+
+def commit_and_push_bump(new_ver, auth):
+    """把递增后的 manifest 提交并推送，保证发布后工作区干净。"""
+    run(["git", "add", os.path.join("fpk", "manifest")])
+    if run(["git", "commit", "-m", "chore: bump version to %s" % new_ver]) != 0:
+        print("[警告] 递增后的提交失败（可能无改动），请手动检查")
+        return False
+    if run(["git"] + auth + ["push", "origin", current_branch()]) != 0:
+        print("[警告] 递增提交未推送成功，请手动运行 push.py")
+        return False
+    print("[完成] 递增提交已推送")
+    return True
+
+
 def main():
     os.chdir(ROOT)
-    ver = sys.argv[1] if len(sys.argv) > 1 else ""
+    args = [a for a in sys.argv[1:]]
+    no_bump = "--no-bump" in args
+    args = [a for a in args if a != "--no-bump"]
+    ver = args[0] if args else ""
     if not ver:
         with io.open(MANIFEST, encoding="utf-8") as f:
             ver = get_version(f.read())
@@ -282,8 +336,22 @@ def main():
         print("[未完成] 仅完成本地构建与标签")
         print("        Release 未创建，见上方说明")
     print("=======================================")
+
+    # ---- 发布后递增版本号（进入下一开发版）----
+    if no_bump:
+        print("[提示] 已加 --no-bump，跳过版本号递增")
+        return 0
+    if rel_rc != 0:
+        print("[提示] Release 未成功，跳过版本号递增（避免把未发布的版本推进开发版）")
+        return 0
+
     print("")
-    print("提示：发布后如需进入下一开发版，修改 fpk/manifest 的 version= 再 build_fp.py 重新打包。")
+    print("=== 递增版本号（进入下一开发版）===")
+    new_ver = bump_manifest_version(ver)
+    if new_ver:
+        commit_and_push_bump(new_ver, auth)
+    print("")
+    print("提示：下一版开发完成后，先在 CHANGELOG.md 加 [x.y.z] 小节，再运行 release.py 发布。")
     return 0
 
 
