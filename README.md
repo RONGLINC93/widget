@@ -4,8 +4,9 @@
 纯 Python 标准库实现（零第三方依赖），后端自带 HTTP 服务。
 
 - 包名：`ronglinc93widget`
-- 版本：`0.1.0`
-- 产物：`ronglinc93widget-0.1.0-all.fpk`
+- 版本：`0.1.2`（开发中）｜已发布：`v0.1.1`
+- 产物：`ronglinc93widget-<版本>-all.fpk`
+- 仓库：<https://github.com/RONGLINC93/widget>
 
 ---
 
@@ -177,6 +178,11 @@ fpk/
     ├── ui/images/        # 组件图标 64/256
     └── static/           # inject.js（桌面注入）与 dir-widget.*（浮层）
 build_fp.py               # 打包脚本
+pull.py                   # 拉取：pull --rebase（默认当前分支）
+push.py                   # 推送：commit -> rebase -> push
+release.py                # 发布：打包 -> 标签 -> Release -> 版本号自动 +1
+_gh_release.py            # 被 release.py 调用：调 GitHub API 建 Release、传资产
+.env                      # GITHUB_TOKEN / GITHUB_REPO_URL（已被 .gitignore 排除）
 pyrightconfig.json        # 类型检查配置（屏蔽零类型标注脚本的既有噪声）
 README.md / CHANGELOG.md  # 文档
 ```
@@ -193,6 +199,34 @@ README.md / CHANGELOG.md  # 文档
 - **新增代码请避免引入新告警**，两条实操经验：
   - 模块级函数句柄用**小写**命名（全大写会被当作常量，二次赋值即报重定义）；
   - 可能为 `None` 的对象调用前**必须判空**（`is not None`）。
+
+### Git 工作流（拉取 / 推送 / 发布）
+
+三个脚本封装日常 git 操作，凭据读根目录 `.env` 的 `GITHUB_TOKEN`
+（不落盘到 remote URL，打印命令时脱敏为 `...extraheader=***`）：
+
+| 脚本 | 作用 |
+|---|---|
+| `python pull.py [分支]` | 从 `origin` 拉取并变基（默认当前分支） |
+| `python push.py ["说明"]` | 提交全部改动 → 变基到远程最新 → 推送；省略说明时用 `release v<版本>: …` |
+| `python release.py [版本]` | 见下方发布流程 |
+| `python _gh_release.py <版本>` | 被 `release.py` 调用：直接用 token 调 GitHub API 建 Release、传资产 |
+
+**发布流程**（`release.py`，版本默认取 `fpk/manifest` 的 `version`）：
+
+1. 先在 `CHANGELOG.md` 添加 `## [x.y.z]` 小节（条目写成 `- …` 列表）；
+2. 运行 `python release.py`，它依次做：
+   - 把该版本更新日志自动写进 manifest 的 `changelog` 字段（最多 12 条，超出提示详见 CHANGELOG）；
+   - `build_fp.py` 打包并校验产物存在；
+   - 推送当前分支 → 打并推送 `vX.Y.Z` 标签；
+   - 创建 GitHub Release 并上传 `ronglinc93widget-<版本>-all.fpk` + `ICON_256.PNG`；
+   - **版本号自动 +1**（`version` 补丁号 +1 进入下一开发版，`version_released` 记为刚发布的版本），
+     并以 `chore: bump version to x.y.z` 提交推送，仓库保持干净。
+3. 需要发布到指定版本：`python release.py 0.2.0`；不想递增加 `--no-bump`。
+
+> 首次使用需先建仓库并配远端：
+> `git init -b main` → `git remote add origin https://github.com/RONGLINC93/widget.git`
+> → `python push.py "初始提交"`。
 
 ---
 
