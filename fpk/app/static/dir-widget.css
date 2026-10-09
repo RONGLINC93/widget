@@ -20,11 +20,29 @@
   z-index: 0;
   overflow: hidden;
   user-select: none;
+  min-width: 280px;
+  min-height: 140px;
 }
+
+/* 右下角调整大小把手（双击恢复默认大小） */
+.dw-resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  background:
+    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.5) 46% 54%, transparent 54%),
+    linear-gradient(135deg, transparent 0 68%, rgba(255, 255, 255, 0.5) 68% 76%, transparent 76%);
+}
+.dw-resize:hover { background-color: rgba(255, 255, 255, 0.08); }
 
 #dw-root.dw-min { max-height: 44px; }
 #dw-root.dw-min .dw-body,
 #dw-root.dw-min .dw-status { display: none; }
+/* 最小化时内容都收起了，把手不应再显示 */
+#dw-root.dw-min .dw-resize { display: none; }
 
 .dw-header {
   display: flex;

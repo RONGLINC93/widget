@@ -178,8 +178,9 @@ def human_size(num) -> str:
 # ======================================================================
 def load_settings() -> dict:
     """读取持久化设置（应用窗与桌面浮层共用同一份）。
-    visible 记录用户在桌面上是否关过浮层，避免刷新后又自动弹出来。"""
-    data = {"path": "", "root": "", "visible": True, "pos": None}
+    visible 记录用户在桌面上是否关过浮层，避免刷新后又自动弹出来。
+    pos / size 记录浮层上次的位置与大小（None 表示用默认）。"""
+    data = {"path": "", "root": "", "visible": True, "pos": None, "size": None}
     try:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             data.update(json.loads(f.read() or "{}"))
@@ -558,6 +559,15 @@ class DirHandler(BaseHTTPRequestHandler):
                                       "top": int(p.get("top", 0) or 0)}
                     elif p is None:
                         cur["pos"] = None
+                if "size" in payload:
+                    s = payload.get("size")
+                    if isinstance(s, dict):
+                        cur["size"] = {
+                            "width": int(s.get("width", 0) or 0),
+                            "height": int(s.get("height", 0) or 0),
+                        }
+                    elif s is None:
+                        cur["size"] = None
                 ok = save_settings(cur)
                 self._send_json({"status": "success" if ok else "error",
                                  "settings": cur}, 200 if ok else 500)

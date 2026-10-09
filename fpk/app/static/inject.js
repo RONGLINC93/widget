@@ -35,9 +35,9 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭 → 不再自动挂载，直到在应用窗口重新开启
           if (st.visible === false) return;
-          mountWidget(st.path || getLocalPath(), st.root || "", st.pos);
+          mountWidget(st.path || getLocalPath(), st.root || "", st.pos, st.size);
         })
-        .catch(function () { mountWidget(getLocalPath(), "", null); });
+        .catch(function () { mountWidget(getLocalPath(), "", null, null); });
     };
 
     function getLocalPath() {
@@ -172,11 +172,12 @@
       setTimeout(apply, 6000);
     }
 
-    function mountWidget(path, root, pos) {
+    function mountWidget(path, root, pos, size) {
       window.DirWidget.mount({
         path: path,
         root: root,
         pos: pos || null,
+        size: size || null,
         api: BASE + "/api/list",
         settingsApi: BASE + "/api/settings"
       });

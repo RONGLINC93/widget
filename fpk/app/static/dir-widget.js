@@ -35,12 +35,24 @@
     });
   }
 
+  // 卡片最小 / 最大可调整尺寸（同时受视口约束，不允许拖出屏幕）
+  var MIN_W = 280, MIN_H = 140;
+
+  function clampSize(w, h, left, top) {
+    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
+    var maxW = Math.max(MIN_W, vw - (left || 0) - 8);
+    var maxH = Math.max(MIN_H, vh - (top || 0) - 8);
+    return [Math.min(Math.max(MIN_W, Number(w) || MIN_W), maxW),
+            Math.min(Math.max(MIN_H, Number(h) || MIN_H), maxH)];
+  }
+
   function DirWidget(opts) {
     opts = opts || {};
     this.api = opts.api || "/api/list";
     this.path = opts.path || "";
     this.root = opts.root || "";   // 主目录边界，向上不可越过
     this.pos = opts.pos || null;   // 上次记住的位置 {left, top}
+    this.size = opts.size || null; // 上次记住的大小 {width, height}
     this.opts = opts;
     this.el = null;
     this._build();
@@ -63,7 +75,8 @@
         '<button class="dw-btn dw-refresh-btn" title="刷新">⟳</button>' +
       '</div>' +
       '<div class="dw-body"></div>' +
-      '<div class="dw-status"></div>';
+      '<div class="dw-status"></div>' +
+      '<span class="dw-resize" title="拖动调整大小（双击恢复默认）"></span>';
     document.body.appendChild(root);
     this.el = root;
 
@@ -114,7 +127,10 @@
     });
 
     this._makeDraggable(root.querySelector(".dw-header"), root);
+    this._makeResizable(root.querySelector(".dw-resize"), root);
 
+    // 还原上次记住的大小（先尺寸后位置：位置钳制要用到实际尺寸）
+    if (this.size) this._applySize(this.size.width, this.size.height);
     // 还原上次记住的位置（越界会被钳制回屏幕内）
     if (this.pos) this._applyPos(this.pos.left, this.pos.top);
 
@@ -144,21 +160,65 @@
       drag = false;
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", up);
-      self._savePos(panel);   // 拖动结束即记住位置
+      self._saveBox(panel);   // 拖动结束即记住位置
     }
   };
 
-  DirWidget.prototype._savePos = function (panel) {
+  // 右下角把手：拖动调整大小，双击恢复默认
+  DirWidget.prototype._makeResizable = function (handle, panel) {
+    var self = this;
+    if (!handle) return;
+    handle.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var sx = e.clientX, sy = e.clientY;
+      var r0 = panel.getBoundingClientRect();
+      var sw = r0.width, sh = r0.height;
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", up);
+      function move(e) {
+        var box = clampSize(sw + e.clientX - sx, sh + e.clientY - sy,
+                            r0.left, r0.top);
+        panel.style.width = box[0] + "px";
+        panel.style.height = box[1] + "px";
+      }
+      function up() {
+        document.removeEventListener("mousemove", move);
+        document.removeEventListener("mouseup", up);
+        self._saveBox(panel);   // 调整结束即记住大小
+      }
+    });
+    handle.addEventListener("dblclick", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      panel.style.width = "";
+      panel.style.height = "";
+      self._saveBox(panel, true);   // size=null → 下次用默认大小
+    });
+  };
+
+  DirWidget.prototype._saveBox = function (panel, resetSize) {
     if (!panel || !this.opts || !this.opts.settingsApi) return;
     var r = panel.getBoundingClientRect();
-    var pos = { left: Math.round(r.left), top: Math.round(r.top) };
+    // pos 与 size 一起提交：服务端是"读-改-写"，分两次请求会互相覆盖
+    var payload = { pos: { left: Math.round(r.left), top: Math.round(r.top) } };
+    payload.size = resetSize ? null
+      : { width: Math.round(r.width), height: Math.round(r.height) };
     try {
       fetch(this.opts.settingsApi, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pos: pos })
+        body: JSON.stringify(payload)
       }).catch(function () {});
     } catch (e) {}
+  };
+
+  DirWidget.prototype._applySize = function (width, height) {
+    if (!this.el || width == null || height == null) return;
+    var r = this.el.getBoundingClientRect();
+    var box = clampSize(width, height, r.left, r.top);
+    this.el.style.width = box[0] + "px";
+    this.el.style.height = box[1] + "px";
   };
 
   DirWidget.prototype._applyPos = function (left, top) {
