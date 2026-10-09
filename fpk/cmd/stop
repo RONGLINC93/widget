@@ -1,0 +1,3 @@
+#!/bin/bash
+# 包装到 cmd/main stop
+exec "$(dirname "$0")/main" stop

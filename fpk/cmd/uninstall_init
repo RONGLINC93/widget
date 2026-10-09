@@ -1,0 +1,47 @@
+#!/bin/bash
+# ============================================================================
+# 卸载前：撤销桌面注入，再停服务。
+#
+# 关键点（踩坑记录）：
+#   1) 注入 = conf.d/ronglinc93widget.conf + ng.conf.zip 加密条目 + desktop 注入页。
+#      只删应用文件不清这些，会留下"孤儿注入"，永久占用 location = /，
+#      与任何后来的注入器 duplicate location "/" 导致 nginx 崩溃。
+#   2) **绝不能在此同步重启 nginx**：应用中心的卸载请求本身走 nginx(5666/5667)，
+#      同步重启会把请求掐断，前端报 "Failed to fetch"，卸载失败。
+#      因此改为：先清理（不重启）→ 后台延迟重启 nginx，让卸载请求先返回。
+#   3) 最后才停服务。
+# ============================================================================
+APP_DIR="${TRIM_APPDEST:-/var/apps/${TRIM_APPNAME}/target}"
+PORT="${TRIM_SERVICE_PORT:-8099}"
+ZIP="/usr/trim/share/.restore/ng.conf.zip"
+CONF="/usr/trim/nginx/conf/conf.d/ronglinc93widget.conf"
+ARC="conf.d/ronglinc93widget.conf"
+
+# ---- 1) 撤注入（不在这里重启 nginx）----
+if curl -sf -m 15 -X POST "http://127.0.0.1:${PORT}/api/uninstall" >/dev/null 2>&1; then
+    echo "注入已通过服务接口撤销（nginx 由服务后台延迟重启）" >&2
+else
+    # 服务不可用：直接删 zip 条目 + conf.d（删条目不需要密钥）
+    python3 - "${APP_DIR}" "${ZIP}" "${CONF}" "${ARC}" <<'PYEOF' 2>&1 | tail -3
+import sys, os
+app_dir, zp, cf, arc = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+sys.path.insert(0, app_dir)
+try:
+    from injector import remove_entry, zip_contains
+    if zip_contains(zp, arc):
+        remove_entry(zp, arc)
+    if os.path.exists(cf):
+        os.remove(cf)
+    print("injection cleaned (no nginx restart here)")
+except Exception as e:
+    print("cleanup failed:", e)
+PYEOF
+    # 兜底：后台延迟重启 nginx，避免打断正在进行中的卸载请求
+    ( sleep 5; systemctl restart trim_nginx ) >/dev/null 2>&1 &
+fi
+
+# ---- 2) 最后停服务 ----
+if [ -x "/var/apps/${TRIM_APPNAME}/cmd/main" ]; then
+    "/var/apps/${TRIM_APPNAME}/cmd/main" stop 2>/dev/null
+fi
+exit 0

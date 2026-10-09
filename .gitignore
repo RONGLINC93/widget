@@ -1,0 +1,13 @@
+# 打包产物
+*.fpk
+
+# Python 缓存
+__pycache__/
+*.pyc
+fpk/app/__pycache__/
+
+# 构建/运行产生的日志与运行时目录
+*.log
+fpk/app/var/
+
+.env

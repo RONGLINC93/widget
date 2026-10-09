@@ -1,0 +1,26 @@
+{
+  "typeCheckingMode": "standard",
+  "reportConstantRedefinition": false,
+  "reportImplicitRelativeImport": false,
+  "reportMissingTypeArgument": false,
+  "reportMissingParameterType": false,
+  "reportUnknownParameterType": false,
+  "reportUnknownVariableType": false,
+  "reportUnknownMemberType": false,
+  "reportUnknownArgumentType": false,
+  "reportUnknownLambdaType": false,
+  "reportAttributeAccessIssue": false,
+  "reportOptionalCall": false,
+  "reportOptionalMemberAccess": false,
+  "reportOperatorIssue": false,
+  "reportUnusedCallResult": false,
+  "reportImplicitOverride": false,
+  "reportIncompatibleMethodOverride": false,
+  "reportUnannotatedClassAttribute": false,
+  "reportImplicitStringConcatenation": false,
+  "reportAny": false,
+  "exclude": [
+    "**/__pycache__",
+    "**/*.fpk"
+  ]
+}

@@ -1,0 +1,9 @@
+#!/bin/bash
+# ============================================================================
+# 卸载后兜底：清残留进程，并确保运行期 conf 不残留。
+# 注意：zip 里的加密条目只能在 uninstall_init 阶段（应用文件还在）撤销；
+# 此处仅做最后保险——去掉运行期 conf.d 文件，避免本轮未重启 nginx 时继续生效。
+# ============================================================================
+pkill -f "ronglinc93widget/server.py" 2>/dev/null
+rm -f /usr/trim/nginx/conf/conf.d/ronglinc93widget.conf 2>/dev/null
+exit 0

@@ -1,0 +1,30 @@
+# ============================================================================
+# 目录浏览器 fnOS 应用包描述文件（key = value 格式）
+# name/appname 为内部包标识：fnOS 仅允许字母/数字/连字符(-)/下划线(_)/点(.)，
+#   且首尾须为字母或数字，不能有空格。name 与 appname 保持一致。
+# 字段按飞牛 fnOS 规范填写。
+# ============================================================================
+appname = ronglinc93widget
+name = ronglinc93widget
+display_name = RONGLINC93小组件
+version = 0.1.1
+desc = 飞牛 fnOS RONGLINC93桌面小工具零依赖，仅用 Python 标准库。
+author = RONGLINC93
+maintainer = RONGLINC93
+maintainer_url = https://github.com/RONGLINC93/widget
+distributor = RONGLINC93
+distributor_url = https://github.com/RONGLINC93/widget
+platform = all
+architecture = noarch
+source = thirdparty
+run_as = package
+is_docker = false
+service_port = 8099
+checkport = false
+desktop_uidir = ui
+desktop_applaunchname = ronglinc93widget.main
+ctl_stop = true
+os_min_version = 1.0.0
+icon = ICON_256.PNG
+categories = 工具
+changelog = v0.1.1：设置持久化到服务端(跨源共享)；主目录边界(向上不可越界)；关闭浮层后刷新不再弹出；启动自愈清理孤儿注入；注入前检测冲突并拒绝避免崩溃；新增一键急救(/api/diagnose + /api/rescue)；修复卸载不清注入导致孤儿配置永久占用 location = / 引发崩溃；修复双栈监听与 /rl93w/ 反代缺失；新增 RONGLINC93 品牌图标。v0.1.0：初始版本：目录文件列表浮层组件 + 零依赖 Python 后端。

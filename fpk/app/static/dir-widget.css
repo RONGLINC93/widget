@@ -1,0 +1,114 @@
+/* 目录文件列表浮层组件样式 */
+#dw-root {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(22, 27, 34, 0.92);
+  color: #e6edf3;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  z-index: 2147483600;
+  overflow: hidden;
+  user-select: none;
+}
+
+#dw-root.dw-min { max-height: 44px; }
+#dw-root.dw-min .dw-body,
+#dw-root.dw-min .dw-status { display: none; }
+
+.dw-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: move;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dw-title { font-weight: 600; flex: 0 0 auto; }
+.dw-spacer { flex: 1 1 auto; }
+.dw-btn {
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e6edf3;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.dw-btn:hover { background: rgba(255, 255, 255, 0.18); }
+
+.dw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.dw-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e6edf3;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+}
+.dw-path:focus { outline: none; border-color: #4493f8; }
+
+.dw-body { flex: 1 1 auto; overflow: auto; }
+.dw-table { width: 100%; border-collapse: collapse; }
+.dw-table th, .dw-table td {
+  text-align: left;
+  padding: 6px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dw-table th {
+  position: sticky;
+  top: 0;
+  background: rgba(22, 27, 34, 0.98);
+  color: #8b949e;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.dw-table td.name { max-width: 180px; }
+.dw-table tr { border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.dw-table tbody tr:hover { background: rgba(255, 255, 255, 0.06); }
+.dw-table td.size, .dw-table td.mtime { text-align: right; color: #8b949e; }
+.dw-table td.mtime { text-align: left; }
+.dw-dir { color: #58a6ff; cursor: pointer; }
+.dw-dir:hover { text-decoration: underline; }
+.dw-ico { display: inline-block; width: 18px; text-align: center; margin-right: 6px; }
+.dw-type-pill {
+  font-size: 11px;
+  color: #8b949e;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.dw-loading, .dw-error, .dw-hint {
+  padding: 24px 12px;
+  text-align: center;
+  color: #8b949e;
+}
+.dw-error { color: #ff7b72; }
+
+.dw-status {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #8b949e;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

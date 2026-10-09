@@ -1,0 +1,14 @@
+{
+    ".url": {
+        "ronglinc93widget.main": {
+            "title": "RONGLINC93小组件",
+            "icon": "images/icon_{0}.png",
+            "type": "iframe",
+            "protocol": "http",
+            "port": "8099",
+            "url": "/",
+            "allUsers": true,
+            "control": {"accessPerm": "editable"}
+        }
+    }
+}

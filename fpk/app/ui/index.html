@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RONGLINC93 小组件 · 设置</title>
+  <link rel="stylesheet" href="static/dir-widget.css" />
+  <style>
+    body { margin: 0; min-height: 100vh;
+      background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
+      color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+    .wrap { max-width: 560px; margin: 36px auto; padding: 0 16px; }
+    h2 { color: #e6edf3; font-size: 18px; margin: 0 0 4px; }
+    .sub { font-size: 13px; margin: 0 0 22px; }
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 16px; margin-bottom: 16px; }
+    .card h3 { color: #e6edf3; font-size: 14px; margin: 0 0 12px; }
+    label { display: block; font-size: 13px; margin-bottom: 6px; }
+    input[type=text] { width: 100%; box-sizing: border-box; background: #0d1117;
+      border: 1px solid #30363d; color: #e6edf3; border-radius: 6px;
+      padding: 8px 10px; font-size: 14px; font-family: inherit; }
+    .chk { display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+      font-size: 13px; cursor: pointer; }
+    .chk input { width: 16px; height: 16px; cursor: pointer; }
+    .row { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    button { cursor: pointer; border-radius: 6px; padding: 8px 18px; font-size: 14px;
+      font-weight: 600; font-family: inherit; border: 1px solid transparent; }
+    .btn-save { background: #1f6feb; color: #fff; border-color: #388bfd66; }
+    .btn-save:hover:not(:disabled) { background: #388bfd; }
+    .btn-inject { background: #238636; color: #fff; border-color: #2ea04366; }
+    .btn-inject:hover:not(:disabled) { background: #2ea043; }
+    .btn-clean { background: #9e6a03; color: #fff; border-color: #d2992266; }
+    .btn-clean:hover:not(:disabled) { background: #bb8009; }
+    .btn-rescue { background: #da3633; color: #fff; border-color: #f8514966; }
+    .btn-rescue:hover:not(:disabled) { background: #f85149; }
+    .card.rescue { border-color: #f8514966; background: #2d1214; }
+    .rescue-tip { font-size: 13px; margin: 0 0 10px; }
+    pre.diag { background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+      padding: 10px; font-size: 12px; color: #8b949e; white-space: pre-wrap;
+      word-break: break-all; max-height: 240px; overflow: auto; margin: 10px 0 0; }
+    button:disabled { opacity: .6; cursor: default; }
+    .msg { font-size: 13px; }
+    code { background: #0d1117; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>📁 RONGLINC93 小组件</h2>
+    <p class="sub">设置目录路径，然后注入到飞牛桌面显示。</p>
+
+    <div class="card rescue">
+      <h3>🆘 急救</h3>
+      <div class="row">
+        <button id="rescueToggle" class="btn-rescue">🆘 急救（点击展开）</button>
+        <span class="msg">飞牛桌面打不开时，用浏览器访问 <code>http://&lt;飞牛地址&gt;:8099/</code> 到本页自救</span>
+      </div>
+
+      <div id="rescuePanel" style="display:none">
+        <p class="rescue-tip">
+          若飞牛 Web 因「两个注入器同时占用 <code>location = /</code>」崩溃、桌面打不开，
+          点下面的按钮一键修复。
+        </p>
+        <div class="row">
+          <button id="rescueBtn" class="btn-rescue">一键修复崩溃</button>
+          <button id="diagBtn" class="btn-save">检查状态</button>
+          <span id="rescueMsg" class="msg"></span>
+        </div>
+        <pre id="diagOut" class="diag"></pre>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>目录路径</h3>
+      <label for="pathInput">要显示在桌面上的目录，例如 <code>/vol1/share</code></label>
+      <input id="pathInput" type="text" placeholder="/vol1/share" />
+      <label for="rootInput" style="margin-top:14px">主目录边界（向上不可越过，留空 = 不限制）例如 <code>/vol1</code></label>
+      <input id="rootInput" type="text" placeholder="/vol1（留空表示不限制）" />
+      <div class="row">
+        <button id="saveBtn" class="btn-save">保存</button>
+        <span id="saveMsg" class="msg"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>桌面显示</h3>
+      <label class="chk">
+        <input id="visibleChk" type="checkbox" checked />
+        <span>在桌面显示浮层（在桌面上点 × 关闭后，取消勾选；想再显示请勾回来）</span>
+      </label>
+      <div class="row">
+        <button id="cleanupBtn" class="btn-clean">清理残留注入</button>
+        <span id="cleanupMsg" class="msg"></span>
+      </div>
+      <div class="row">
+        <button id="injectBtn" class="btn-inject">注入桌面</button>
+        <span id="injectMsg" class="msg"></span>
+      </div>
+      <div class="row">
+        <span id="visibleMsg" class="msg"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var pathInput = document.getElementById("pathInput");
+    var rootInput = document.getElementById("rootInput");
+    var saveBtn = document.getElementById("saveBtn");
+    var saveMsg = document.getElementById("saveMsg");
+    var visibleChk = document.getElementById("visibleChk");
+    var visibleMsg = document.getElementById("visibleMsg");
+    var injectBtn = document.getElementById("injectBtn");
+    var injectMsg = document.getElementById("injectMsg");
+    var cleanupBtn = document.getElementById("cleanupBtn");
+    var cleanupMsg = document.getElementById("cleanupMsg");
+    var rescueToggle = document.getElementById("rescueToggle");
+    var rescuePanel = document.getElementById("rescuePanel");
+    var rescueBtn = document.getElementById("rescueBtn");
+    var diagBtn = document.getElementById("diagBtn");
+    var rescueMsg = document.getElementById("rescueMsg");
+    var diagOut = document.getElementById("diagOut");
+
+    function showDiag(j) { diagOut.textContent = JSON.stringify(j, null, 2); }
+
+    function runDiag() {
+      rescueMsg.textContent = "检查中…";
+      fetch("api/diagnose", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          showDiag(j);
+          if (j.duplicate) {
+            rescueMsg.textContent = "⚠ 检测到 " + j.hijackers.length +
+              " 份 location = / 配置，Web 已崩溃，请点「一键修复崩溃」";
+          } else if (!j.web_ok) {
+            rescueMsg.textContent = "⚠ Web 未监听，请点「一键修复崩溃」";
+          } else {
+            rescueMsg.textContent = "✅ Web 正常";
+          }
+        })
+        .catch(function (e) { rescueMsg.textContent = "❌ " + e.message; });
+    }
+
+    diagBtn.addEventListener("click", runDiag);
+
+    // 默认折叠：点击「急救」才展开功能区，并自动体检一次
+    var rescueOpened = false;
+    rescueToggle.addEventListener("click", function () {
+      var opening = rescuePanel.style.display === "none";
+      rescuePanel.style.display = opening ? "block" : "none";
+      rescueToggle.textContent = opening ? "🆘 急救（点击收起）" : "🆘 急救（点击展开）";
+      if (opening && !rescueOpened) {
+        rescueOpened = true;
+        runDiag();
+      }
+    });
+
+    rescueBtn.addEventListener("click", function () {
+      rescueBtn.disabled = true;
+      rescueMsg.textContent = "修复中…（会重启 nginx，请稍候约 10 秒）";
+      fetch("api/rescue", { method: "POST" })
+        .then(function (r) {
+          return r.json().catch(function () {
+            return { status: "error", message: "HTTP " + r.status };
+          });
+        })
+        .then(function (j) {
+          showDiag(j);
+          if (j.status === "success") {
+            var rep = j.report || {};
+            rescueMsg.textContent = rep.web_ok_after
+              ? "✅ 已修复，Web 恢复监听（清理：" +
+                ((rep.removed || []).join(", ") || "无") + "）"
+              : "⚠ 已清理但 Web 仍未监听，请再点一次或查看下方详情";
+          } else {
+            rescueMsg.textContent = "⚠ 修复失败：" + (j.message || "");
+          }
+        })
+        .catch(function (e) { rescueMsg.textContent = "❌ " + e.message; })
+        .then(function () { rescueBtn.disabled = false; });
+    });
+
+    // 载入已保存设置（相对 URL，兼容应用网关 /app/<name>/ 前缀）
+    fetch("api/settings", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var st = j.settings || {};
+        pathInput.value = st.path || "";
+        rootInput.value = st.root || "";
+        visibleChk.checked = st.visible !== false;
+      })
+      .catch(function () {});
+
+    saveBtn.addEventListener("click", function () {
+      var p = pathInput.value.trim();
+      saveBtn.disabled = true;
+      saveMsg.textContent = "保存中…";
+      fetch("api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: p, root: rootInput.value.trim() })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          saveMsg.textContent = j.status === "success" ? "✅ 已保存" : "⚠ 保存失败";
+        })
+        .catch(function (e) { saveMsg.textContent = "❌ " + e.message; })
+        .then(function () { saveBtn.disabled = false; });
+    });
+
+    // 勾选框即时保存显示开关
+    visibleChk.addEventListener("change", function () {
+      var v = visibleChk.checked;
+      visibleMsg.textContent = "保存中…";
+      fetch("api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visible: v })
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          visibleMsg.textContent = j.status === "success"
+            ? (v ? "✅ 已开启，刷新桌面即可看到浮层" : "✅ 已隐藏，浮层不再显示")
+            : "⚠ 保存失败";
+        })
+        .catch(function (e) { visibleMsg.textContent = "❌ " + e.message; });
+    });
+
+    cleanupBtn.addEventListener("click", function () {
+      cleanupBtn.disabled = true;
+      cleanupMsg.textContent = "清理中…";
+      fetch("api/cleanup", { method: "POST" })
+        .then(function (r) {
+          return r.json().catch(function () {
+            return { status: "error", message: "HTTP " + r.status };
+          });
+        })
+        .then(function (j) {
+          cleanupMsg.textContent = j.status === "success"
+            ? ("✅ " + (j.message || "清理完成"))
+            : ("⚠ " + (j.message || "清理失败"));
+        })
+        .catch(function (e) { cleanupMsg.textContent = "❌ " + e.message; })
+        .then(function () { cleanupBtn.disabled = false; });
+    });
+
+    injectBtn.addEventListener("click", function () {
+      injectBtn.disabled = true;
+      injectMsg.textContent = "正在注入…（会重启 nginx，请稍候）";
+      fetch("api/inject", { method: "POST" })
+        .then(function (r) {
+          return r.json().catch(function () {
+            return { status: "error", message: "HTTP " + r.status };
+          });
+        })
+        .then(function (j) {
+          injectMsg.textContent = j.status === "success"
+            ? "✅ 已注入桌面，刷新桌面即可看到浮层"
+            : "⚠ 注入失败：" + (j.message || j.status);
+        })
+        .catch(function (e) { injectMsg.textContent = "❌ " + e.message; })
+        .then(function () { injectBtn.disabled = false; });
+    });
+
+  </script>
+</body>
+</html>

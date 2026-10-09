@@ -1,0 +1,722 @@
+# -*- coding: utf-8 -*-
+"""
+目录浏览器后端（仅标准库，零依赖）
+=================================
+
+fnOS 应用包 fpk/app/server.py：提供 HTTP 接口读取指定目录，并托管前端浮层组件。
+  GET /                       ->  fpk/app/ui/index.html（桌面入口）
+  GET /static/*               ->  前端静态资源（dir-widget.html/js/css）
+  GET /api/list?path=<目录>   ->  JSON: { path, error?, entries:[...] }
+  GET /health                 ->  "ok"（供 cmd/main 探活）
+
+条目字段：name, is_dir, size, items(目录条目数), type, mtime, mtime_str
+排序：目录在前、文件在后，再按名称不区分大小写排序。
+
+端口取自环境变量 TRIM_SERVICE_PORT（fnOS 注入），缺省 5668。
+"""
+from __future__ import annotations
+
+from typing import Any, Dict
+
+import os
+import re
+import shutil
+import socket
+import time
+import subprocess
+import json
+import mimetypes
+from datetime import datetime
+from urllib.parse import urlparse, parse_qs, unquote
+
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(HERE, "static")
+UI_DIR = os.path.join(HERE, "ui")
+API_BASE = "/api/list"
+APP_NAME = os.environ.get("TRIM_APPNAME", "ronglinc93widget")
+GATEWAY_PREFIX = "/app/" + APP_NAME
+
+# ======================================================================
+# 飞牛桌面注入（参照 QWeather：nginx alias + ng.conf.zip 持久化）
+# 仅当以 root 运行且 conf/ng_keys.json 密钥与当前 fnOS 版本匹配时生效；
+# 失败时不影响后端服务本身，桌面小组件只是不显示。
+# ======================================================================
+APP_DATA_DIR = os.environ.get("TRIM_PKGVAR", "/vol1/@appdata/" + APP_NAME)
+APP_DEST_DIR = os.environ.get("TRIM_APPDEST", "/vol1/@appcenter/" + APP_NAME)
+DESKTOP_INDEX = os.path.join(APP_DATA_DIR, "desktop", "index.html")
+SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
+# 注意：fnOS 解 app.tgz 时会去掉 app/ 前缀，静态资源实际在 <APP_DEST>/static/ 下
+INJECT_JS_DIRECT = os.path.join(APP_DEST_DIR, "static", "inject.js")
+KEYS_FILE = os.path.join(HERE, "conf", "ng_keys.json")
+WIDGET_SCRIPT_TAG = '<script src="/ronglinc93widget-inject.js"></script>'
+
+# 清理用的路径常量
+NG_CONF_ZIP = "/usr/trim/share/.restore/ng.conf.zip"
+CONF_D_DIR = "/usr/trim/nginx/conf/conf.d"
+OUR_ARCNAME = "conf.d/ronglinc93widget.conf"
+BACKUP_DIR = os.path.join(APP_DATA_DIR, "conf_backup")
+
+# fnOS 自带配置白名单：清理时永不触碰，防止误删系统配置导致 Web 异常
+SYSTEM_CONFS = {
+    "accountsrv.conf", "auto_thumbnailer.conf", "baidu_netdisk.conf",
+    "cloud_storage_dav.conf", "docker_web.conf", "download_web.conf",
+    "dsmgr.conf", "file_version.conf", "fnmusic_enhance.conf", "gzip.conf",
+    "html_nocache.conf", "multiple_downloads.conf", "safe_code_access.conf",
+    "trim_app_center.conf", "trim_chromium.conf", "trimcon.conf",
+    "trim_docs.conf", "trim_http_cgi.conf", "trim_iscsi.conf",
+    "trim_license.conf", "trim_media.conf", "trim_music.conf",
+    "trim_open_gateway.conf", "trim_photos.conf", "trim_sac.conf",
+    "trim_seek.conf", "trim_sharelink.conf", "trim_snapshots.conf",
+    "trim_sync.conf", "trim_text_editor.conf", "trim_txt_mime.conf",
+    "trim_vm.conf",
+}
+
+# 注入页与脚本均由 nginx 直接 alias 提供（不经应用网关），/usr/trim/www 零修改。
+# /rl93w/ 反向代理到本地后端(双栈监听 8099)，供浮层卡片拉取静态资源与目录 API。
+# 因为 QWeather 不在这台机，location = / 与 /login 空闲，可安全重写（不会撞车）。
+RL_NGINX_CONF = """\
+# RONGLINC93 桌面小组件注入
+location = /login { rewrite ^ /rl93-injected last; }
+location = /      { rewrite ^ /rl93-injected last; }
+location = /rl93-injected {
+    alias %s;
+    default_type text/html;
+    add_header cache-control no-store;
+}
+location = /ronglinc93widget-inject.js {
+    alias %s;
+    default_type application/javascript;
+    add_header cache-control no-store;
+}
+location /rl93w/ {
+    proxy_pass http://127.0.0.1:8099/;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+""" % (DESKTOP_INDEX, INJECT_JS_DIRECT)
+
+INJECTOR = None
+# 用小写命名：全大写会被类型检查器当作常量，重复赋值即报
+# reportConstantRedefinition（本项目零类型标注，属既有噪声，但新增代码应避免）
+remove_entry_fn = None
+zip_contains_fn = None
+try:
+    from injector import (FnOSInjector, InjectorConfig,
+                          remove_entry as _remove_entry,
+                          zip_contains as _zip_contains)
+    remove_entry_fn = _remove_entry
+    zip_contains_fn = _zip_contains
+    INJECTOR = FnOSInjector(InjectorConfig(
+        nginx_conf_zip="/usr/trim/share/.restore/ng.conf.zip",
+        conf_arcname="conf.d/ronglinc93widget.conf",
+        conf_d_dir="/usr/trim/nginx/conf/conf.d",
+        www_index="/usr/trim/www/index.html",
+        app_data_dir=APP_DATA_DIR,
+        keys_file=KEYS_FILE,
+        conf_content=RL_NGINX_CONF,
+        script_tag=WIDGET_SCRIPT_TAG,
+    ))
+except Exception:
+    INJECTOR = None
+
+
+# ======================================================================
+# 目录读取
+# ======================================================================
+def list_directory(path: str) -> list:
+    entries = []
+    with os.scandir(path) as it:
+        for entry in it:
+            try:
+                st = entry.stat()
+            except OSError:
+                continue
+            is_dir = entry.is_dir()
+            if is_dir:
+                try:
+                    items = sum(1 for _ in os.scandir(entry.path))
+                except OSError:
+                    items = None
+                size = None
+            else:
+                items = None
+                size = st.st_size
+            ext = os.path.splitext(entry.name)[1].lower()
+            entries.append({
+                "name": entry.name,
+                "is_dir": is_dir,
+                "size": size,
+                "items": items,
+                "type": "dir" if is_dir else (ext or "file"),
+                "mtime": st.st_mtime,
+                "mtime_str": datetime.fromtimestamp(
+                    st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+            })
+    entries.sort(key=lambda e: (not e["is_dir"], e["name"].lower()))
+    return entries
+
+
+def human_size(num) -> str:
+    if num is None:
+        return ""
+    size = float(num)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            if unit == "B":
+                return "%d %s" % (int(size), unit)
+            return "%.1f %s" % (size, unit)
+        size /= 1024
+    return "%.1f TB" % size
+
+
+# ======================================================================
+# HTTP 处理器
+# ======================================================================
+def load_settings() -> dict:
+    """读取持久化设置（应用窗与桌面浮层共用同一份）。
+    visible 记录用户在桌面上是否关过浮层，避免刷新后又自动弹出来。"""
+    data = {"path": "", "root": "", "visible": True, "pos": None}
+    try:
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            data.update(json.loads(f.read() or "{}"))
+    except Exception:
+        pass
+    return data
+
+
+def _norm(p: str) -> str:
+    return os.path.normpath(str(p)).rstrip("/\\") or "/"
+
+
+def within_root(path: str, root: str) -> bool:
+    """判断 path 是否在 root（主目录）之内。root 为空表示不限制。"""
+    if not root:
+        return True
+    p, r = _norm(path), _norm(root)
+    return p == r or p.startswith(r + os.sep)
+
+
+def save_settings(data: dict) -> bool:
+    try:
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, ensure_ascii=False))
+        return True
+    except Exception:
+        return False
+
+
+def _nginx_restart() -> bool:
+    """重启 nginx 使 conf.d 变更生效。注意：必须先改 ng.conf.zip，
+    否则 trim_recover 会在重启时把刚删掉的配置又恢复出来。"""
+    try:
+        subprocess.run("systemctl restart trim_nginx", shell=True,
+                       timeout=60, capture_output=True)
+        return True
+    except Exception:
+        return False
+
+
+def _deferred_nginx_restart(delay: int = 5) -> None:
+    """后台延迟重启 nginx。
+
+    Why：卸载/配置请求本身是经 nginx(5666/5667) 下发的，若在处理请求的
+    同时同步重启 nginx，会把正在进行的请求掐断，浏览器报 "Failed to fetch"。
+    因此改为"先返回响应、几秒后再重启"。"""
+    try:
+        subprocess.Popen(
+            ["bash", "-c", "sleep %d; systemctl restart trim_nginx" % delay],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True)
+    except Exception:
+        pass
+
+
+def _app_installed(stem: str) -> bool:
+    """根据 conf 文件名主干判断对应应用是否仍处于安装状态。
+    例：qweather.conf -> 匹配 /var/apps/com.qweather.widget"""
+    base = "/var/apps"
+    try:
+        for d in os.listdir(base):
+            if stem and stem in d:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def detect_live_conflicts() -> list:
+    """找出「仍在安装状态」且劫持 location = / 的其它注入器。
+    与它们共存必然 duplicate location 崩溃，因此注入前必须先发现它们。"""
+    live = []
+    try:
+        names = sorted(os.listdir(CONF_D_DIR))
+    except Exception:
+        return live
+    for name in names:
+        if not name.endswith(".conf") or name in SYSTEM_CONFS:
+            continue
+        if ("conf.d/" + name) == OUR_ARCNAME:
+            continue
+        path = os.path.join(CONF_D_DIR, name)
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        except Exception:
+            continue
+        if not re.search(r"location\s*=\s*/", text):
+            continue
+        if _app_installed(name[:-5]):
+            live.append(name)
+    return live
+
+
+def cleanup_conflicts(include_ours: bool = False) -> list:
+    """清理会劫持 `location = /` 的其它注入配置（运行时 conf.d + zip 加密条目）。
+
+    Why: 应用卸载时若不清注入（本项目旧版、QWeather 都会如此），残留配置会永久
+    占用 location = /；再有注入器进来就 duplicate location → nginx 起不来 → Web 宕。
+    在「程序启动」和「注入前」先跑一次，即可自愈，避免撞车。
+
+    默认不动我们自己的配置（include_ours=False），保证重启后桌面浮层仍然在。
+    返回被清理的条目名列表。
+    """
+    removed = []
+    try:
+        names = sorted(os.listdir(CONF_D_DIR))
+    except Exception:
+        return removed
+
+    for name in names:
+        if not name.endswith(".conf"):
+            continue
+        if name in SYSTEM_CONFS:
+            continue
+        arcname = "conf.d/" + name
+        if arcname == OUR_ARCNAME and not include_ours:
+            continue
+        path = os.path.join(CONF_D_DIR, name)
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        except Exception:
+            continue
+        # 只处理确实劫持根路径的配置，绝不碰 fnOS 自带配置
+        if not re.search(r"location\s*=\s*/", text):
+            continue
+        # 只清理"孤儿"残留（对应应用已卸载）。仍处于安装状态的注入器不动：
+        # 它的维护线程会立刻写回，我们删它写会反复打架并引发 nginx 重启风暴。
+        if _app_installed(name[:-5]):
+            continue
+        # 删除前先备份，误删时可还原
+        try:
+            os.makedirs(BACKUP_DIR, exist_ok=True)
+            shutil.copy2(path, os.path.join(BACKUP_DIR, name))
+        except Exception:
+            pass
+        try:
+            os.remove(path)
+            removed.append(arcname)
+        except Exception:
+            pass
+        try:
+            if (zip_contains_fn is not None and remove_entry_fn is not None
+                    and zip_contains_fn(NG_CONF_ZIP, arcname)):
+                remove_entry_fn(NG_CONF_ZIP, arcname)
+                removed.append(arcname + " (zip)")
+        except Exception:
+            pass
+    return removed
+
+
+def _nginx_listening() -> bool:
+    """飞牛 Web 是否真的在监听 5666（崩溃时这里会是 False）。"""
+    try:
+        r = subprocess.run(
+            "ss -ltn 2>/dev/null | grep -q ':5666 '", shell=True, timeout=10)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _hijackers() -> list:
+    """列出所有劫持 location = / 的第三方注入配置（含是否仍安装）。"""
+    out = []
+    try:
+        names = sorted(os.listdir(CONF_D_DIR))
+    except Exception:
+        return out
+    for name in names:
+        if not name.endswith(".conf") or name in SYSTEM_CONFS:
+            continue
+        path = os.path.join(CONF_D_DIR, name)
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+        except Exception:
+            continue
+        if not re.search(r"location\s*=\s*/", text):
+            continue
+        arcname = "conf.d/" + name
+        out.append({
+            "name": name,
+            "ours": arcname == OUR_ARCNAME,
+            "installed": _app_installed(name[:-5]),
+            "in_zip": bool(zip_contains_fn
+                           and zip_contains_fn(NG_CONF_ZIP, arcname)),
+        })
+    return out
+
+
+def diagnose() -> dict:
+    """体检：Web 是否可用、有几份 location = /、谁是冲突方。"""
+    hs = _hijackers()
+    foreign = [h for h in hs if not h["ours"]]
+    return {
+        "web_ok": _nginx_listening(),
+        "duplicate": len(hs) > 1,
+        "hijackers": hs,
+        "ours_present": any(h["ours"] for h in hs),
+        "live_conflicts": [h["name"] for h in foreign if h["installed"]],
+        "orphans": [h["name"] for h in foreign if not h["installed"]],
+        "settings": load_settings(),
+    }
+
+
+def rescue() -> dict:
+    """一键急救：修掉 duplicate location 导致的 nginx 崩溃。
+
+    步骤（顺序不可调换）：
+      1) 先杀掉其它注入器的进程 —— 否则它的维护线程会立刻把配置写回来；
+      2) 删除它们的 conf.d 文件（先备份）+ ng.conf.zip 加密条目 —— 只删 conf.d
+         会被 trim_recover 在重启时恢复，崩溃必然复发；
+      3) 重启 nginx 并复查 5666 是否恢复监听。
+    """
+    # 显式标注：避免值被推断成 bool | list 联合类型，导致 .append 误报
+    report: Dict[str, Any] = {
+        "web_ok_before": _nginx_listening(),
+        "killed": [], "removed": [], "restarted": False,
+    }
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+    foreign = [h for h in _hijackers() if not h["ours"]]
+    # 1) 停进程
+    for h in foreign:
+        stem = h["name"][:-5]
+        if not stem:
+            continue
+        try:
+            subprocess.run("pkill -9 -f '%s'" % stem, shell=True, timeout=15)
+            report["killed"].append(stem)
+        except Exception:
+            pass
+    # 2) 删配置（conf.d 备份后删除 + zip 条目）
+    for h in foreign:
+        name = h["name"]
+        arcname = "conf.d/" + name
+        path = os.path.join(CONF_D_DIR, name)
+        try:
+            shutil.copy2(path, os.path.join(BACKUP_DIR, name))
+        except Exception:
+            pass
+        try:
+            os.remove(path)
+            report["removed"].append(arcname)
+        except Exception:
+            pass
+        try:
+            if (zip_contains_fn is not None and remove_entry_fn is not None
+                    and zip_contains_fn(NG_CONF_ZIP, arcname)):
+                remove_entry_fn(NG_CONF_ZIP, arcname)
+                report["removed"].append(arcname + " (zip)")
+        except Exception:
+            pass
+
+    # 3) 重启并复查
+    _nginx_restart()
+    time.sleep(8)
+    report["restarted"] = True
+    report["web_ok_after"] = _nginx_listening()
+    report["diagnose_after"] = diagnose()
+    return report
+
+
+class DirHandler(BaseHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        pass
+
+    def _send_json(self, obj, code: int = 200):
+        data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _send_file(self, path: str, ctype=None):
+        if not os.path.isfile(path):
+            self.send_error(404)
+            return
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+        except OSError:
+            self.send_error(404)
+            return
+        if ctype is None:
+            ctype, _ = mimetypes.guess_type(path)
+        self.send_response(200)
+        self.send_header("Content-Type", ctype or "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        # 兼容 fnOS 应用网关：桌面小组件 iframe 可能经 /app/<appname>/ 前缀访问
+        if parsed.path.startswith(GATEWAY_PREFIX):
+            stripped = parsed.path[len(GATEWAY_PREFIX):]
+            parsed = parsed._replace(path=stripped or "/")
+        qs = parse_qs(parsed.query)
+
+        if parsed.path == API_BASE:
+            path = qs.get("path", [None])[0]
+            if not path:
+                self._send_json({"error": "缺少 path 参数"}, 400)
+                return
+            path = unquote(path)
+            # 主目录边界：设置的路径必须属于主目录，不允许向上越界
+            root = load_settings().get("root", "")
+            if not within_root(path, root):
+                self._send_json({"path": path,
+                                 "error": "路径超出主目录范围（%s），无法访问" % root},
+                                403)
+                return
+            if not os.path.isdir(path):
+                self._send_json(
+                    {"path": path, "error": "目录不存在或不是文件夹"}, 404)
+                return
+            try:
+                entries = list_directory(path)
+            except PermissionError:
+                self._send_json(
+                    {"path": path, "error": "无权限访问该目录"}, 403)
+                return
+            self._send_json({"path": path, "entries": entries})
+            return
+
+        if parsed.path == "/health":
+            self._send_json({"status": "ok"})
+            return
+
+        # 桌面入口
+        if parsed.path in ("/", "/index.html"):
+            self._send_file(os.path.join(UI_DIR, "index.html"),
+                            "text/html; charset=utf-8")
+            return
+
+        # 静态资源（限定在 STATIC_DIR 内）
+        if parsed.path.startswith("/static/"):
+            rel = parsed.path[len("/static/"):].lstrip("/")
+            full = os.path.normpath(os.path.join(STATIC_DIR, rel))
+            if os.path.abspath(full).startswith(os.path.abspath(STATIC_DIR)):
+                self._send_file(full)
+            else:
+                self.send_error(403)
+            return
+
+        # ===== 目录路径设置（应用窗口写、桌面浮层读，落盘到应用数据目录）=====
+        if parsed.path == "/api/settings":
+            if self.command == "POST":
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length) if length else b""
+                try:
+                    payload = json.loads(raw.decode("utf-8") or "{}")
+                except Exception:
+                    payload = {}
+                cur = load_settings()
+                # 只合并请求里实际带过来的字段，避免单独改一项时把另一项覆盖掉
+                if "path" in payload:
+                    cur["path"] = str(payload.get("path") or "")
+                if "root" in payload:
+                    cur["root"] = str(payload.get("root") or "")
+                if "visible" in payload:
+                    cur["visible"] = bool(payload.get("visible"))
+                if "pos" in payload:
+                    p = payload.get("pos")
+                    if isinstance(p, dict):
+                        cur["pos"] = {"left": int(p.get("left", 0) or 0),
+                                      "top": int(p.get("top", 0) or 0)}
+                    elif p is None:
+                        cur["pos"] = None
+                ok = save_settings(cur)
+                self._send_json({"status": "success" if ok else "error",
+                                 "settings": cur}, 200 if ok else 500)
+                return
+            self._send_json({"settings": load_settings()})
+            return
+
+        # ===== 体检 / 一键急救（Web 崩溃时通过 :8099 直接访问本页自救）=====
+        if parsed.path == "/api/diagnose":
+            self._send_json(diagnose())
+            return
+
+        if parsed.path == "/api/rescue" and self.command == "POST":
+            try:
+                self._send_json({"status": "success", "report": rescue()})
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+            return
+
+        # ===== 清理冲突注入（卸载残留/重复注入的急救，可手动触发）=====
+        if parsed.path == "/api/cleanup" and self.command == "POST":
+            removed = cleanup_conflicts()
+            if removed:
+                _nginx_restart()
+            self._send_json({
+                "status": "success",
+                "removed": removed,
+                "message": ("已清理冲突注入: %s" % removed) if removed
+                           else "没有冲突注入，无需清理",
+            })
+            return
+
+        # ===== 桌面注入状态 / 安装 / 卸载 =====
+        if parsed.path == "/api/inject_status":
+            if INJECTOR is None:
+                self._send_json({"status": "unavailable", "reason": "无注入器"})
+            else:
+                self._send_json(INJECTOR.status())
+            return
+
+        # 手动触发桌面注入（需以 root 运行，会写 ng.conf.zip 并重启 nginx，耗时较久）
+        if parsed.path == "/api/inject" and self.command == "POST":
+            if INJECTOR is None:
+                self._send_json({"status": "error",
+                                 "message": "无注入器（缺少 injector 模块或密钥）"}, 500)
+                return
+            # 单方面避让：若仍有别的注入器处于安装状态，拒绝注入。
+            # 强行注入必然产生两份 location = / -> nginx duplicate location 崩溃。
+            live = detect_live_conflicts()
+            if live:
+                self._send_json({
+                    "status": "error",
+                    "live_conflicts": live,
+                    "message": ("检测到另一个桌面注入器仍处于安装状态：%s。"
+                                "它和本组件都占用 location = /，同时存在必然导致 "
+                                "nginx duplicate location 崩溃，因此已拒绝注入。"
+                                "请先卸载该应用，再用「清理残留注入」清掉它的残留后重试；"
+                                "或直接使用原生桌面组件（不注入，不会冲突）。" % live),
+                }, 409)
+                return
+            try:
+                # 注入前先清掉其它劫持 location = / 的残留，确保不会 duplicate
+                cleaned = cleanup_conflicts()
+                ok, msg = INJECTOR.ensure_installed(allow_restart=True)
+                self._send_json({"status": "success" if ok else "error",
+                                 "message": msg,
+                                 "cleaned": cleaned,
+                                 "detail": INJECTOR.status()})
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+            return
+
+        if parsed.path == "/api/uninstall" and self.command == "POST":
+            # 手动撤销本组件注入。注意：**不在此同步重启 nginx**，
+            # 否则会打断正在进行的卸载请求（浏览器 "Failed to fetch"）。
+            # 只有在实际清理了东西时才后台延迟重启。
+            if INJECTOR is not None:
+                INJECTOR.stop_maintenance()
+            removed = []
+            try:
+                if (zip_contains_fn is not None and remove_entry_fn is not None
+                        and zip_contains_fn(NG_CONF_ZIP, OUR_ARCNAME)):
+                    remove_entry_fn(NG_CONF_ZIP, OUR_ARCNAME)
+                    removed.append(OUR_ARCNAME + " (zip)")
+            except Exception:
+                pass
+            try:
+                cf = os.path.join(CONF_D_DIR, "ronglinc93widget.conf")
+                if os.path.exists(cf):
+                    os.remove(cf)
+                    removed.append("conf.d/ronglinc93widget.conf")
+            except Exception:
+                pass
+            try:
+                d = os.path.join(APP_DATA_DIR, "desktop")
+                if os.path.isdir(d):
+                    shutil.rmtree(d, ignore_errors=True)
+                    removed.append("desktop/")
+            except Exception:
+                pass
+            if removed:
+                _deferred_nginx_restart(5)
+            self._send_json({
+                "status": "success",
+                "removed": removed,
+                "message": ("已撤销注入 %s（nginx 稍后自动重启）" % removed)
+                           if removed else "无注入可撤",
+            })
+            return
+
+        self.send_error(404)
+
+    do_POST = do_GET
+
+
+def main():
+    port = int(os.environ.get("TRIM_SERVICE_PORT", "8099"))
+    host = os.environ.get("BIND_HOST", "0.0.0.0")
+
+    # 【启动自愈】先清掉其它劫持 location = / 的孤儿注入（应用卸载残留是
+    # duplicate location 导致 nginx 崩溃的根源）。默认不动我们自己的配置，
+    # 因此重启后桌面浮层依然保留。
+    try:
+        cleaned = cleanup_conflicts()
+        if cleaned:
+            print("启动清理：已移除冲突注入 %s" % cleaned)
+            _nginx_restart()
+        else:
+            print("启动清理：无冲突注入")
+    except Exception as e:
+        print("启动清理异常（忽略，不影响服务）: %s" % e)
+
+    # 双栈监听：绑定 0.0.0.0 / 127.0.0.1 / 空时，改为监听 [::] 并关闭 IPV6_V6ONLY，
+    # 让单个 socket 同时接受 IPv4 与 IPv6。fnOS 默认给第三方应用设 BIND_HOST=127.0.0.1
+    # （仅回环），会导致桌面浮层直连 ip:8099 失败；这里统一改成可被发现式双栈监听。
+    if host in ("0.0.0.0", "127.0.0.1", "", None):
+        class DualStackHTTPServer(ThreadingHTTPServer):
+            address_family = socket.AF_INET6
+
+            def server_bind(self):
+                self.socket.setsockopt(
+                    socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+                super().server_bind()
+        httpd = DualStackHTTPServer(("::", port), DirHandler)
+        bind_desc = "0.0.0.0 + [::] (双栈)"
+    else:
+        httpd = ThreadingHTTPServer((host, port), DirHandler)
+        bind_desc = host
+    print("目录浏览器已启动: http://%s:%d/  (static=%s, ui=%s)"
+          % (bind_desc, port, STATIC_DIR, UI_DIR))
+    print("安全模式：不修改系统 nginx / ng.conf.zip。"
+          "桌面小组件改用 fnOS 原生 ui/config 机制（无系统侵入）。")
+    print("如需清理旧注入残留，可调用 POST /api/uninstall（需应用仍在运行）。")
+
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n已停止")
+
+
+if __name__ == "__main__":
+    main()

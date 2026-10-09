@@ -1,0 +1,8 @@
+#!/bin/bash
+# 升级后：重新启动服务
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+APP_DIR="${TRIM_APPDEST:-$(dirname -- "${SCRIPT_DIR}")}"
+if [ -x "${APP_DIR}/cmd/main" ]; then
+    "${APP_DIR}/cmd/main" start
+fi
+exit 0
