@@ -41,7 +41,11 @@ def git_auth_args():
 
 
 def run(cmd):
-    print("> " + " ".join(cmd))
+    # 打印时脱敏：extraheader 里的 base64 可还原成明文 token
+    shown = []
+    for a in cmd:
+        shown.append(a.split("=", 1)[0] + "=***" if "extraheader" in a else a)
+    print("> " + " ".join(shown))
     return subprocess.run(cmd).returncode
 
 
