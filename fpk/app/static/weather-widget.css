@@ -1,6 +1,7 @@
 /* 天气悬浮窗样式（深色玻璃风，与目录/日历浮层同源） */
 #ww-root {
   position: absolute; left: 96px; top: 96px; width: 260px;
+  display: flex; flex-direction: column;
   background: rgba(13, 17, 23, 0.82);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
@@ -8,7 +9,7 @@
   border-radius: 12px; color: #e6edf3;
   font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  overflow: visible; user-select: none; z-index: 1;
+  overflow: hidden; user-select: none; z-index: 1;
 }
 #ww-root .ww-bar, #ww-root .ww-minbar {
   display: flex; align-items: center; gap: 8px;
@@ -29,7 +30,12 @@
 }
 #ww-root .ww-min:hover { background: rgba(255, 255, 255, 0.18); }
 #ww-root .ww-x:hover { background: #da3633; }
-#ww-root .ww-body { padding: 14px 14px 10px; }
+#ww-root .ww-body {
+  flex: 1 1 auto;
+  min-height: 0;            /* 允许在卡片变矮时收缩 */
+  overflow-y: auto;        /* 内容超出时滚动，而不是溢出卡片外 */
+  padding: 14px 14px 10px;
+}
 #ww-root .ww-now { display: flex; flex-direction: column; align-items: center; }
 #ww-root .ww-icon { font-size: 44px; line-height: 1; margin-bottom: 2px; }
 #ww-root .ww-temp { font-size: 38px; font-weight: 700; line-height: 1.1; }
@@ -57,3 +63,8 @@
   background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.25) 50%);
   border-radius: 0 0 12px 0;
 }
+
+/* 嵌入模式（管理页实时预览）：填满容器、去掉浮窗拖拽/关闭把手 */
+.ww-embed { position: static !important; inset: auto !important; width: 100% !important;
+  height: 100% !important; border-radius: 10px !important; box-shadow: none !important; }
+.ww-embed .ww-min, .ww-embed .ww-x, .ww-embed .ww-rsz { display: none !important; }

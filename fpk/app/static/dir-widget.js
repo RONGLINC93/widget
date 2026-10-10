@@ -184,8 +184,10 @@
         '<div class="dw-pv-body"></div>' +
         '<div class="dw-pv-status"></div>' +
       '</div>';
-    document.body.appendChild(root);
+    var host = (this.opts && this.opts.container) || document.body;
+    host.appendChild(root);
     this.el = root;
+    if (this.opts && this.opts.embed) root.classList.add("dw-embed");
 
     // 卡片搬进桌面容器后，点击/按下不能冒泡到桌面
     // （否则点卡片会误触发桌面自身的处理，如取消图标选中等）
@@ -317,8 +319,10 @@
       root.classList.toggle("dw-min");
     });
 
-    this._makeDraggable(root.querySelector(".dw-header"), root);
-    this._makeResizable(root.querySelector(".dw-resize"), root);
+    if (!(this.opts && this.opts.embed)) {
+      this._makeDraggable(root.querySelector(".dw-header"), root);
+      this._makeResizable(root.querySelector(".dw-resize"), root);
+    }
 
     // 还原上次记住的大小（先尺寸后位置：位置钳制要用到实际尺寸）
     if (this.size) this._applySize(this.size.width, this.size.height);
@@ -351,6 +355,13 @@
       drag = false;
       document.removeEventListener("mousemove", move);
       document.removeEventListener("mouseup", up);
+      // 松手吸附到桌面图标网格（与图标行列对齐，视觉整齐）
+      var r = panel.getBoundingClientRect();
+      if (window.__rl93_snapToGrid) {
+        var sn = window.__rl93_snapToGrid(r.left, r.top);
+        panel.style.left = sn.left + "px";
+        panel.style.top = sn.top + "px";
+      }
       self._saveBox(panel);   // 拖动结束即记住位置
     }
   };

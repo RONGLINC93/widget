@@ -12,7 +12,7 @@
 
   var W = {};
   var OPTS = null, API = null, LOC = null, ROOT = null, MIN = false;
-  var REFRESH = null, MINW = 230, MINH = 150;
+  var REFRESH = null, MINW = 230, MINH = 140;
 
   // WMO 天气代码 -> [中文描述, emoji]
   var WMO = {
@@ -171,7 +171,10 @@
     var w = OPTS.size && OPTS.size.width ? OPTS.size.width : 260;
     var h = OPTS.size && OPTS.size.height ? OPTS.size.height : null;
     if (w) ROOT.style.width = w + "px";
+    // 高度允许手动调整：卡片变小时，内容区（.ww-body）会滚动而不是溢出卡片外；
+    // 不传高度则 height:auto 跟随内容。
     if (h) ROOT.style.height = h + "px";
+    else ROOT.style.height = "auto";
     var p = OPTS.pos && (OPTS.pos.left || OPTS.pos.top);
     if (p) {
       if (OPTS.pos.left) ROOT.style.left = OPTS.pos.left + "px";
@@ -197,7 +200,14 @@
         bar.removeEventListener("pointermove", move);
         bar.removeEventListener("pointerup", up);
         bar.removeEventListener("pointercancel", up);
+        // 松手吸附到桌面图标网格（与图标行列对齐，视觉整齐）
         var rr = ROOT.getBoundingClientRect();
+        if (window.__rl93_snapToGrid) {
+          var sn = window.__rl93_snapToGrid(rr.left, rr.top);
+          ROOT.style.left = sn.left + "px";
+          ROOT.style.top = sn.top + "px";
+          rr = ROOT.getBoundingClientRect();
+        }
         saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) }, OPTS.size);
       }
       bar.addEventListener("pointermove", move);
@@ -217,9 +227,11 @@
       var sx = e.clientX, sy = e.clientY;
       var sw = ROOT.offsetWidth, sh = ROOT.offsetHeight;
       function move(ev) {
-        var nw = Math.max(MINW, sw + (ev.clientX - sx));
+        var nw = Math.max(MINW, Math.min((window.innerWidth || 1024) - 40,
+                                         sw + (ev.clientX - sx)));
         var nh = Math.max(MINH, sh + (ev.clientY - sy));
-        ROOT.style.width = nw + "px"; ROOT.style.height = nh + "px";
+        ROOT.style.width = nw + "px";
+        ROOT.style.height = nh + "px";   // 内容区会滚动，绝不溢出卡片外
       }
       function up() {
         h.removeEventListener("pointermove", move);
@@ -240,7 +252,7 @@
       el("wwRsz").style.display = "none";
       el("wwMinBar").style.display = "flex";
       el("wwMinTemp").textContent = el("wwTemp").textContent;
-      if (h) ROOT.style.height = "auto";
+      ROOT.style.height = "auto";   // 最小化后只剩标题条，高度交给内容
     };
     el("wwGrip2").onclick = function () {
       MIN = false;
@@ -290,9 +302,9 @@
       '</div>' +
       '<div class="ww-rsz" id="wwRsz" title="拖拽缩放"></div>';
     (document.body || document.documentElement).appendChild(ROOT);
+    if (OPTS.embed) ROOT.classList.add("ww-embed");
     applyBox();
-    enableDrag();
-    enableResize();
+    if (!OPTS.embed) { enableDrag(); enableResize(); }
     bind();
     loadWeather();
     if (REFRESH) clearInterval(REFRESH);

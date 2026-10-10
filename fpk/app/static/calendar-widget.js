@@ -53,6 +53,7 @@
 
   function CalendarWidget(opts) {
     opts = opts || {};
+    this.opts = opts;
     this.settingsApi = opts.settingsApi || null;
     this.pos = opts.pos || null;
     this.size = opts.size || null;
@@ -105,8 +106,10 @@
         '</div>' +
       '</div>' +
       '<span class="cw-resize" title="拖动调整大小（双击恢复默认）"></span>';
-    document.body.appendChild(root);
+    var host = (this.opts && this.opts.container) || document.body;
+    host.appendChild(root);
     this.el = root;
+    if (this.opts && this.opts.embed) root.classList.add("cw-embed");
 
     // 搬进桌面容器后，交互不冒泡到桌面（避免误触桌面处理）
     root.addEventListener("mousedown", function (e) { e.stopPropagation(); });
@@ -169,8 +172,13 @@
       e.stopPropagation();
     });
 
-    this._makeDraggable(root.querySelector(".cw-header"), root);
-    this._makeResizable(root.querySelector(".cw-resize"), root);
+    // 两个拖拽把手：顶栏 + 时钟区。只有顶栏一个把手时，浮层若被右上角原生
+    // 系统小组件（CPU/内存状态）盖住顶栏，整个浮层就再也拖不动了。
+    if (!(this.opts && this.opts.embed)) {
+      this._makeDraggable(root.querySelector(".cw-header"), root);
+      this._makeDraggable(root.querySelector(".cw-clock"), root);
+      this._makeResizable(root.querySelector(".cw-resize"), root);
+    }
 
     if (this.size) this._applySize(this.size.width, this.size.height);
     if (this.pos) this._applyPos(this.pos.left, this.pos.top);
@@ -303,6 +311,13 @@
         handle.removeEventListener("pointermove", move);
         handle.removeEventListener("pointerup", up);
         handle.removeEventListener("pointercancel", up);
+        // 松手吸附到桌面图标网格（与图标行列对齐，视觉整齐）
+        var r = panel.getBoundingClientRect();
+        if (window.__rl93_snapToGrid) {
+          var sn = window.__rl93_snapToGrid(r.left, r.top);
+          panel.style.left = sn.left + "px";
+          panel.style.top = sn.top + "px";
+        }
         self._saveBox(panel);
       }
       handle.addEventListener("pointermove", move);

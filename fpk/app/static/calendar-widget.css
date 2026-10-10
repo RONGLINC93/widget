@@ -1,7 +1,10 @@
 /* 日历悬浮窗组件样式（深色玻璃风，与目录浏览器浮层同源） */
 #cw-root {
   position: fixed;
-  top: 24px;
+  /* 默认位置避开屏幕右上角：飞牛桌面原生系统小组件（CPU/内存状态等）也在那个角落，
+     且渲染在注入层之上 —— 放 24px 会被盖住顶栏（唯一拖拽把手）导致整个浮层拖不动。
+     96px 与天气组件默认位一致；已保存过位置的用户以保存值为准。 */
+  top: 96px;
   right: 24px;
   width: 320px;
   max-width: calc(100vw - 32px);
@@ -67,11 +70,13 @@
 }
 .cw-btn:hover { background: rgba(255, 255, 255, 0.2); }
 
-/* 实时时钟 + 日期 */
+/* 实时时钟 + 日期（顶栏被原生小组件盖住时的备用拖拽把手） */
 .cw-clock {
   text-align: center;
   padding: 14px 12px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: move;
+  touch-action: none;
 }
 .cw-time {
   font-size: 30px;
@@ -182,8 +187,11 @@
 }
 .cw-cell.cw-selected.cw-has-note::after { background: #fff; }
 
-/* 每日备忘 */
+/* 每日备忘（flex:1 弹性填充卡片剩余高度 —— 卡片被拉高时输入框跟随变高，
+   而不是在卡片底部留一大块空白） */
 .cw-memo {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 10px 12px;
@@ -198,9 +206,9 @@
 .cw-memo textarea {
   width: 100%;
   box-sizing: border-box;
+  flex: 1 1 auto;
   min-height: 48px;
-  max-height: 140px;
-  resize: vertical;
+  resize: none;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.12);
   color: #e6edf3;
@@ -227,3 +235,9 @@
 .cw-memo-save:hover { background: #2ea043; }
 .cw-memo-msg { font-size: 12px; color: #8b949e; }
 .cw-memo-msg.cw-ok { color: #3fb950; }
+
+/* 嵌入模式（管理页实时预览）：填满容器、去掉浮窗拖拽/关闭把手 */
+.cw-embed { position: static !important; inset: auto !important; width: 100% !important;
+  height: 100% !important; max-width: none !important; max-height: none !important;
+  border-radius: 10px !important; box-shadow: none !important; }
+.cw-embed .cw-min-btn, .cw-embed .cw-close-btn, .cw-embed .cw-resize { display: none !important; }

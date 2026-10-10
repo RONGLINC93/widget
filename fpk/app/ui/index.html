@@ -3,64 +3,195 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RONGLINC93 小组件 · 设置</title>
-  <link rel="stylesheet" href="static/dir-widget.css" />
+  <title>RONGLINC93 小组件 · 管理</title>
   <style>
     body { margin: 0; min-height: 100vh;
       background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
       color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
-    .wrap { max-width: 560px; margin: 36px auto; padding: 0 16px; }
-    h2 { color: #e6edf3; font-size: 18px; margin: 0 0 4px; }
+    .wrap { max-width: 680px; margin: 36px auto; padding: 0 16px 56px; }
+    h2 { color: #e6edf3; font-size: 20px; margin: 0 0 4px; }
     .sub { font-size: 13px; margin: 0 0 22px; }
-    .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-      padding: 16px; margin-bottom: 16px; }
-    .card h3 { color: #e6edf3; font-size: 14px; margin: 0 0 12px; }
-    label { display: block; font-size: 13px; margin-bottom: 6px; }
+
+    /* 顶部主操作栏 */
+    .bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      background: #161b22; border: 1px solid #388bfd66; border-radius: 12px;
+      padding: 16px; margin-bottom: 18px; box-shadow: 0 0 0 1px #1f6feb22; }
+    .bar .lead { flex: 1; min-width: 140px; }
+    .bar .lead b { color: #e6edf3; font-size: 14px; }
+    .bar .lead span { display: block; font-size: 12px; color: #8b949e; margin-top: 2px; }
+
+    /* 组件卡 */
+    .widget { display: flex; gap: 14px; align-items: flex-start;
+      background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+      padding: 16px; margin-bottom: 14px; }
+    .wicon { width: 46px; height: 46px; border-radius: 11px; flex: none;
+      display: grid; place-items: center; font-size: 24px;
+      background: linear-gradient(135deg, #1f6feb, #388bfd); color: #fff; }
+    .wbody { flex: 1; min-width: 0; }
+    .wtop { display: flex; align-items: center; gap: 10px; }
+    .wtitle { color: #e6edf3; font-size: 15px; font-weight: 600; }
+    .wdesc { font-size: 13px; color: #8b949e; margin-top: 3px; }
+    .wstatus { font-size: 12px; margin-top: 7px; display: flex; align-items: center; gap: 6px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #6e7681; flex: none; }
+    .wstatus.on .dot { background: #3fb950; box-shadow: 0 0 6px #3fb95099; }
+
+    /* 实时预览（嵌入真实组件窗口） */
+    .wpreview { margin-top: 12px; }
+    .pv-label { font-size: 11px; color: #6e7681; letter-spacing: .5px; margin-bottom: 8px; }
+    .wframe { width: 100%; border: 1px solid #30363d; border-radius: 10px;
+      display: block; background: #0d1117; }
+
+    label { display: block; font-size: 13px; margin-bottom: 6px; color: #c9d1d9; }
+    label .hint { color: #8b949e; font-weight: 400; }
     input[type=text] { width: 100%; box-sizing: border-box; background: #0d1117;
       border: 1px solid #30363d; color: #e6edf3; border-radius: 6px;
-      padding: 8px 10px; font-size: 14px; font-family: inherit; }
-    .chk { display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
-      font-size: 13px; cursor: pointer; }
-    .chk input { width: 16px; height: 16px; cursor: pointer; }
-    .row { display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-    button { cursor: pointer; border-radius: 6px; padding: 8px 18px; font-size: 14px;
+      padding: 9px 11px; font-size: 14px; font-family: inherit; }
+    input[type=text]:focus { outline: none; border-color: #388bfd; }
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+
+    /* iOS 风格开关 */
+    .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: none; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; inset: 0; background: #30363d; border-radius: 999px;
+      transition: background .2s; cursor: pointer; }
+    .slider::before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
+      background: #fff; border-radius: 50%; transition: transform .2s; }
+    .switch input:checked + .slider { background: #238636; }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+
+    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    button { cursor: pointer; border-radius: 7px; padding: 9px 18px; font-size: 14px;
       font-weight: 600; font-family: inherit; border: 1px solid transparent; }
     .btn-save { background: #1f6feb; color: #fff; border-color: #388bfd66; }
     .btn-save:hover:not(:disabled) { background: #388bfd; }
-    .btn-inject { background: #238636; color: #fff; border-color: #2ea04366; }
+    .btn-inject { background: #238636; color: #fff; border-color: #2ea04366; padding: 10px 22px; }
     .btn-inject:hover:not(:disabled) { background: #2ea043; }
     .btn-clean { background: #9e6a03; color: #fff; border-color: #d2992266; }
     .btn-clean:hover:not(:disabled) { background: #bb8009; }
     .btn-rescue { background: #da3633; color: #fff; border-color: #f8514966; }
     .btn-rescue:hover:not(:disabled) { background: #f85149; }
-    .card.rescue { border-color: #f8514966; background: #2d1214; }
-    .rescue-tip { font-size: 13px; margin: 0 0 10px; }
+    button:disabled { opacity: .6; cursor: default; }
+
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 16px; }
+    .card h3 { color: #c9d1d9; font-size: 15px; margin: 0; }
+    .card.rescue { margin-top: 18px; }
+    .rescue-tip { font-size: 13px; margin: 12px 0; }
     pre.diag { background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
       padding: 10px; font-size: 12px; color: #8b949e; white-space: pre-wrap;
-      word-break: break-all; max-height: 240px; overflow: auto; margin: 10px 0 0; }
-    button:disabled { opacity: .6; cursor: default; }
-    .msg { font-size: 13px; }
+      word-break: break-all; max-height: 240px; overflow: auto; margin: 12px 0 0; }
+    .msg { font-size: 13px; color: #8b949e; }
+    .row { margin-top: 12px; }
     code { background: #0d1117; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h2>📁 RONGLINC93 小组件</h2>
-    <p class="sub">设置目录路径，然后注入到飞牛桌面显示。</p>
+    <h2>🧩 RONGLINC93 小组件</h2>
+    <p class="sub">管理显示在飞牛桌面上的小组件。打开开关即显示，改完配置点「注入桌面」生效。下方为各组件在桌面上的实时窗口。</p>
 
+    <!-- 顶部主操作栏 -->
+    <div class="bar">
+      <div class="lead">
+        <b>桌面注入</b>
+        <span>把已开启的小组件注入到飞牛桌面</span>
+      </div>
+      <button id="injectBtn" class="btn-inject">注入桌面</button>
+      <button id="cleanupBtn" class="btn-clean">清理残留</button>
+      <span id="globalMsg" class="msg"></span>
+    </div>
+
+    <!-- 目录浏览器 -->
+    <div class="widget">
+      <div class="wicon">📁</div>
+      <div class="wbody">
+        <div class="wtop">
+          <span class="wtitle">目录浏览器</span>
+          <label class="switch" style="margin-left:auto">
+            <input id="visibleChk" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="wdesc">在桌面浏览 NAS 目录，支持预览 / 搜索 / 排序</div>
+        <div class="wstatus" id="dirStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+        <div class="wpreview">
+          <div class="pv-label">实时预览 · 桌面上的样子</div>
+          <iframe id="dirFrame" class="wframe" style="height:300px" title="目录浏览器预览"></iframe>
+        </div>
+        <div class="wconfig">
+          <div class="field">
+            <label for="pathInput">要显示的目录，例如 <code>/vol1/share</code></label>
+            <input id="pathInput" type="text" placeholder="/vol1/share" />
+          </div>
+          <div class="field">
+            <label for="rootInput">主目录边界 <span class="hint">（向上不可越过，留空 = 不限制）例如 <code>/vol1</code></span></label>
+            <input id="rootInput" type="text" placeholder="/vol1（留空表示不限制）" />
+          </div>
+          <div class="row"><span id="dirMsg" class="msg"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 日历 -->
+    <div class="widget">
+      <div class="wicon" style="background:linear-gradient(135deg,#8957e5,#a371f7)">📅</div>
+      <div class="wbody">
+        <div class="wtop">
+          <span class="wtitle">日历</span>
+          <label class="switch" style="margin-left:auto">
+            <input id="calVisibleChk" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="wdesc">月历 + 实时时钟（星期 / 第几周）+ 每日备忘</div>
+        <div class="wstatus" id="calStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+        <div class="wpreview">
+          <div class="pv-label">实时预览 · 桌面上的样子</div>
+          <iframe id="calFrame" class="wframe" style="height:360px" title="日历预览"></iframe>
+        </div>
+        <div class="row"><span id="calVisibleMsg" class="msg"></span></div>
+      </div>
+    </div>
+
+    <!-- 天气 -->
+    <div class="widget">
+      <div class="wicon" style="background:linear-gradient(135deg,#1f6feb,#39c5cf)">🌤</div>
+      <div class="wbody">
+        <div class="wtop">
+          <span class="wtitle">天气</span>
+          <label class="switch" style="margin-left:auto">
+            <input id="weatherVisibleChk" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="wdesc">实时天气 + 未来 6 天预报（Open-Meteo，免 API Key）</div>
+        <div class="wstatus" id="weatherStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+        <div class="wpreview">
+          <div class="pv-label">实时预览 · 桌面上的样子</div>
+          <iframe id="weatherFrame" class="wframe" style="height:300px" title="天气预览"></iframe>
+        </div>
+        <div class="wconfig">
+          <div class="field">
+            <label for="weatherLocInput">地点 <span class="hint">（城市名，或 <code>lat,lon</code>，例如 <code>北京</code> / <code>31.23,121.47</code>）</span></label>
+            <input id="weatherLocInput" type="text" placeholder="北京" />
+          </div>
+          <div class="row"><span id="weatherMsg" class="msg"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 急救 -->
     <div class="card rescue">
       <h3>🆘 急救</h3>
-      <div class="row">
-        <button id="rescueToggle" class="btn-rescue">🆘 急救（点击展开）</button>
+      <div class="actions" style="margin-top:12px">
+        <button id="rescueToggle" class="btn-rescue">展开急救工具</button>
         <span class="msg">飞牛桌面打不开时，用浏览器访问 <code>http://&lt;飞牛地址&gt;:8099/</code> 到本页自救</span>
       </div>
-
       <div id="rescuePanel" style="display:none">
         <p class="rescue-tip">
-          若飞牛 Web 因「两个注入器同时占用 <code>location = /</code>」崩溃、桌面打不开，
-          点下面的按钮一键修复。
+          若飞牛 Web 因「两个注入器同时占用 <code>location = /</code>」崩溃、桌面打不开，点下面的按钮一键修复。
         </p>
-        <div class="row">
+        <div class="actions">
           <button id="rescueBtn" class="btn-rescue">一键修复崩溃</button>
           <button id="diagBtn" class="btn-save">检查状态</button>
           <span id="rescueMsg" class="msg"></span>
@@ -68,148 +199,93 @@
         <pre id="diagOut" class="diag"></pre>
       </div>
     </div>
-
-    <div class="card">
-      <h3>目录路径</h3>
-      <label for="pathInput">要显示在桌面上的目录，例如 <code>/vol1/share</code></label>
-      <input id="pathInput" type="text" placeholder="/vol1/share" />
-      <label for="rootInput" style="margin-top:14px">主目录边界（向上不可越过，留空 = 不限制）例如 <code>/vol1</code></label>
-      <input id="rootInput" type="text" placeholder="/vol1（留空表示不限制）" />
-      <div class="row">
-        <button id="saveBtn" class="btn-save">保存</button>
-        <span id="saveMsg" class="msg"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>桌面显示</h3>
-      <label class="chk">
-        <input id="visibleChk" type="checkbox" checked />
-        <span>在桌面显示浮层（在桌面上点 × 关闭后，取消勾选；想再显示请勾回来）</span>
-      </label>
-      <div class="row">
-        <button id="cleanupBtn" class="btn-clean">清理残留注入</button>
-        <span id="cleanupMsg" class="msg"></span>
-      </div>
-      <div class="row">
-        <button id="injectBtn" class="btn-inject">注入桌面</button>
-        <span id="injectMsg" class="msg"></span>
-      </div>
-      <div class="row">
-        <span id="visibleMsg" class="msg"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>📅 日历组件</h3>
-      <label class="chk">
-        <input id="calVisibleChk" type="checkbox" checked />
-        <span>在桌面显示日历悬浮窗（点 × 关闭后取消勾选；想再显示请勾回来）</span>
-      </label>
-      <div class="row">
-        <span id="calVisibleMsg" class="msg"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3>🌤 天气组件</h3>
-      <label for="weatherLocInput">地点（城市名，或 lat,lon，例如 <code>北京</code> / <code>31.23,121.47</code>）</label>
-      <input id="weatherLocInput" type="text" placeholder="北京" />
-      <label class="chk" style="margin-top:12px">
-        <input id="weatherVisibleChk" type="checkbox" checked />
-        <span>在桌面显示天气悬浮窗（点 × 关闭后取消勾选；想再显示请勾回来）</span>
-      </label>
-      <div class="row">
-        <button id="weatherSaveBtn" class="btn-save">保存地点</button>
-        <span id="weatherMsg" class="msg"></span>
-      </div>
-    </div>
   </div>
 
   <script>
-    var pathInput = document.getElementById("pathInput");
-    var rootInput = document.getElementById("rootInput");
-    var saveBtn = document.getElementById("saveBtn");
-    var saveMsg = document.getElementById("saveMsg");
-    var visibleChk = document.getElementById("visibleChk");
-    var visibleMsg = document.getElementById("visibleMsg");
-    var injectBtn = document.getElementById("injectBtn");
-    var injectMsg = document.getElementById("injectMsg");
-    var cleanupBtn = document.getElementById("cleanupBtn");
-    var cleanupMsg = document.getElementById("cleanupMsg");
-    var rescueToggle = document.getElementById("rescueToggle");
-    var rescuePanel = document.getElementById("rescuePanel");
-    var rescueBtn = document.getElementById("rescueBtn");
-    var diagBtn = document.getElementById("diagBtn");
-    var rescueMsg = document.getElementById("rescueMsg");
-    var diagOut = document.getElementById("diagOut");
-    var calVisibleChk = document.getElementById("calVisibleChk");
-    var calVisibleMsg = document.getElementById("calVisibleMsg");
-    var weatherLocInput = document.getElementById("weatherLocInput");
-    var weatherVisibleChk = document.getElementById("weatherVisibleChk");
-    var weatherSaveBtn = document.getElementById("weatherSaveBtn");
-    var weatherMsg = document.getElementById("weatherMsg");
+    var $ = function (id) { return document.getElementById(id); };
+    var pathInput = $("pathInput"), rootInput = $("rootInput");
+    var visibleChk = $("visibleChk");
+    var calVisibleChk = $("calVisibleChk");
+    var weatherLocInput = $("weatherLocInput"), weatherVisibleChk = $("weatherVisibleChk");
+    var injectBtn = $("injectBtn"), cleanupBtn = $("cleanupBtn");
+    var rescueToggle = $("rescueToggle"), rescuePanel = $("rescuePanel");
+    var rescueBtn = $("rescueBtn"), diagBtn = $("diagBtn");
+    var diagOut = $("diagOut");
+
+    // 与组件脚本一致：经 /rl93w/ 反代时 API / 静态资源都要加前缀
+    var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
 
     function showDiag(j) { diagOut.textContent = JSON.stringify(j, null, 2); }
 
-    function runDiag() {
-      rescueMsg.textContent = "检查中…";
-      fetch("api/diagnose", { cache: "no-store" })
+    function saveSettings(payload, msgEl, okText) {
+      msgEl.textContent = "保存中…";
+      fetch("api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          showDiag(j);
-          if (j.duplicate) {
-            rescueMsg.textContent = "⚠ 检测到 " + j.hijackers.length +
-              " 份 location = / 配置，Web 已崩溃，请点「一键修复崩溃」";
-          } else if (!j.web_ok) {
-            rescueMsg.textContent = "⚠ Web 未监听，请点「一键修复崩溃」";
-          } else {
-            rescueMsg.textContent = "✅ Web 正常";
-          }
+          msgEl.textContent = j.status === "success" ? (okText || "✅ 已保存") : "⚠ 保存失败";
         })
-        .catch(function (e) { rescueMsg.textContent = "❌ " + e.message; });
+        .catch(function (e) { msgEl.textContent = "❌ " + e.message; });
     }
 
-    diagBtn.addEventListener("click", runDiag);
+    function saveDir(msgEl) {
+      saveSettings({ path: pathInput.value.trim(), root: rootInput.value.trim() }, msgEl, "✅ 目录已保存");
+    }
 
-    // 默认折叠：点击「急救」才展开功能区，并自动体检一次
-    var rescueOpened = false;
-    rescueToggle.addEventListener("click", function () {
-      var opening = rescuePanel.style.display === "none";
-      rescuePanel.style.display = opening ? "block" : "none";
-      rescueToggle.textContent = opening ? "🆘 急救（点击收起）" : "🆘 急救（点击展开）";
-      if (opening && !rescueOpened) {
-        rescueOpened = true;
-        runDiag();
-      }
+    function setStatus(el, on) {
+      el.className = "wstatus" + (on ? " on" : "");
+      el.querySelector(".txt").textContent = on ? "显示中" : "已隐藏";
+    }
+
+    // 预览 iframe 源（内嵌真实组件，改配置后重载以反映最新值）
+    function dirFrameSrc() {
+      return BASE + "/static/embed-dir.html?dir=" + encodeURIComponent(pathInput.value.trim()) +
+        "&root=" + encodeURIComponent(rootInput.value.trim());
+    }
+    function wxFrameSrc() {
+      return BASE + "/static/embed-wx.html?loc=" + encodeURIComponent(weatherLocInput.value.trim());
+    }
+
+    // 目录
+    pathInput.addEventListener("change", function () { saveDir($("dirMsg")); $("dirFrame").src = dirFrameSrc(); });
+    rootInput.addEventListener("change", function () { saveDir($("dirMsg")); $("dirFrame").src = dirFrameSrc(); });
+    visibleChk.addEventListener("change", function () {
+      var v = visibleChk.checked;
+      setStatus($("dirStatus"), v);
+      saveSettings({ visible: v }, $("dirMsg"),
+        v ? "✅ 已开启，刷新桌面即可看到目录浮层" : "✅ 已隐藏，目录浮层不再显示");
     });
 
-    rescueBtn.addEventListener("click", function () {
-      rescueBtn.disabled = true;
-      rescueMsg.textContent = "修复中…（会重启 nginx，请稍候约 10 秒）";
-      fetch("api/rescue", { method: "POST" })
-        .then(function (r) {
-          return r.json().catch(function () {
-            return { status: "error", message: "HTTP " + r.status };
-          });
-        })
-        .then(function (j) {
-          showDiag(j);
-          if (j.status === "success") {
-            var rep = j.report || {};
-            rescueMsg.textContent = rep.web_ok_after
-              ? "✅ 已修复，Web 恢复监听（清理：" +
-                ((rep.removed || []).join(", ") || "无") + "）"
-              : "⚠ 已清理但 Web 仍未监听，请再点一次或查看下方详情";
-          } else {
-            rescueMsg.textContent = "⚠ 修复失败：" + (j.message || "");
-          }
-        })
-        .catch(function (e) { rescueMsg.textContent = "❌ " + e.message; })
-        .then(function () { rescueBtn.disabled = false; });
-    });
+    // 日历
+    if (calVisibleChk) {
+      calVisibleChk.addEventListener("change", function () {
+        var v = calVisibleChk.checked;
+        setStatus($("calStatus"), v);
+        saveSettings({ calendar_visible: v }, $("calVisibleMsg"),
+          v ? "✅ 已开启，刷新桌面即可看到日历" : "✅ 已隐藏，日历不再显示");
+      });
+    }
 
-    // 载入已保存设置（相对 URL，兼容应用网关 /app/<name>/ 前缀）
+    // 天气
+    if (weatherLocInput) {
+      weatherLocInput.addEventListener("change", function () {
+        saveSettings({ weather_location: weatherLocInput.value.trim() }, $("weatherMsg"), "✅ 天气地点已保存");
+        $("weatherFrame").src = wxFrameSrc();
+      });
+    }
+    if (weatherVisibleChk) {
+      weatherVisibleChk.addEventListener("change", function () {
+        var v = weatherVisibleChk.checked;
+        setStatus($("weatherStatus"), v);
+        saveSettings({ weather_visible: v }, $("weatherMsg"),
+          v ? "✅ 已开启，刷新桌面即可看到天气" : "✅ 已隐藏，天气不再显示");
+      });
+    }
+
+    // 载入已保存设置，并初始化预览
     fetch("api/settings", { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (j) {
@@ -217,142 +293,103 @@
         pathInput.value = st.path || "";
         rootInput.value = st.root || "";
         visibleChk.checked = st.visible !== false;
-        if (calVisibleChk) calVisibleChk.checked = st.calendar_visible !== false;
+        setStatus($("dirStatus"), visibleChk.checked);
+        if (calVisibleChk) { calVisibleChk.checked = st.calendar_visible !== false; setStatus($("calStatus"), calVisibleChk.checked); }
         if (weatherLocInput) weatherLocInput.value = st.weather_location || "";
-        if (weatherVisibleChk) weatherVisibleChk.checked = st.weather_visible !== false;
+        if (weatherVisibleChk) { weatherVisibleChk.checked = st.weather_visible !== false; setStatus($("weatherStatus"), weatherVisibleChk.checked); }
+        $("dirFrame").src = dirFrameSrc();
+        $("calFrame").src = BASE + "/static/embed-cal.html";
+        $("weatherFrame").src = wxFrameSrc();
       })
-      .catch(function () {});
-
-    saveBtn.addEventListener("click", function () {
-      var p = pathInput.value.trim();
-      saveBtn.disabled = true;
-      saveMsg.textContent = "保存中…";
-      fetch("api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: p, root: rootInput.value.trim() })
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          saveMsg.textContent = j.status === "success" ? "✅ 已保存" : "⚠ 保存失败";
-        })
-        .catch(function (e) { saveMsg.textContent = "❌ " + e.message; })
-        .then(function () { saveBtn.disabled = false; });
-    });
-
-    // 勾选框即时保存显示开关
-    visibleChk.addEventListener("change", function () {
-      var v = visibleChk.checked;
-      visibleMsg.textContent = "保存中…";
-      fetch("api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ visible: v })
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          visibleMsg.textContent = j.status === "success"
-            ? (v ? "✅ 已开启，刷新桌面即可看到浮层" : "✅ 已隐藏，浮层不再显示")
-            : "⚠ 保存失败";
-        })
-        .catch(function (e) { visibleMsg.textContent = "❌ " + e.message; });
-    });
-
-    // 日历显隐开关（独立字段 calendar_visible，与目录浮层互不干扰）
-    if (calVisibleChk) {
-      calVisibleChk.addEventListener("change", function () {
-        var v = calVisibleChk.checked;
-        calVisibleMsg.textContent = "保存中…";
-        fetch("api/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ calendar_visible: v })
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (j) {
-            calVisibleMsg.textContent = j.status === "success"
-              ? (v ? "✅ 已开启，刷新桌面即可看到日历" : "✅ 已隐藏，日历不再显示")
-              : "⚠ 保存失败";
-          })
-          .catch(function (e) { calVisibleMsg.textContent = "❌ " + e.message; });
+      .catch(function () {
+        $("dirFrame").src = dirFrameSrc();
+        $("calFrame").src = BASE + "/static/embed-cal.html";
+        $("weatherFrame").src = wxFrameSrc();
       });
-    }
 
-    // 天气：保存地点 + 显隐开关（独立字段 weather_location / weather_visible）
-    if (weatherSaveBtn) {
-      weatherSaveBtn.addEventListener("click", function () {
-        var loc = weatherLocInput.value.trim();
-        weatherSaveBtn.disabled = true;
-        weatherMsg.textContent = "保存中…";
-        fetch("api/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ weather_location: loc })
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (j) {
-            weatherMsg.textContent = j.status === "success"
-              ? "✅ 已保存，刷新桌面天气即更新" : "⚠ 保存失败";
-          })
-          .catch(function (e) { weatherMsg.textContent = "❌ " + e.message; })
-          .then(function () { weatherSaveBtn.disabled = false; });
-      });
-    }
-    if (weatherVisibleChk) {
-      weatherVisibleChk.addEventListener("change", function () {
-        var v = weatherVisibleChk.checked;
-        weatherMsg.textContent = "保存中…";
-        fetch("api/settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ weather_visible: v })
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (j) {
-            weatherMsg.textContent = j.status === "success"
-              ? (v ? "✅ 已开启，刷新桌面即可看到天气" : "✅ 已隐藏，天气不再显示")
-              : "⚠ 保存失败";
-          })
-          .catch(function (e) { weatherMsg.textContent = "❌ " + e.message; });
-      });
-    }
-
-    cleanupBtn.addEventListener("click", function () {
-      cleanupBtn.disabled = true;
-      cleanupMsg.textContent = "清理中…";
-      fetch("api/cleanup", { method: "POST" })
-        .then(function (r) {
-          return r.json().catch(function () {
-            return { status: "error", message: "HTTP " + r.status };
-          });
-        })
-        .then(function (j) {
-          cleanupMsg.textContent = j.status === "success"
-            ? ("✅ " + (j.message || "清理完成"))
-            : ("⚠ " + (j.message || "清理失败"));
-        })
-        .catch(function (e) { cleanupMsg.textContent = "❌ " + e.message; })
-        .then(function () { cleanupBtn.disabled = false; });
-    });
-
+    // 全局：注入 / 清理
     injectBtn.addEventListener("click", function () {
       injectBtn.disabled = true;
-      injectMsg.textContent = "正在注入…（会重启 nginx，请稍候）";
+      $("globalMsg").textContent = "正在注入…（会重启 nginx，请稍候）";
       fetch("api/inject", { method: "POST" })
         .then(function (r) {
-          return r.json().catch(function () {
-            return { status: "error", message: "HTTP " + r.status };
-          });
+          return r.json().catch(function () { return { status: "error", message: "HTTP " + r.status }; });
         })
         .then(function (j) {
-          injectMsg.textContent = j.status === "success"
+          $("globalMsg").textContent = j.status === "success"
             ? "✅ 已注入桌面，刷新桌面即可看到浮层"
             : "⚠ 注入失败：" + (j.message || j.status);
         })
-        .catch(function (e) { injectMsg.textContent = "❌ " + e.message; })
+        .catch(function (e) { $("globalMsg").textContent = "❌ " + e.message; })
         .then(function () { injectBtn.disabled = false; });
     });
 
+    cleanupBtn.addEventListener("click", function () {
+      cleanupBtn.disabled = true;
+      $("globalMsg").textContent = "清理中…";
+      fetch("api/cleanup", { method: "POST" })
+        .then(function (r) {
+          return r.json().catch(function () { return { status: "error", message: "HTTP " + r.status }; });
+        })
+        .then(function (j) {
+          $("globalMsg").textContent = j.status === "success"
+            ? ("✅ " + (j.message || "清理完成"))
+            : ("⚠ " + (j.message || "清理失败"));
+        })
+        .catch(function (e) { $("globalMsg").textContent = "❌ " + e.message; })
+        .then(function () { cleanupBtn.disabled = false; });
+    });
+
+    // 急救：默认折叠，展开时自动体检一次
+    function runDiag() {
+      $("rescueMsg").textContent = "检查中…";
+      fetch("api/diagnose", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          showDiag(j);
+          if (j.duplicate) {
+            $("rescueMsg").textContent = "⚠ 检测到 " + j.hijackers.length +
+              " 份 location = / 配置，Web 已崩溃，请点「一键修复崩溃」";
+          } else if (!j.web_ok) {
+            $("rescueMsg").textContent = "⚠ Web 未监听，请点「一键修复崩溃」";
+          } else {
+            $("rescueMsg").textContent = "✅ Web 正常";
+          }
+        })
+        .catch(function (e) { $("rescueMsg").textContent = "❌ " + e.message; });
+    }
+
+    var rescueOpened = false;
+    rescueToggle.addEventListener("click", function () {
+      var opening = rescuePanel.style.display === "none";
+      rescuePanel.style.display = opening ? "block" : "none";
+      rescueToggle.textContent = opening ? "收起急救工具" : "展开急救工具";
+      if (opening && !rescueOpened) { rescueOpened = true; runDiag(); }
+    });
+
+    rescueBtn.addEventListener("click", function () {
+      rescueBtn.disabled = true;
+      $("rescueMsg").textContent = "修复中…（会重启 nginx，请稍候约 10 秒）";
+      fetch("api/rescue", { method: "POST" })
+        .then(function (r) {
+          return r.json().catch(function () { return { status: "error", message: "HTTP " + r.status }; });
+        })
+        .then(function (j) {
+          showDiag(j);
+          if (j.status === "success") {
+            var rep = j.report || {};
+            $("rescueMsg").textContent = rep.web_ok_after
+              ? "✅ 已修复，Web 恢复监听（清理：" + ((rep.removed || []).join(", ") || "无") + "）"
+              : "⚠ 已清理但 Web 仍未监听，请再点一次或查看下方详情";
+          } else {
+            $("rescueMsg").textContent = "⚠ 修复失败：" + (j.message || "");
+          }
+        })
+        .catch(function (e) { $("rescueMsg").textContent = "❌ " + e.message; })
+        .then(function () { rescueBtn.disabled = false; });
+    });
+
+    diagBtn.addEventListener("click", runDiag);
   </script>
 </body>
 </html>

@@ -75,6 +75,64 @@
       return document.querySelector(".desktop");
     }
 
+    // ---- 桌面图标网格探测 + 吸附（让浮层拖拽松手时对齐图标行列，视觉整齐）----
+    // 注：这是「吸附对齐」而非「图标避让」——只把浮层对齐到图标网格的步距，
+    // 不与飞牛的图标布局算法交互（飞牛也不提供第三方程序注册成桌面图标的接口）。
+    function collectIconRects() {
+      var seen = {}, out = [];
+      for (var i = 0; i < ICON_SELECTORS.length; i++) {
+        var list = document.querySelectorAll(ICON_SELECTORS[i]);
+        for (var k = 0; k < list.length; k++) {
+          var r = list[k].getBoundingClientRect();
+          if (r.width < 8 || r.height < 8) continue;
+          var key = Math.round(r.left) + "," + Math.round(r.top) + "," +
+                    Math.round(r.width) + "," + Math.round(r.height);
+          if (seen[key]) continue;
+          seen[key] = 1;
+          out.push(r);
+        }
+      }
+      return out;
+    }
+
+    // 取相邻网格线间距的众数（忽略同列重复/亚像素抖动）
+    function modeStep(sorted) {
+      var diffs = {}, best = 0, bestC = 0, i;
+      for (i = 1; i < sorted.length; i++) {
+        var d = sorted[i] - sorted[i - 1];
+        if (d < 6) continue;
+        diffs[d] = (diffs[d] || 0) + 1;
+      }
+      for (var k in diffs) {
+        if (diffs[k] > bestC) { bestC = diffs[k]; best = Number(k); }
+      }
+      return best;
+    }
+
+    function snapToIconGrid(left, top) {
+      var icons = collectIconRects();
+      if (!icons.length) return { left: left, top: top };
+      var lefts = icons.map(function (r) { return r.left; })
+        .sort(function (a, b) { return a - b; });
+      var tops = icons.map(function (r) { return r.top; })
+        .sort(function (a, b) { return a - b; });
+      // 去重（同列图标 left 相同）
+      var ul = [], ut = [], last = null;
+      lefts.forEach(function (v) { if (v !== last) { ul.push(v); last = v; } });
+      last = null;
+      tops.forEach(function (v) { if (v !== last) { ut.push(v); last = v; } });
+      var ox = ul[0], oy = ut[0];
+      var sx = modeStep(ul) || (icons[0].width + 8);
+      var sy = modeStep(ut) || (icons[0].height + 8);
+      var nx = ox + Math.round((left - ox) / sx) * sx;
+      var ny = oy + Math.round((top - oy) / sy) * sy;
+      var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
+      nx = Math.max(0, Math.min(nx, vw - 40));
+      ny = Math.max(0, Math.min(ny, vh - 40));
+      return { left: nx, top: ny };
+    }
+    window.__rl93_snapToGrid = snapToIconGrid;
+
     function findWindowNode() {
       // 找一个可见的原生应用窗口（类名含 window 且尺寸足够大，过滤窗口内部小部件）
       var list = document.querySelectorAll("[class*='window'], [class*='Window']");

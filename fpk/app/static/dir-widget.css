@@ -328,3 +328,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 嵌入模式（管理页实时预览）：填满容器、去掉浮窗拖拽/关闭把手 */
+.dw-embed { position: static !important; inset: auto !important; width: 100% !important;
+  height: 100% !important; max-width: none !important; max-height: none !important;
+  border-radius: 10px !important; box-shadow: none !important; }
+.dw-embed .dw-min-btn, .dw-embed .dw-close-btn, .dw-embed .dw-resize { display: none !important; }
