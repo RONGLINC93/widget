@@ -104,6 +104,29 @@
             Math.min(Math.max(MIN_H, Number(h) || MIN_H), maxH)];
   }
 
+  // 按方向（n/s/e/w 任意组合，如 "se" / "n" / "e"）计算缩放后的盒模型，
+  // 仅移动鼠标一侧边缘、对侧边缘固定，并钳制进视口、满足最小尺寸。
+  function computeResize(dir, dx, dy, r0, minW, minH) {
+    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
+    var left = r0.left, top = r0.top, w = r0.width, h = r0.height;
+    var right = r0.left + r0.width, bottom = r0.top + r0.height;
+    if (dir.indexOf("e") >= 0) {
+      w = Math.max(minW, Math.min(r0.width + dx, Math.max(minW, vw - 8 - left)));
+    }
+    if (dir.indexOf("w") >= 0) {
+      left = Math.max(0, Math.min(r0.left + dx, right - minW));
+      w = right - left;
+    }
+    if (dir.indexOf("s") >= 0) {
+      h = Math.max(minH, Math.min(r0.height + dy, Math.max(minH, vh - 8 - top)));
+    }
+    if (dir.indexOf("n") >= 0) {
+      top = Math.max(0, Math.min(r0.top + dy, bottom - minH));
+      h = bottom - top;
+    }
+    return { left: left, top: top, width: w, height: h };
+  }
+
   function DirWidget(opts) {
     opts = opts || {};
     this.api = opts.api || "/api/list";
@@ -328,7 +351,7 @@
 
     if ((!this.opts || !this.opts.embed) && this.opts.draggable !== false) {
       this._makeDraggable(root.querySelector(".dw-header"), root);
-      this._makeResizable(root.querySelector(".dw-resize"), root);
+      this._makeResizable(root);
     } else if (this.opts && this.opts.draggable === false && root.querySelector(".dw-resize")) {
       root.querySelector(".dw-resize").style.display = "none";
     }
@@ -405,37 +428,61 @@
     }
   };
 
-  // 右下角把手：拖动调整大小，双击恢复默认
-  DirWidget.prototype._makeResizable = function (handle, panel) {
+  // 四边（含四角）缩放：在面板任意边缘 / 角落按下即沿该边调整大小，双击边缘恢复默认。
+  // 用捕获阶段的 mousedown 监听面板：命中边缘时先拦截，避免与 header 拖动冲突。
+  DirWidget.prototype._makeResizable = function (panel) {
     var self = this;
-    if (!handle) return;
-    handle.addEventListener("mousedown", function (e) {
+    if (!panel) return;
+    var EDGE = 6;
+    function edgeAt(e) {
+      var r = panel.getBoundingClientRect();
+      var x = e.clientX - r.left, y = e.clientY - r.top;
+      var n = y <= EDGE, s = y >= r.height - EDGE;
+      var w = x <= EDGE, eR = x >= r.width - EDGE;
+      if (!n && !s && !w && !eR) return null;
+      return (n ? "n" : "") + (s ? "s" : "") + (w ? "w" : "") + (eR ? "e" : "");
+    }
+    panel.addEventListener("mousedown", function (e) {
       if (self.pinned) return;
+      if (e.target.closest(".dw-btn")) return;
+      var dir = edgeAt(e);
+      if (!dir) return;                 // 内部：交给正常交互 / 拖动
       e.preventDefault();
-      e.stopPropagation();
+      e.stopPropagation();              // 阻止冒泡到 header 拖动，也不冒泡到桌面
       var sx = e.clientX, sy = e.clientY;
       var r0 = panel.getBoundingClientRect();
-      var sw = r0.width, sh = r0.height;
       document.addEventListener("mousemove", move);
       document.addEventListener("mouseup", up);
-      function move(e) {
-        var box = clampSize(sw + e.clientX - sx, sh + e.clientY - sy,
-                            r0.left, r0.top);
-        panel.style.width = box[0] + "px";
-        panel.style.height = box[1] + "px";
+      function move(ev) {
+        var b = computeResize(dir, ev.clientX - sx, ev.clientY - sy, r0, MIN_W, MIN_H);
+        panel.style.right = "auto";
+        panel.style.left = b.left + "px";
+        panel.style.top = b.top + "px";
+        panel.style.width = b.width + "px";
+        panel.style.height = b.height + "px";
       }
       function up() {
         document.removeEventListener("mousemove", move);
         document.removeEventListener("mouseup", up);
         self._saveBox(panel);   // 调整结束即记住大小
       }
-    });
-    handle.addEventListener("dblclick", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
+    }, true);
+    // 双击边缘 → 恢复默认大小
+    panel.addEventListener("dblclick", function (e) {
+      if (self.pinned) return;
+      if (e.target.closest(".dw-btn, input, textarea")) return;
+      if (!edgeAt(e)) return;
       panel.style.width = "";
       panel.style.height = "";
       self._saveBox(panel, true);   // size=null → 下次用默认大小
+    });
+    // 边缘悬停光标提示（让"四边可缩放"可见）
+    panel.addEventListener("mousemove", function (e) {
+      if (self.pinned) { panel.style.cursor = ""; return; }
+      var dir = edgeAt(e);
+      var map = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
+        ne: "nesw-resize", nw: "nwse-resize", se: "nwse-resize", sw: "nesw-resize" };
+      panel.style.cursor = dir ? map[dir] : "";
     });
   };
 

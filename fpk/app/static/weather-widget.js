@@ -14,6 +14,29 @@
   var OPTS = null, API = null, LOC = null, ROOT = null, MIN = false, PINNED = false;
   var REFRESH = null, MINW = 150, MINH = 120;
 
+  // 按方向（n/s/e/w 任意组合，如 "se" / "n" / "e"）计算缩放后的盒模型，
+  // 仅移动鼠标一侧边缘、对侧边缘固定，并钳制进视口、满足最小尺寸。
+  function computeResize(dir, dx, dy, r0, minW, minH) {
+    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
+    var left = r0.left, top = r0.top, w = r0.width, h = r0.height;
+    var right = r0.left + r0.width, bottom = r0.top + r0.height;
+    if (dir.indexOf("e") >= 0) {
+      w = Math.max(minW, Math.min(r0.width + dx, Math.max(minW, vw - 8 - left)));
+    }
+    if (dir.indexOf("w") >= 0) {
+      left = Math.max(0, Math.min(r0.left + dx, right - minW));
+      w = right - left;
+    }
+    if (dir.indexOf("s") >= 0) {
+      h = Math.max(minH, Math.min(r0.height + dy, Math.max(minH, vh - 8 - top)));
+    }
+    if (dir.indexOf("n") >= 0) {
+      top = Math.max(0, Math.min(r0.top + dy, bottom - minH));
+      h = bottom - top;
+    }
+    return { left: left, top: top, width: w, height: h };
+  }
+
   // WMO 天气代码 -> [中文描述, emoji]
   var WMO = {
     0: ["晴", "☀️"], 1: ["晴间多云", "🌤"], 2: ["多云", "⛅"], 3: ["阴", "☁️"],
@@ -241,32 +264,64 @@
     bindHandle(minbar);
   }
 
+  // 四边（含四角）缩放：在面板任意边缘 / 角落按下即沿该边调整大小，双击边缘恢复默认。
+  // 捕获阶段的 pointerdown 监听面板：命中边缘时先拦截，避免与 bar / minbar 拖动冲突。
   function enableResize() {
-    var h = el("wwRsz");
-    h.style.touchAction = "none";
-    h.addEventListener("pointerdown", function (e) {
+    if (!ROOT) return;
+    var EDGE = 6;
+    function edgeAt(e) {
+      var r = ROOT.getBoundingClientRect();
+      var x = e.clientX - r.left, y = e.clientY - r.top;
+      var n = y <= EDGE, s = y >= r.height - EDGE;
+      var w = x <= EDGE, eR = x >= r.width - EDGE;
+      if (!n && !s && !w && !eR) return null;
+      return (n ? "n" : "") + (s ? "s" : "") + (w ? "w" : "") + (eR ? "e" : "");
+    }
+    ROOT.style.touchAction = "none";
+    ROOT.addEventListener("pointerdown", function (e) {
       if (PINNED) return;
-      e.stopPropagation();
+      if (e.target.tagName === "BUTTON") return;
+      var dir = edgeAt(e);
+      if (!dir) return;                 // 内部：交给正常交互 / 拖动
       e.preventDefault();
-      try { h.setPointerCapture(e.pointerId); } catch (err) {}
+      e.stopPropagation();
+      try { ROOT.setPointerCapture(e.pointerId); } catch (err) {}
       var sx = e.clientX, sy = e.clientY;
-      var sw = ROOT.offsetWidth, sh = ROOT.offsetHeight;
+      var r0 = ROOT.getBoundingClientRect();
       function move(ev) {
-        var nw = Math.max(MINW, Math.min((window.innerWidth || 1024) - 40,
-                                         sw + (ev.clientX - sx)));
-        var nh = Math.max(MINH, sh + (ev.clientY - sy));
-        ROOT.style.width = nw + "px";
-        ROOT.style.height = nh + "px";   // 内容区会滚动，绝不溢出卡片外
+        var b = computeResize(dir, ev.clientX - sx, ev.clientY - sy, r0, MINW, MINH);
+        ROOT.style.left = b.left + "px";
+        ROOT.style.top = b.top + "px";
+        ROOT.style.width = b.width + "px";
+        ROOT.style.height = b.height + "px";
       }
       function up() {
-        h.removeEventListener("pointermove", move);
-        h.removeEventListener("pointerup", up);
-        h.removeEventListener("pointercancel", up);
-        saveBox(OPTS.pos, { width: ROOT.offsetWidth, height: ROOT.offsetHeight });
+        ROOT.removeEventListener("pointermove", move);
+        ROOT.removeEventListener("pointerup", up);
+        ROOT.removeEventListener("pointercancel", up);
+        var rr = ROOT.getBoundingClientRect();
+        saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) },
+                { width: Math.round(rr.width), height: Math.round(rr.height) });
       }
-      h.addEventListener("pointermove", move);
-      h.addEventListener("pointerup", up);
-      h.addEventListener("pointercancel", up);
+      ROOT.addEventListener("pointermove", move);
+      ROOT.addEventListener("pointerup", up);
+      ROOT.addEventListener("pointercancel", up);
+    }, true);   // 捕获阶段：先于 bar / minbar 拖动监听器
+    ROOT.addEventListener("dblclick", function (e) {
+      if (PINNED) return;
+      if (e.target.tagName === "BUTTON") return;
+      if (!edgeAt(e)) return;
+      ROOT.style.width = "";
+      ROOT.style.height = "";
+      OPTS.size = null;                 // 清空尺寸 → 下次用默认大小
+      send({ size: null });
+    });
+    ROOT.addEventListener("mousemove", function (e) {
+      if (PINNED) { ROOT.style.cursor = ""; return; }
+      var dir = edgeAt(e);
+      var map = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
+        ne: "nesw-resize", nw: "nwse-resize", se: "nwse-resize", sw: "nesw-resize" };
+      ROOT.style.cursor = dir ? map[dir] : "";
     });
   }
 

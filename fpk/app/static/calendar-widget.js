@@ -51,6 +51,29 @@
             Math.min(Math.max(MIN_H, Number(h) || MIN_H), maxH)];
   }
 
+  // 按方向（n/s/e/w 任意组合，如 "se" / "n" / "e"）计算缩放后的盒模型，
+  // 仅移动鼠标一侧边缘、对侧边缘固定，并钳制进视口、满足最小尺寸。
+  function computeResize(dir, dx, dy, r0, minW, minH) {
+    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
+    var left = r0.left, top = r0.top, w = r0.width, h = r0.height;
+    var right = r0.left + r0.width, bottom = r0.top + r0.height;
+    if (dir.indexOf("e") >= 0) {
+      w = Math.max(minW, Math.min(r0.width + dx, Math.max(minW, vw - 8 - left)));
+    }
+    if (dir.indexOf("w") >= 0) {
+      left = Math.max(0, Math.min(r0.left + dx, right - minW));
+      w = right - left;
+    }
+    if (dir.indexOf("s") >= 0) {
+      h = Math.max(minH, Math.min(r0.height + dy, Math.max(minH, vh - 8 - top)));
+    }
+    if (dir.indexOf("n") >= 0) {
+      top = Math.max(0, Math.min(r0.top + dy, bottom - minH));
+      h = bottom - top;
+    }
+    return { left: left, top: top, width: w, height: h };
+  }
+
   function CalendarWidget(opts) {
     opts = opts || {};
     this.opts = opts;
@@ -188,7 +211,7 @@
     if ((!this.opts || !this.opts.embed) && this.opts.draggable !== false) {
       this._makeDraggable(root.querySelector(".cw-header"), root);
       this._makeDraggable(root.querySelector(".cw-clock"), root);
-      this._makeResizable(root.querySelector(".cw-resize"), root);
+      this._makeResizable(root);
     } else if (this.opts && this.opts.draggable === false && root.querySelector(".cw-resize")) {
       root.querySelector(".cw-resize").style.display = "none";
     }
@@ -414,39 +437,65 @@
     });
   };
 
-  CalendarWidget.prototype._makeResizable = function (handle, panel) {
+  // 四边（含四角）缩放：在面板任意边缘 / 角落按下即沿该边调整大小，双击边缘恢复默认。
+  // 捕获阶段的 pointerdown 监听面板：命中边缘时先拦截，避免与 header / clock 拖动冲突。
+  CalendarWidget.prototype._makeResizable = function (panel) {
     var self = this;
-    if (!handle) return;
-    handle.style.touchAction = "none";
-    handle.addEventListener("pointerdown", function (e) {
+    if (!panel) return;
+    var EDGE = 6;
+    function edgeAt(e) {
+      var r = panel.getBoundingClientRect();
+      var x = e.clientX - r.left, y = e.clientY - r.top;
+      var n = y <= EDGE, s = y >= r.height - EDGE;
+      var w = x <= EDGE, eR = x >= r.width - EDGE;
+      if (!n && !s && !w && !eR) return null;
+      return (n ? "n" : "") + (s ? "s" : "") + (w ? "w" : "") + (eR ? "e" : "");
+    }
+    panel.style.touchAction = "none";
+    panel.addEventListener("pointerdown", function (e) {
       if (self.pinned) return;
+      if (e.target.closest(".cw-btn")) return;
+      var dir = edgeAt(e);
+      if (!dir) return;                 // 内部：交给正常交互 / 拖动
       e.preventDefault();
       e.stopPropagation();
-      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+      try { panel.setPointerCapture(e.pointerId); } catch (err) {}
       var sx = e.clientX, sy = e.clientY;
       var r0 = panel.getBoundingClientRect();
-      var sw = r0.width, sh = r0.height;
       function move(ev) {
-        var box = clampSize(sw + ev.clientX - sx, sh + ev.clientY - sy, r0.left, r0.top);
-        panel.style.width = box[0] + "px";
-        panel.style.height = box[1] + "px";
+        var b = computeResize(dir, ev.clientX - sx, ev.clientY - sy, r0, MIN_W, MIN_H);
+        panel.style.right = "auto";
+        panel.style.left = b.left + "px";
+        panel.style.top = b.top + "px";
+        panel.style.width = b.width + "px";
+        panel.style.height = b.height + "px";
       }
       function up() {
-        handle.removeEventListener("pointermove", move);
-        handle.removeEventListener("pointerup", up);
-        handle.removeEventListener("pointercancel", up);
+        panel.removeEventListener("pointermove", move);
+        panel.removeEventListener("pointerup", up);
+        panel.removeEventListener("pointercancel", up);
         self._saveBox(panel);
       }
-      handle.addEventListener("pointermove", move);
-      handle.addEventListener("pointerup", up);
-      handle.addEventListener("pointercancel", up);
-    });
-    handle.addEventListener("dblclick", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
+      panel.addEventListener("pointermove", move);
+      panel.addEventListener("pointerup", up);
+      panel.addEventListener("pointercancel", up);
+    }, true);
+    // 双击边缘 → 恢复默认大小
+    panel.addEventListener("dblclick", function (e) {
+      if (self.pinned) return;
+      if (e.target.closest(".cw-btn, input, textarea")) return;
+      if (!edgeAt(e)) return;
       panel.style.width = "";
       panel.style.height = "";
       self._saveBox(panel, true);
+    });
+    // 边缘悬停光标提示（让"四边可缩放"可见）
+    panel.addEventListener("mousemove", function (e) {
+      if (self.pinned) { panel.style.cursor = ""; return; }
+      var dir = edgeAt(e);
+      var map = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
+        ne: "nesw-resize", nw: "nwse-resize", se: "nwse-resize", sw: "nesw-resize" };
+      panel.style.cursor = dir ? map[dir] : "";
     });
   };
 
