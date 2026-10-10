@@ -99,6 +99,31 @@
         <span id="visibleMsg" class="msg"></span>
       </div>
     </div>
+
+    <div class="card">
+      <h3>📅 日历组件</h3>
+      <label class="chk">
+        <input id="calVisibleChk" type="checkbox" checked />
+        <span>在桌面显示日历悬浮窗（点 × 关闭后取消勾选；想再显示请勾回来）</span>
+      </label>
+      <div class="row">
+        <span id="calVisibleMsg" class="msg"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🌤 天气组件</h3>
+      <label for="weatherLocInput">地点（城市名，或 lat,lon，例如 <code>北京</code> / <code>31.23,121.47</code>）</label>
+      <input id="weatherLocInput" type="text" placeholder="北京" />
+      <label class="chk" style="margin-top:12px">
+        <input id="weatherVisibleChk" type="checkbox" checked />
+        <span>在桌面显示天气悬浮窗（点 × 关闭后取消勾选；想再显示请勾回来）</span>
+      </label>
+      <div class="row">
+        <button id="weatherSaveBtn" class="btn-save">保存地点</button>
+        <span id="weatherMsg" class="msg"></span>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -118,6 +143,12 @@
     var diagBtn = document.getElementById("diagBtn");
     var rescueMsg = document.getElementById("rescueMsg");
     var diagOut = document.getElementById("diagOut");
+    var calVisibleChk = document.getElementById("calVisibleChk");
+    var calVisibleMsg = document.getElementById("calVisibleMsg");
+    var weatherLocInput = document.getElementById("weatherLocInput");
+    var weatherVisibleChk = document.getElementById("weatherVisibleChk");
+    var weatherSaveBtn = document.getElementById("weatherSaveBtn");
+    var weatherMsg = document.getElementById("weatherMsg");
 
     function showDiag(j) { diagOut.textContent = JSON.stringify(j, null, 2); }
 
@@ -186,6 +217,9 @@
         pathInput.value = st.path || "";
         rootInput.value = st.root || "";
         visibleChk.checked = st.visible !== false;
+        if (calVisibleChk) calVisibleChk.checked = st.calendar_visible !== false;
+        if (weatherLocInput) weatherLocInput.value = st.weather_location || "";
+        if (weatherVisibleChk) weatherVisibleChk.checked = st.weather_visible !== false;
       })
       .catch(function () {});
 
@@ -223,6 +257,65 @@
         })
         .catch(function (e) { visibleMsg.textContent = "❌ " + e.message; });
     });
+
+    // 日历显隐开关（独立字段 calendar_visible，与目录浮层互不干扰）
+    if (calVisibleChk) {
+      calVisibleChk.addEventListener("change", function () {
+        var v = calVisibleChk.checked;
+        calVisibleMsg.textContent = "保存中…";
+        fetch("api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ calendar_visible: v })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            calVisibleMsg.textContent = j.status === "success"
+              ? (v ? "✅ 已开启，刷新桌面即可看到日历" : "✅ 已隐藏，日历不再显示")
+              : "⚠ 保存失败";
+          })
+          .catch(function (e) { calVisibleMsg.textContent = "❌ " + e.message; });
+      });
+    }
+
+    // 天气：保存地点 + 显隐开关（独立字段 weather_location / weather_visible）
+    if (weatherSaveBtn) {
+      weatherSaveBtn.addEventListener("click", function () {
+        var loc = weatherLocInput.value.trim();
+        weatherSaveBtn.disabled = true;
+        weatherMsg.textContent = "保存中…";
+        fetch("api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weather_location: loc })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            weatherMsg.textContent = j.status === "success"
+              ? "✅ 已保存，刷新桌面天气即更新" : "⚠ 保存失败";
+          })
+          .catch(function (e) { weatherMsg.textContent = "❌ " + e.message; })
+          .then(function () { weatherSaveBtn.disabled = false; });
+      });
+    }
+    if (weatherVisibleChk) {
+      weatherVisibleChk.addEventListener("change", function () {
+        var v = weatherVisibleChk.checked;
+        weatherMsg.textContent = "保存中…";
+        fetch("api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weather_visible: v })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            weatherMsg.textContent = j.status === "success"
+              ? (v ? "✅ 已开启，刷新桌面即可看到天气" : "✅ 已隐藏，天气不再显示")
+              : "⚠ 保存失败";
+          })
+          .catch(function (e) { weatherMsg.textContent = "❌ " + e.message; });
+      });
+    }
 
     cleanupBtn.addEventListener("click", function () {
       cleanupBtn.disabled = true;

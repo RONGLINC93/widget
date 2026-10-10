@@ -344,7 +344,11 @@ def load_settings() -> dict:
     """读取持久化设置（应用窗与桌面浮层共用同一份）。
     visible 记录用户在桌面上是否关过浮层，避免刷新后又自动弹出来。
     pos / size 记录浮层上次的位置与大小（None 表示用默认）。"""
-    data = {"path": "", "root": "", "visible": True, "pos": None, "size": None}
+    data = {"path": "", "root": "", "visible": True, "pos": None, "size": None,
+            "calendar_visible": True, "calendar_pos": None, "calendar_size": None,
+            "calendar_notes": {},
+            "weather_visible": True, "weather_pos": None, "weather_size": None,
+            "weather_location": ""}
     try:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             data.update(json.loads(f.read() or "{}"))
@@ -864,11 +868,154 @@ class DirHandler(BaseHTTPRequestHandler):
                         }
                     elif s is None:
                         cur["size"] = None
+                # 日历组件独立开关（与目录浏览器浮层互不干扰）
+                if "calendar_visible" in payload:
+                    cur["calendar_visible"] = bool(payload.get("calendar_visible"))
+                if "calendar_pos" in payload:
+                    p = payload.get("calendar_pos")
+                    if isinstance(p, dict):
+                        cur["calendar_pos"] = {"left": int(p.get("left", 0) or 0),
+                                               "top": int(p.get("top", 0) or 0)}
+                    elif p is None:
+                        cur["calendar_pos"] = None
+                if "calendar_size" in payload:
+                    s = payload.get("calendar_size")
+                    if isinstance(s, dict):
+                        cur["calendar_size"] = {
+                            "width": int(s.get("width", 0) or 0),
+                            "height": int(s.get("height", 0) or 0),
+                        }
+                    elif s is None:
+                        cur["calendar_size"] = None
+                if "calendar_notes" in payload and isinstance(
+                        payload.get("calendar_notes"), dict):
+                    cur["calendar_notes"] = payload.get("calendar_notes")
+                # 天气组件独立开关与地点
+                if "weather_visible" in payload:
+                    cur["weather_visible"] = bool(payload.get("weather_visible"))
+                if "weather_pos" in payload:
+                    p = payload.get("weather_pos")
+                    if isinstance(p, dict):
+                        cur["weather_pos"] = {"left": int(p.get("left", 0) or 0),
+                                              "top": int(p.get("top", 0) or 0)}
+                    elif p is None:
+                        cur["weather_pos"] = None
+                if "weather_size" in payload:
+                    s = payload.get("weather_size")
+                    if isinstance(s, dict):
+                        cur["weather_size"] = {
+                            "width": int(s.get("width", 0) or 0),
+                            "height": int(s.get("height", 0) or 0),
+                        }
+                    elif s is None:
+                        cur["weather_size"] = None
+                if "weather_location" in payload:
+                    cur["weather_location"] = str(payload.get("weather_location") or "")
                 ok = save_settings(cur)
                 self._send_json({"status": "success" if ok else "error",
                                  "settings": cur}, 200 if ok else 500)
                 return
             self._send_json({"settings": load_settings()})
+            return
+
+        # ===== 日历组件独立设置（与目录浏览器浮层共用 settings.json，字段加 calendar_ 前缀）=====
+        # 前端 calendar-widget.js 用 plain 字段（visible/pos/size/notes）读写，
+        # 这里负责映射到 calendar_visible / calendar_pos / calendar_size / calendar_notes。
+        if parsed.path == "/api/calendar_settings":
+            if self.command == "POST":
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length) if length else b""
+                try:
+                    payload = json.loads(raw.decode("utf-8") or "{}")
+                except Exception:
+                    payload = {}
+                cur = load_settings()
+                if "visible" in payload:
+                    cur["calendar_visible"] = bool(payload.get("visible"))
+                if "pos" in payload:
+                    p = payload.get("pos")
+                    if isinstance(p, dict):
+                        cur["calendar_pos"] = {"left": int(p.get("left", 0) or 0),
+                                               "top": int(p.get("top", 0) or 0)}
+                    elif p is None:
+                        cur["calendar_pos"] = None
+                if "size" in payload:
+                    s = payload.get("size")
+                    if isinstance(s, dict):
+                        cur["calendar_size"] = {
+                            "width": int(s.get("width", 0) or 0),
+                            "height": int(s.get("height", 0) or 0),
+                        }
+                    elif s is None:
+                        cur["calendar_size"] = None
+                if "notes" in payload and isinstance(payload.get("notes"), dict):
+                    cur["calendar_notes"] = payload.get("notes")
+                ok = save_settings(cur)
+                self._send_json({"status": "success" if ok else "error",
+                                 "settings": {
+                                     "visible": cur.get("calendar_visible", True),
+                                     "pos": cur.get("calendar_pos"),
+                                     "size": cur.get("calendar_size"),
+                                     "notes": cur.get("calendar_notes") or {},
+                                 }}, 200 if ok else 500)
+                return
+            st = load_settings()
+            self._send_json({"settings": {
+                "visible": st.get("calendar_visible", True),
+                "pos": st.get("calendar_pos"),
+                "size": st.get("calendar_size"),
+                "notes": st.get("calendar_notes") or {},
+            }})
+            return
+
+        # ===== 天气组件独立设置（与目录/日历浮层共用 settings.json，字段加 weather_ 前缀）=====
+        # 前端 weather-widget.js 用 plain 字段（visible/pos/size/location）读写，
+        # 这里负责映射到 weather_visible / weather_pos / weather_size / weather_location。
+        if parsed.path == "/api/weather_settings":
+            if self.command == "POST":
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length) if length else b""
+                try:
+                    payload = json.loads(raw.decode("utf-8") or "{}")
+                except Exception:
+                    payload = {}
+                cur = load_settings()
+                if "visible" in payload:
+                    cur["weather_visible"] = bool(payload.get("visible"))
+                if "pos" in payload:
+                    p = payload.get("pos")
+                    if isinstance(p, dict):
+                        cur["weather_pos"] = {"left": int(p.get("left", 0) or 0),
+                                              "top": int(p.get("top", 0) or 0)}
+                    elif p is None:
+                        cur["weather_pos"] = None
+                if "size" in payload:
+                    s = payload.get("size")
+                    if isinstance(s, dict):
+                        cur["weather_size"] = {
+                            "width": int(s.get("width", 0) or 0),
+                            "height": int(s.get("height", 0) or 0),
+                        }
+                    elif s is None:
+                        cur["weather_size"] = None
+                if "location" in payload:
+                    cur["weather_location"] = str(payload.get("location") or "")
+                ok = save_settings(cur)
+                self._send_json({"status": "success" if ok else "error",
+                                 "settings": {
+                                     "visible": cur.get("weather_visible", True),
+                                     "pos": cur.get("weather_pos"),
+                                     "size": cur.get("weather_size"),
+                                     "location": cur.get("weather_location") or "",
+                                 }}, 200 if ok else 500)
+                return
+            st = load_settings()
+            self._send_json({"settings": {
+                "visible": st.get("weather_visible", True),
+                "pos": st.get("weather_pos"),
+                "size": st.get("weather_size"),
+                "location": st.get("weather_location") or "",
+            }})
             return
 
         # ===== 体检 / 一键急救（Web 崩溃时通过 :8099 直接访问本页自救）=====

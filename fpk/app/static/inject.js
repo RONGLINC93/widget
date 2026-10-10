@@ -198,6 +198,74 @@
       if (el) alignWithDesktopIcons(el);
     }
     document.head.appendChild(s);
+
+    // ---- 日历组件（可选显示，独立于目录浏览器）----
+    var clink = document.createElement("link");
+    clink.rel = "stylesheet";
+    clink.href = BASE + "/static/calendar-widget.css";
+    document.head.appendChild(clink);
+
+    var cs = document.createElement("script");
+    // 告知 calendar-widget.js：由本脚本手动挂载，不要走它的自动挂载（避免重复实例）
+    window.__cw_noauto = true;
+    cs.src = BASE + "/static/calendar-widget.js";
+    cs.onload = function () {
+      if (!window.CalendarWidget) return;
+      var mountCal = function (pos, size, notes) {
+        window.CalendarWidget.mount({
+          settingsApi: BASE + "/api/calendar_settings",
+          pos: pos || null,
+          size: size || null,
+          notes: (notes && typeof notes === "object") ? notes : {}
+        });
+        var cel = document.getElementById("cw-root");
+        if (cel) alignWithDesktopIcons(cel);
+      };
+      fetch(BASE + "/api/settings", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var st = j && j.settings ? j.settings : {};
+          // 用户在桌面上点过 × 关闭日历 → 不再自动挂载，直到在应用窗口重新开启
+          if (st.calendar_visible === false) return;
+          mountCal(st.calendar_pos, st.calendar_size, st.calendar_notes);
+        })
+        .catch(function () { mountCal(null, null, {}); });
+    };
+    document.head.appendChild(cs);
+
+    // ---- 天气组件（可选显示，独立于目录浏览器/日历）----
+    var wlink = document.createElement("link");
+    wlink.rel = "stylesheet";
+    wlink.href = BASE + "/static/weather-widget.css";
+    document.head.appendChild(wlink);
+
+    var ws = document.createElement("script");
+    // 告知 weather-widget.js：由本脚本手动挂载，不要走它的自动挂载（避免重复实例）
+    window.__ww_noauto = true;
+    ws.src = BASE + "/static/weather-widget.js";
+    ws.onload = function () {
+      if (!window.WeatherWidget) return;
+      var mountW = function (pos, size, location) {
+        window.WeatherWidget.mount({
+          settingsApi: BASE + "/api/weather_settings",
+          pos: pos || null,
+          size: size || null,
+          location: location || ""
+        });
+        var wel = document.getElementById("ww-root");
+        if (wel) alignWithDesktopIcons(wel);
+      };
+      fetch(BASE + "/api/settings", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var st = j && j.settings ? j.settings : {};
+          // 用户在桌面上点过 × 关闭天气 → 不再自动挂载，直到在应用窗口重新开启
+          if (st.weather_visible === false) return;
+          mountW(st.weather_pos, st.weather_size, st.weather_location);
+        })
+        .catch(function () { mountW(null, null, ""); });
+    };
+    document.head.appendChild(ws);
   }
 
   ready(inject);

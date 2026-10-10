@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>天气悬浮窗 · 演示</title>
+  <link rel="stylesheet" href="weather-widget.css" />
+  <style>
+    body { margin: 0; min-height: 100vh; background:
+      radial-gradient(1000px 500px at 70% -10%, #1f6feb33, transparent), #0d1117; }
+    .tip { color: #8b949e; font: 13px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      padding: 14px; max-width: 560px; }
+    .tip code { background: #161b22; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
+  </style>
+</head>
+<body>
+  <div class="tip">
+    这是<b>天气悬浮窗</b>的演示页，浮窗会直接挂载到页面（纯前端，数据来自
+    <code>Open-Meteo</code>，免 API Key）。未设置地点时点击「设置地点」输入城市名即可。
+    无后端时地点存浏览器 <code>localStorage</code>。
+  </div>
+  <script src="weather-widget.js"></script>
+</body>
+</html>
