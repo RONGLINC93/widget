@@ -27,6 +27,21 @@
   的 `/api/settings` / `/api/calendar_settings` / `/api/weather_settings` 同步新增
   该字段的存储与返回。
 
+### 修复
+
+- **管理页「桌面预览」空白、三个预览窗都不显示**（`ui/index.html`）：预览由页面内联脚本
+  在 `fetch("api/settings")` 回调里挂载，而该内联脚本排在底部三个组件脚本
+  （`dir/calendar/weather-widget.js`）**之前**——`fetch` 在解析器等待组件脚本下载的空档
+  就会 resolve，回调里 `DirWidget` / `CalendarWidget` / `WeatherWidget` 尚未定义，
+  `mountStage()` 抛错 → 预览整块空掉（`.catch` 里的重试同样抛错）。
+  改为先 `whenWidgetsReady()` 轮询等三个组件全局就绪（含 10s 超时兜底）再执行挂载。
+- **预览里的日历缺农历 / 假日角标**：管理页只加载了三个组件，漏了 `lunar.js` /
+  `holiday-cn.js`（此前只补进了 `inject.js` 与演示页），导致预览日历没有农历与「休 / 班」
+  角标、与桌面表现不一致。已在 `calendar-widget.js` 前补齐两个脚本。
+- **预览里仍显示「固定」按钮**：预览本就隐藏关闭 / 最小化按钮以免误改真实状态，
+  但新增的 📌 固定按钮未一并隐藏，点它会把 `pinned` 写到与桌面不一致的接口。
+  现预览中三个组件的固定按钮一并隐藏（同时顺带隐藏此前遗漏的天气最小化按钮 `.ww-min`）。
+
 ---
 
 ## [0.1.6] — 2026-10-10
