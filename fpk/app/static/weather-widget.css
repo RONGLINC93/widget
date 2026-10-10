@@ -10,6 +10,7 @@
   font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   overflow: hidden; user-select: none; z-index: 1;
+  container-type: inline-size;   /* 容器查询：按卡片自身宽度响应式布局 */
 }
 #ww-root .ww-bar, #ww-root .ww-minbar {
   display: flex; align-items: center; gap: 8px;
@@ -18,7 +19,13 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px 12px 0 0;
 }
-#ww-root .ww-minbar { border-radius: 12px; border-bottom: none; cursor: default; }
+#ww-root .ww-minbar { border-radius: 12px; border-bottom: none; cursor: pointer; }
+#ww-root .ww-minbar .ww-grip { cursor: pointer; }
+#ww-root.ww-min { height: auto !important; }
+#ww-root.ww-min .ww-bar,
+#ww-root.ww-min .ww-body,
+#ww-root.ww-min .ww-rsz { display: none !important; }
+#ww-root.ww-min .ww-minbar { display: flex !important; }
 #ww-root .ww-grip { font-size: 15px; }
 #ww-root .ww-title { font-weight: 600; font-size: 13px;
   color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -33,7 +40,7 @@
 #ww-root .ww-body {
   flex: 1 1 auto;
   min-height: 0;            /* 允许在卡片变矮时收缩 */
-  overflow-y: auto;        /* 内容超出时滚动，而不是溢出卡片外 */
+  overflow: hidden;        /* 不使用滚动条，内容不足/超出由响应式隐藏处理 */
   padding: 14px 14px 10px;
 }
 #ww-root .ww-now { display: flex; flex-direction: column; align-items: center; }
@@ -42,7 +49,9 @@
 #ww-root .ww-cond { font-size: 14px; color: #c9d1d9; margin-top: 2px; }
 #ww-root .ww-meta { font-size: 11px; color: #8b949e; margin-top: 6px; text-align: center; }
 #ww-root .ww-days {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 6px;
   margin-top: 12px;
 }
 #ww-root .ww-day {
@@ -68,3 +77,17 @@
 .ww-embed { position: static !important; inset: auto !important; width: 100% !important;
   height: 100% !important; border-radius: 10px !important; box-shadow: none !important; }
 .ww-embed .ww-min, .ww-embed .ww-x, .ww-embed .ww-rsz { display: none !important; }
+
+/* 响应式：卡片变窄时逐级隐藏，绝不出现滚动条 */
+@container (max-width: 220px) {
+  #ww-root .ww-foot,
+  #ww-root .ww-meta { display: none; }
+  #ww-root .ww-days { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+}
+@container (max-width: 170px) {
+  #ww-root .ww-days { display: none; }
+  #ww-root .ww-now { gap: 4px; }
+  #ww-root .ww-icon { font-size: 32px; margin-bottom: 0; }
+  #ww-root .ww-temp { font-size: 30px; }
+  #ww-root .ww-cond { font-size: 12px; margin-top: 0; }
+}

@@ -40,11 +40,15 @@
 }
 .cw-resize:hover { background-color: rgba(255, 255, 255, 0.08); }
 
-#cw-root.cw-min { max-height: 46px; }
+/* 最小化：只留顶栏。必须显式压掉 min-height —— CSS 中 min-height 优先级高于
+   max-height，只写 max-height:54px 会被上面的 min-height:320px 顶住，
+   结果是内容全隐藏、卡片却仍高 320px（顶栏 + 一大片空白）。
+   height:auto 用来覆盖拖拽缩放写入的行内 height。 */
+#cw-root.cw-min { min-height: 0; height: auto !important; max-height: 54px; overflow: hidden; }
 #cw-root.cw-min .cw-clock,
 #cw-root.cw-min .cw-cal,
-#cw-root.cw-min .cw-memo { display: none; }
-#cw-root.cw-min .cw-resize { display: none; }
+#cw-root.cw-min .cw-memo { display: none !important; }
+#cw-root.cw-min .cw-resize { display: none !important; }
 
 .cw-header {
   display: flex;

@@ -38,7 +38,9 @@
 }
 .dw-resize:hover { background-color: rgba(255, 255, 255, 0.08); }
 
-#dw-root.dw-min { max-height: 44px; }
+/* 最小化：只留顶栏。同日历组件——不显式压掉 min-height:140px 的话，
+   max-height 会被 min-height 顶住，卡片收不下去只剩空白。 */
+#dw-root.dw-min { min-height: 0; height: auto !important; max-height: 44px; overflow: hidden; }
 #dw-root.dw-min .dw-body,
 #dw-root.dw-min .dw-status { display: none; }
 /* 最小化时内容都收起了，把手不应再显示 */

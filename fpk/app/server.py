@@ -346,9 +346,9 @@ def load_settings() -> dict:
     pos / size 记录浮层上次的位置与大小（None 表示用默认）。"""
     data = {"path": "", "root": "", "visible": True, "pos": None, "size": None,
             "calendar_visible": True, "calendar_pos": None, "calendar_size": None,
-            "calendar_notes": {},
+            "calendar_notes": {}, "calendar_min": False,
             "weather_visible": True, "weather_pos": None, "weather_size": None,
-            "weather_location": ""}
+            "weather_location": "", "weather_min": False}
     try:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             data.update(json.loads(f.read() or "{}"))
@@ -950,12 +950,15 @@ class DirHandler(BaseHTTPRequestHandler):
                         cur["calendar_size"] = None
                 if "notes" in payload and isinstance(payload.get("notes"), dict):
                     cur["calendar_notes"] = payload.get("notes")
+                if "min" in payload:
+                    cur["calendar_min"] = bool(payload.get("min"))
                 ok = save_settings(cur)
                 self._send_json({"status": "success" if ok else "error",
                                  "settings": {
                                      "visible": cur.get("calendar_visible", True),
                                      "pos": cur.get("calendar_pos"),
                                      "size": cur.get("calendar_size"),
+                                     "min": cur.get("calendar_min", False),
                                      "notes": cur.get("calendar_notes") or {},
                                  }}, 200 if ok else 500)
                 return
@@ -964,6 +967,7 @@ class DirHandler(BaseHTTPRequestHandler):
                 "visible": st.get("calendar_visible", True),
                 "pos": st.get("calendar_pos"),
                 "size": st.get("calendar_size"),
+                "min": st.get("calendar_min", False),
                 "notes": st.get("calendar_notes") or {},
             }})
             return
@@ -1000,12 +1004,15 @@ class DirHandler(BaseHTTPRequestHandler):
                         cur["weather_size"] = None
                 if "location" in payload:
                     cur["weather_location"] = str(payload.get("location") or "")
+                if "min" in payload:
+                    cur["weather_min"] = bool(payload.get("min"))
                 ok = save_settings(cur)
                 self._send_json({"status": "success" if ok else "error",
                                  "settings": {
                                      "visible": cur.get("weather_visible", True),
                                      "pos": cur.get("weather_pos"),
                                      "size": cur.get("weather_size"),
+                                     "min": cur.get("weather_min", False),
                                      "location": cur.get("weather_location") or "",
                                  }}, 200 if ok else 500)
                 return
@@ -1014,6 +1021,7 @@ class DirHandler(BaseHTTPRequestHandler):
                 "visible": st.get("weather_visible", True),
                 "pos": st.get("weather_pos"),
                 "size": st.get("weather_size"),
+                "min": st.get("weather_min", False),
                 "location": st.get("weather_location") or "",
             }})
             return

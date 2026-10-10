@@ -57,6 +57,7 @@
     this.settingsApi = opts.settingsApi || null;
     this.pos = opts.pos || null;
     this.size = opts.size || null;
+    this.min = opts.min || false;
     this.notes = (opts.notes && typeof opts.notes === "object") ? opts.notes : {};
     this.viewYear = 0;
     this.viewMonth = 0;     // 0-11
@@ -141,6 +142,7 @@
       self.selectedKey = isoDate(n);
       self._render();
     });
+    this.minBtn = root.querySelector(".cw-min-btn");
     root.querySelector(".cw-close-btn").addEventListener("click", function () {
       root.remove();
       if (self.settingsApi) {
@@ -151,8 +153,9 @@
         }).catch(function () {});
       }
     });
-    root.querySelector(".cw-min-btn").addEventListener("click", function () {
-      root.classList.toggle("cw-min");
+    this.minBtn.addEventListener("click", function () {
+      if (root.classList.contains("cw-min")) self._doRestore();
+      else self._doMin();
     });
 
     // 备忘保存
@@ -184,6 +187,7 @@
 
     if (this.size) this._applySize(this.size.width, this.size.height);
     if (this.pos) this._applyPos(this.pos.left, this.pos.top);
+    if (this.min) this.el.classList.add("cw-min");
 
     this._render();
     this._startClock();
@@ -364,12 +368,40 @@
     });
   };
 
+  CalendarWidget.prototype._saveMin = function (v) {
+    this.min = !!v;
+    if (this.settingsApi) {
+      fetch(this.settingsApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ min: this.min })
+      }).catch(function () {});
+    } else {
+      try { localStorage.setItem("cw_min", this.min ? "1" : "0"); } catch (e) {}
+    }
+  };
+
+  CalendarWidget.prototype._doMin = function () {
+    if (!this.el) return;
+    this.el.classList.add("cw-min");
+    this._saveMin(true);
+  };
+
+  CalendarWidget.prototype._doRestore = function () {
+    if (!this.el) return;
+    this.el.classList.remove("cw-min");
+    // 如果之前保存过尺寸，重新应用以恢复高度
+    if (this.size) this._applySize(this.size.width, this.size.height);
+    this._saveMin(false);
+  };
+
   CalendarWidget.prototype._saveBox = function (panel, resetSize) {
     if (!panel) return;
     var r = panel.getBoundingClientRect();
     var payload = { pos: { left: Math.round(r.left), top: Math.round(r.top) } };
     payload.size = resetSize ? null
       : { width: Math.round(r.width), height: Math.round(r.height) };
+    if (!resetSize) this.size = payload.size;
     if (this.settingsApi) {
       fetch(this.settingsApi, {
         method: "POST",
@@ -435,13 +467,19 @@
     } catch (e) {}
     // 桌面注入场景由 inject.js 手动挂载（已置 __cw_noauto），避免重复实例；
     // 普通静态页访问（如演示页）才走自动挂载。
+    var initialMin = false;
+    try {
+      var lm = localStorage.getItem("cw_min");
+      if (lm) initialMin = lm === "1";
+    } catch (e) {}
     if (auto !== "0" && !window.__cw_noauto) {
       document.addEventListener("DOMContentLoaded", function () {
         CalendarWidget.mount({
           settingsApi: settingsApi,
           notes: initialNotes,
           pos: box ? box.pos : null,
-          size: box ? box.size : null
+          size: box ? box.size : null,
+          min: initialMin
         });
       });
     }

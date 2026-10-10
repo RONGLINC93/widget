@@ -269,11 +269,12 @@
     cs.src = BASE + "/static/calendar-widget.js";
     cs.onload = function () {
       if (!window.CalendarWidget) return;
-      var mountCal = function (pos, size, notes) {
+      var mountCal = function (pos, size, notes, min) {
         window.CalendarWidget.mount({
           settingsApi: BASE + "/api/calendar_settings",
           pos: pos || null,
           size: size || null,
+          min: !!min,
           notes: (notes && typeof notes === "object") ? notes : {}
         });
         var cel = document.getElementById("cw-root");
@@ -285,9 +286,9 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭日历 → 不再自动挂载，直到在应用窗口重新开启
           if (st.calendar_visible === false) return;
-          mountCal(st.calendar_pos, st.calendar_size, st.calendar_notes);
+          mountCal(st.calendar_pos, st.calendar_size, st.calendar_notes, st.calendar_min);
         })
-        .catch(function () { mountCal(null, null, {}); });
+        .catch(function () { mountCal(null, null, {}, false); });
     };
     document.head.appendChild(cs);
 
@@ -303,12 +304,13 @@
     ws.src = BASE + "/static/weather-widget.js";
     ws.onload = function () {
       if (!window.WeatherWidget) return;
-      var mountW = function (pos, size, location) {
+      var mountW = function (pos, size, location, min) {
         window.WeatherWidget.mount({
           settingsApi: BASE + "/api/weather_settings",
           pos: pos || null,
           size: size || null,
-          location: location || ""
+          location: location || "",
+          min: !!min
         });
         var wel = document.getElementById("ww-root");
         if (wel) alignWithDesktopIcons(wel);
@@ -319,9 +321,9 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭天气 → 不再自动挂载，直到在应用窗口重新开启
           if (st.weather_visible === false) return;
-          mountW(st.weather_pos, st.weather_size, st.weather_location);
+          mountW(st.weather_pos, st.weather_size, st.weather_location, st.weather_min);
         })
-        .catch(function () { mountW(null, null, ""); });
+        .catch(function () { mountW(null, null, "", false); });
     };
     document.head.appendChild(ws);
   }

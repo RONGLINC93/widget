@@ -12,7 +12,7 @@
 
   var W = {};
   var OPTS = null, API = null, LOC = null, ROOT = null, MIN = false;
-  var REFRESH = null, MINW = 230, MINH = 140;
+  var REFRESH = null, MINW = 150, MINH = 120;
 
   // WMO 天气代码 -> [中文描述, emoji]
   var WMO = {
@@ -59,6 +59,11 @@
   function saveVisible(v) {
     if (!API) { store("ww_visible", v ? "1" : "0"); return; }
     send({ visible: v });
+  }
+  function saveMin(v) {
+    MIN = !!v;
+    if (!API) { store("ww_min", MIN ? "1" : "0"); return; }
+    send({ min: MIN });
   }
   function saveLocation(loc) {
     LOC = loc;
@@ -108,7 +113,10 @@
     var c = j._loc, cur = j.current, daily = j.daily;
     el("wwTitle").textContent = c.name || "天气";
     var w = wmo(cur.weather_code);
-    el("wwTemp").textContent = Math.round(cur.temperature_2m) + "°";
+    var tempText = Math.round(cur.temperature_2m) + "°";
+    el("wwTemp").textContent = tempText;
+    var mt = el("wwMinTemp");
+    if (mt) mt.textContent = tempText;
     el("wwIcon").textContent = w[1];
     el("wwCond").textContent = w[0];
     el("wwMeta").innerHTML =
@@ -169,52 +177,67 @@
 
   function applyBox() {
     var w = OPTS.size && OPTS.size.width ? OPTS.size.width : 260;
-    var h = OPTS.size && OPTS.size.height ? OPTS.size.height : null;
-    if (w) ROOT.style.width = w + "px";
-    // 高度允许手动调整：卡片变小时，内容区（.ww-body）会滚动而不是溢出卡片外；
-    // 不传高度则 height:auto 跟随内容。
-    if (h) ROOT.style.height = h + "px";
-    else ROOT.style.height = "auto";
     var p = OPTS.pos && (OPTS.pos.left || OPTS.pos.top);
     if (p) {
       if (OPTS.pos.left) ROOT.style.left = OPTS.pos.left + "px";
       if (OPTS.pos.top) ROOT.style.top = OPTS.pos.top + "px";
     }
+    if (MIN) {
+      ROOT.classList.add("ww-min");
+      ROOT.style.width = (OPTS.size && OPTS.size.width ? OPTS.size.width : 260) + "px";
+      ROOT.style.height = "auto";
+      return;
+    }
+    ROOT.classList.remove("ww-min");
+    if (w) ROOT.style.width = w + "px";
+    // 高度允许手动调整：卡片变小时，内容区（.ww-body）会滚动而不是溢出卡片外；
+    // 不传高度则 height:auto 跟随内容。
+    var h = OPTS.size && OPTS.size.height ? OPTS.size.height : null;
+    if (h) ROOT.style.height = h + "px";
+    else ROOT.style.height = "auto";
   }
 
   function enableDrag() {
     var bar = el("wwBar");
+    var minbar = el("wwMinBar");
     bar.style.touchAction = "none";
-    bar.addEventListener("pointerdown", function (e) {
-      if (e.target.tagName === "BUTTON") return;
-      e.stopPropagation();
-      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
-      var sx = e.clientX, sy = e.clientY;
-      var r = ROOT.getBoundingClientRect();
-      var ox = r.left, oy = r.top;
-      function move(ev) {
-        ROOT.style.left = Math.max(0, ox + ev.clientX - sx) + "px";
-        ROOT.style.top = Math.max(0, oy + ev.clientY - sy) + "px";
-      }
-      function up() {
-        bar.removeEventListener("pointermove", move);
-        bar.removeEventListener("pointerup", up);
-        bar.removeEventListener("pointercancel", up);
-        // 松手吸附到桌面图标网格（与图标行列对齐，视觉整齐）
-        var rr = ROOT.getBoundingClientRect();
-        if (window.__rl93_snapToGrid) {
-          var sn = window.__rl93_snapToGrid(rr.left, rr.top);
-          ROOT.style.left = sn.left + "px";
-          ROOT.style.top = sn.top + "px";
-          rr = ROOT.getBoundingClientRect();
+    if (minbar) minbar.style.touchAction = "none";
+
+    function bindHandle(handle) {
+      if (!handle) return;
+      handle.addEventListener("pointerdown", function (e) {
+        if (e.target.tagName === "BUTTON") return;
+        e.stopPropagation();
+        try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+        var sx = e.clientX, sy = e.clientY;
+        var r = ROOT.getBoundingClientRect();
+        var ox = r.left, oy = r.top;
+        function move(ev) {
+          ROOT.style.left = Math.max(0, ox + ev.clientX - sx) + "px";
+          ROOT.style.top = Math.max(0, oy + ev.clientY - sy) + "px";
         }
-        saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) }, OPTS.size);
-      }
-      bar.addEventListener("pointermove", move);
-      bar.addEventListener("pointerup", up);
-      bar.addEventListener("pointercancel", up);
-      e.preventDefault();
-    });
+        function up() {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", up);
+          handle.removeEventListener("pointercancel", up);
+          // 松手吸附到桌面图标网格（与图标行列对齐，视觉整齐）
+          var rr = ROOT.getBoundingClientRect();
+          if (window.__rl93_snapToGrid) {
+            var sn = window.__rl93_snapToGrid(rr.left, rr.top);
+            ROOT.style.left = sn.left + "px";
+            ROOT.style.top = sn.top + "px";
+            rr = ROOT.getBoundingClientRect();
+          }
+          saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) }, OPTS.size);
+        }
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", up);
+        handle.addEventListener("pointercancel", up);
+        e.preventDefault();
+      });
+    }
+    bindHandle(bar);
+    bindHandle(minbar);
   }
 
   function enableResize() {
@@ -246,19 +269,26 @@
   }
 
   function bind() {
-    el("wwMin").onclick = function () {
-      MIN = true;
-      el("wwBody").style.display = "none";
-      el("wwRsz").style.display = "none";
-      el("wwMinBar").style.display = "flex";
-      el("wwMinTemp").textContent = el("wwTemp").textContent;
-      ROOT.style.height = "auto";   // 最小化后只剩标题条，高度交给内容
-    };
-    el("wwGrip2").onclick = function () {
-      MIN = false;
-      el("wwBody").style.display = "block";
-      el("wwRsz").style.display = "block";
-      el("wwMinBar").style.display = "none";
+    function refreshMinTemp() {
+      var t = el("wwTemp");
+      var mt = el("wwMinTemp");
+      if (t && mt) mt.textContent = t.textContent;
+    }
+    function doMin() {
+      refreshMinTemp();
+      saveMin(true);
+      applyBox();
+    }
+    function doRestore() {
+      saveMin(false);
+      applyBox();
+    }
+    el("wwMin").onclick = doMin;
+    el("wwGrip2").onclick = doRestore;
+    // 点击最小化条空白处也还原（除按钮外）
+    el("wwMinBar").onclick = function (e) {
+      if (e.target.tagName === "BUTTON") return;
+      doRestore();
     };
     function close() {
       if (ROOT && ROOT.parentNode) ROOT.parentNode.removeChild(ROOT);
@@ -269,6 +299,12 @@
     el("wwX2").onclick = close;
   }
 
+  function readMin() {
+    if (OPTS && "min" in OPTS) return !!OPTS.min;
+    var s = store("ww_min");
+    return s === "1";
+  }
+
   function mount(opts) {
     OPTS = opts || {};
     API = OPTS.settingsApi || null;
@@ -276,6 +312,7 @@
     if (!OPTS.location && !store("ww_loc")) {
       // 注入场景：服务端的地点优先；演示场景：localStorage
     }
+    MIN = readMin();
     ROOT = document.createElement("div");
     ROOT.id = "ww-root";
     ROOT.innerHTML =
