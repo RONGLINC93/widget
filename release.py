@@ -353,7 +353,7 @@ def main():
     # ---- 1/4 构建安装包 ----
     print("")
     print("=== 1/4 构建安装包 ===")
-    if run([sys.executable, os.path.join(ROOT, "build_fp.py")]) != 0:
+    if run([sys.executable, os.path.join(ROOT, "build_fpk.py")]) != 0:
         print("[错误] 构建失败")
         return 1
     pkg = os.path.join(ROOT, "ronglinc93widget-%s-all.fpk" % ver)
