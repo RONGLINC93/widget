@@ -92,7 +92,7 @@ def main():
     if not msg:
         with io.open(MANIFEST, encoding="utf-8") as f:
             ver = get_version(f.read())
-        msg = "release v%s: RONGLINC93 小组件（目录浏览器）" % (ver or "unknown")
+        msg = "release v%s: RONGLINC93 小组件" % (ver or "unknown")
     print("[信息] 目标分支：%s" % branch)
 
     print("")
