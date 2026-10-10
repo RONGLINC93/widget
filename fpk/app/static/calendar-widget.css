@@ -71,6 +71,11 @@
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
+  /* 同目录组件：清零默认内边距 + flex 居中，避免 📌 溢出按钮显得没对齐 */
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .cw-btn:hover { background: rgba(255, 255, 255, 0.2); }
 /* 固定按钮激活（已锁定位置）高亮 */

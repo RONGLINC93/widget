@@ -67,6 +67,12 @@
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
+  /* 按钮默认带 1px 6px 内边距，会把内容盒压到 12px 宽——📌 这类宽 emoji
+     因此溢出按钮、看上去没居中。清零内边距并用 flex 居中，和天气按钮一致。 */
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .dw-btn:hover { background: rgba(255, 255, 255, 0.18); }
 /* 固定按钮激活（已锁定位置）高亮 */

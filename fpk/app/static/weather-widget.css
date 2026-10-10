@@ -29,6 +29,9 @@
 #ww-root .ww-grip { font-size: 15px; }
 #ww-root .ww-title { font-weight: 600; font-size: 13px;
   color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 最小化条里的温度：比标题淡一点，没有温度时是空串不占位 */
+#ww-root .ww-mtemp { font-size: 13px; color: #8b949e; white-space: nowrap; }
+#ww-root .ww-mtemp:empty { display: none; }
 #ww-root .ww-spacer { flex: 1; }
 #ww-root .ww-min, #ww-root .ww-x {
   width: 22px; height: 22px; line-height: 1; border: none; cursor: pointer;

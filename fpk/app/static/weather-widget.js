@@ -54,6 +54,12 @@
 
   function wmo(code) { return WMO[code] || ["未知", "❓"]; }
   function el(id) { return document.getElementById(id); }
+  // 顶栏标题与最小化条标题始终一致（最小化条也要显示地点名，别只剩一个图标）
+  function setTitle(s) {
+    var a = el("wwTitle"), b = el("wwMinTitle");
+    if (a) a.textContent = s;
+    if (b) b.textContent = s;
+  }
   function store(k, v) {
     try {
       if (v === undefined) return localStorage.getItem(k);
@@ -134,7 +140,7 @@
 
   function render(j) {
     var c = j._loc, cur = j.current, daily = j.daily;
-    el("wwTitle").textContent = c.name || "天气";
+    setTitle(c.name || "天气");
     var w = wmo(cur.weather_code);
     var tempText = Math.round(cur.temperature_2m) + "°";
     el("wwTemp").textContent = tempText;
@@ -169,9 +175,12 @@
   function loadWeather() {
     var loc = currentLocation();
     if (!loc) {
-      el("wwTitle").textContent = "天气";
-      el("wwTemp").textContent = "🌤";
-      el("wwIcon").textContent = "";
+      setTitle("天气");
+      // 占位图标放进图标位（.ww-icon），温度位留空：
+      // 否则最小化时会把这句占位图标当成温度抄进最小化条，出现两个 🌤。
+      el("wwIcon").textContent = "🌤";
+      el("wwTemp").textContent = "";
+      el("wwMinTemp").textContent = "";
       showMsg("未设置地点");
       var f = el("wwFoot");
       f.innerHTML = '<a href="javascript:void(0)" id="wwSetLoc" style="color:#58a6ff">点击设置地点</a>';
@@ -329,7 +338,9 @@
     function refreshMinTemp() {
       var t = el("wwTemp");
       var mt = el("wwMinTemp");
-      if (t && mt) mt.textContent = t.textContent;
+      if (!t || !mt) return;
+      var s = (t.textContent || "").trim();
+      mt.textContent = /°/.test(s) ? s : "";   // 仅在有真实温度时显示，避免把占位内容带进最小化条
     }
     function doMin() {
       refreshMinTemp();
@@ -408,7 +419,10 @@
         '<button class="ww-x" id="wwX" title="关闭">×</button>' +
       '</div>' +
       '<div class="ww-minbar" id="wwMinBar" style="display:none">' +
-        '<span class="ww-grip" id="wwGrip2">🌤 <span id="wwMinTemp"></span></span>' +
+        '<span class="ww-grip" id="wwGrip2">🌤</span>' +
+        '<span class="ww-title" id="wwMinTitle">天气</span>' +
+        '<span class="ww-mtemp" id="wwMinTemp"></span>' +
+        '<span class="ww-spacer"></span>' +
         '<button class="ww-x" id="wwX2" title="关闭">×</button>' +
       '</div>' +
       '<div class="ww-body" id="wwBody">' +
