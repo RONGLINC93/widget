@@ -11,7 +11,7 @@
   "use strict";
 
   var W = {};
-  var OPTS = null, API = null, LOC = null, ROOT = null, MIN = false;
+  var OPTS = null, API = null, LOC = null, ROOT = null, MIN = false, PINNED = false;
   var REFRESH = null, MINW = 150, MINH = 120;
 
   // WMO 天气代码 -> [中文描述, emoji]
@@ -206,6 +206,7 @@
     function bindHandle(handle) {
       if (!handle) return;
       handle.addEventListener("pointerdown", function (e) {
+        if (PINNED) return;
         if (e.target.tagName === "BUTTON") return;
         e.stopPropagation();
         try { handle.setPointerCapture(e.pointerId); } catch (err) {}
@@ -244,6 +245,7 @@
     var h = el("wwRsz");
     h.style.touchAction = "none";
     h.addEventListener("pointerdown", function (e) {
+      if (PINNED) return;
       e.stopPropagation();
       e.preventDefault();
       try { h.setPointerCapture(e.pointerId); } catch (err) {}
@@ -297,6 +299,31 @@
     }
     el("wwX").onclick = close;
     el("wwX2").onclick = close;
+    el("wwPin").onclick = function () {
+      PINNED = !PINNED;
+      syncPin();
+      savePin();
+    };
+  }
+
+  // 固定（锁定位置）：启用时禁止拖动/缩放，隐藏缩放把手，并给出视觉提示
+  function syncPin() {
+    if (!ROOT) return;
+    ROOT.classList.toggle("ww-pinned", PINNED);
+    var btn = el("wwPin");
+    if (btn) {
+      btn.classList.toggle("ww-active", PINNED);
+      btn.title = PINNED
+        ? "已固定（点击解锁，恢复拖动/缩放）"
+        : "固定位置（锁定，禁止拖动/缩放）";
+    }
+    var rs = el("wwRsz");
+    if (rs) rs.style.display = PINNED ? "none" : "";
+  }
+
+  function savePin() {
+    if (!API) { store("ww_pin", PINNED ? "1" : "0"); return; }
+    send({ pinned: PINNED });
   }
 
   function readMin() {
@@ -313,6 +340,7 @@
       // 注入场景：服务端的地点优先；演示场景：localStorage
     }
     MIN = readMin();
+    PINNED = ("pinned" in OPTS) ? !!OPTS.pinned : (store("ww_pin") === "1");
     ROOT = document.createElement("div");
     ROOT.id = "ww-root";
     ROOT.innerHTML =
@@ -320,6 +348,7 @@
         '<span class="ww-grip">🌤</span>' +
         '<span class="ww-title" id="wwTitle">天气</span>' +
         '<span class="ww-spacer"></span>' +
+        '<button class="ww-pin" id="wwPin" title="固定位置（锁定，禁止拖动/缩放）">📌</button>' +
         '<button class="ww-min" id="wwMin" title="最小化">—</button>' +
         '<button class="ww-x" id="wwX" title="关闭">×</button>' +
       '</div>' +
@@ -342,6 +371,7 @@
     host.appendChild(ROOT);
     if (OPTS.embed) ROOT.classList.add("ww-embed");
     applyBox();
+    syncPin();   // 应用初始固定状态（含隐藏缩放把手）
     if (!OPTS.embed) { enableDrag(); enableResize(); }
     bind();
     loadWeather();

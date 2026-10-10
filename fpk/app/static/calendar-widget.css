@@ -73,6 +73,11 @@
   line-height: 1;
 }
 .cw-btn:hover { background: rgba(255, 255, 255, 0.2); }
+/* 固定按钮激活（已锁定位置）高亮 */
+.cw-btn.cw-active { background: rgba(88, 166, 255, 0.35); color: #fff; }
+/* 固定后顶栏/时钟区不再是拖拽把手，鼠标恢复默认 */
+#cw-root.cw-pinned .cw-header,
+#cw-root.cw-pinned .cw-clock { cursor: default; }
 
 /* 实时时钟 + 日期（顶栏被原生小组件盖住时的备用拖拽把手） */
 .cw-clock {

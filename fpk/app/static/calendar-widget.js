@@ -59,6 +59,7 @@
     this.size = opts.size || null;
     this.min = opts.min || false;
     this.notes = (opts.notes && typeof opts.notes === "object") ? opts.notes : {};
+    this.pinned = !!opts.pinned;   // 固定（锁定位置，禁止拖动/缩放）
     this.viewYear = 0;
     this.viewMonth = 0;     // 0-11
     this.selectedKey = null;
@@ -79,6 +80,7 @@
       '<div class="cw-header">' +
         '<span class="cw-title">📅 日历</span>' +
         '<span class="cw-spacer"></span>' +
+        '<button class="cw-btn cw-pin-btn" title="固定位置（锁定，禁止拖动/缩放）">📌</button>' +
         '<button class="cw-btn cw-min-btn" title="最小化">—</button>' +
         '<button class="cw-btn cw-close-btn" title="关闭（可在设置窗口重新开启）">×</button>' +
       '</div>' +
@@ -143,6 +145,12 @@
       self._render();
     });
     this.minBtn = root.querySelector(".cw-min-btn");
+    this.pinBtn = root.querySelector(".cw-pin-btn");
+    this.pinBtn.addEventListener("click", function () {
+      self.pinned = !self.pinned;
+      self._syncPin();
+      self._savePin(self.pinned);
+    });
     root.querySelector(".cw-close-btn").addEventListener("click", function () {
       root.remove();
       if (self.settingsApi) {
@@ -188,9 +196,37 @@
     if (this.size) this._applySize(this.size.width, this.size.height);
     if (this.pos) this._applyPos(this.pos.left, this.pos.top);
     if (this.min) this.el.classList.add("cw-min");
+    this._syncPin();   // 应用初始固定状态（含隐藏缩放把手）
 
     this._render();
     this._startClock();
+  };
+
+  // 固定（锁定位置）：启用时禁止拖动/缩放，隐藏缩放把手，并给出视觉提示
+  CalendarWidget.prototype._syncPin = function () {
+    if (!this.el) return;
+    this.el.classList.toggle("cw-pinned", this.pinned);
+    if (this.pinBtn) {
+      this.pinBtn.classList.toggle("cw-active", this.pinned);
+      this.pinBtn.title = this.pinned
+        ? "已固定（点击解锁，恢复拖动/缩放）"
+        : "固定位置（锁定，禁止拖动/缩放）";
+    }
+    var rs = this.el.querySelector(".cw-resize");
+    if (rs) rs.style.display = this.pinned ? "none" : "";
+  };
+
+  CalendarWidget.prototype._savePin = function (v) {
+    this.pinned = !!v;
+    if (this.settingsApi) {
+      fetch(this.settingsApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: this.pinned })
+      }).catch(function () {});
+    } else {
+      try { localStorage.setItem("cw_pin", this.pinned ? "1" : "0"); } catch (e) {}
+    }
   };
 
   // ===================== 渲染月历 =====================
@@ -346,6 +382,7 @@
     var self = this;
     handle.style.touchAction = "none";
     handle.addEventListener("pointerdown", function (e) {
+      if (self.pinned) return;
       if (e.target.closest(".cw-btn")) return;
       e.stopPropagation();
       try { handle.setPointerCapture(e.pointerId); } catch (err) {}
@@ -382,6 +419,7 @@
     if (!handle) return;
     handle.style.touchAction = "none";
     handle.addEventListener("pointerdown", function (e) {
+      if (self.pinned) return;
       e.preventDefault();
       e.stopPropagation();
       try { handle.setPointerCapture(e.pointerId); } catch (err) {}
@@ -516,6 +554,11 @@
       var lm = localStorage.getItem("cw_min");
       if (lm) initialMin = lm === "1";
     } catch (e) {}
+    var initialPin = false;
+    try {
+      var lp = localStorage.getItem("cw_pin");
+      if (lp) initialPin = lp === "1";
+    } catch (e) {}
     if (auto !== "0" && !window.__cw_noauto) {
       document.addEventListener("DOMContentLoaded", function () {
         CalendarWidget.mount({
@@ -523,7 +566,8 @@
           notes: initialNotes,
           pos: box ? box.pos : null,
           size: box ? box.size : null,
-          min: initialMin
+          min: initialMin,
+          pinned: initialPin
         });
       });
     }

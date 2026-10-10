@@ -852,6 +852,8 @@ class DirHandler(BaseHTTPRequestHandler):
                     cur["root"] = str(payload.get("root") or "")
                 if "visible" in payload:
                     cur["visible"] = bool(payload.get("visible"))
+                if "pinned" in payload:
+                    cur["pinned"] = bool(payload.get("pinned"))
                 if "pos" in payload:
                     p = payload.get("pos")
                     if isinstance(p, dict):
@@ -952,6 +954,8 @@ class DirHandler(BaseHTTPRequestHandler):
                     cur["calendar_notes"] = payload.get("notes")
                 if "min" in payload:
                     cur["calendar_min"] = bool(payload.get("min"))
+                if "pinned" in payload:
+                    cur["calendar_pinned"] = bool(payload.get("pinned"))
                 ok = save_settings(cur)
                 self._send_json({"status": "success" if ok else "error",
                                  "settings": {
@@ -968,6 +972,7 @@ class DirHandler(BaseHTTPRequestHandler):
                 "pos": st.get("calendar_pos"),
                 "size": st.get("calendar_size"),
                 "min": st.get("calendar_min", False),
+                "pinned": st.get("calendar_pinned", False),
                 "notes": st.get("calendar_notes") or {},
             }})
             return
@@ -1006,6 +1011,8 @@ class DirHandler(BaseHTTPRequestHandler):
                     cur["weather_location"] = str(payload.get("location") or "")
                 if "min" in payload:
                     cur["weather_min"] = bool(payload.get("min"))
+                if "pinned" in payload:
+                    cur["weather_pinned"] = bool(payload.get("pinned"))
                 ok = save_settings(cur)
                 self._send_json({"status": "success" if ok else "error",
                                  "settings": {
@@ -1013,6 +1020,7 @@ class DirHandler(BaseHTTPRequestHandler):
                                      "pos": cur.get("weather_pos"),
                                      "size": cur.get("weather_size"),
                                      "min": cur.get("weather_min", False),
+                                     "pinned": cur.get("weather_pinned", False),
                                      "location": cur.get("weather_location") or "",
                                  }}, 200 if ok else 500)
                 return

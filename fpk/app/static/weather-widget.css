@@ -37,6 +37,16 @@
 }
 #ww-root .ww-min:hover { background: rgba(255, 255, 255, 0.18); }
 #ww-root .ww-x:hover { background: #da3633; }
+/* 固定按钮：与 min/x 同款外观，激活（已锁定位置）时高亮 */
+#ww-root .ww-pin {
+  width: 22px; height: 22px; line-height: 1; border: none; cursor: pointer;
+  background: rgba(255, 255, 255, 0.08); color: #e6edf3;
+  border-radius: 6px; font-size: 14px; padding: 0;
+}
+#ww-root .ww-pin:hover { background: rgba(255, 255, 255, 0.18); }
+#ww-root .ww-pin.ww-active { background: rgba(88, 166, 255, 0.35); color: #fff; }
+/* 固定后顶栏不再是拖拽把手，鼠标恢复默认 */
+#ww-root.ww-pinned .ww-bar, #ww-root.ww-pinned .ww-minbar { cursor: default; }
 #ww-root .ww-body {
   flex: 1 1 auto;
   min-height: 0;            /* 允许在卡片变矮时收缩 */

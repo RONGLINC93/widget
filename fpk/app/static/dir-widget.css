@@ -69,6 +69,10 @@
   line-height: 1;
 }
 .dw-btn:hover { background: rgba(255, 255, 255, 0.18); }
+/* 固定按钮激活（已锁定位置）高亮 */
+.dw-btn.dw-active { background: rgba(88, 166, 255, 0.35); color: #fff; }
+/* 固定后顶栏不再是拖拽把手，鼠标恢复默认 */
+#dw-root.dw-pinned .dw-header { cursor: default; }
 
 .dw-toolbar {
   display: flex;

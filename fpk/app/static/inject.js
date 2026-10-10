@@ -44,9 +44,9 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭 → 不再自动挂载，直到在应用窗口重新开启
           if (st.visible === false) return;
-          mountWidget(st.path || getLocalPath(), st.root || "", st.pos, st.size);
+          mountWidget(st.path || getLocalPath(), st.root || "", st.pos, st.size, st.pinned);
         })
-        .catch(function () { mountWidget(getLocalPath(), "", null, null); });
+        .catch(function () { mountWidget(getLocalPath(), "", null, null, false); });
     };
 
     function getLocalPath() {
@@ -239,12 +239,13 @@
       setTimeout(apply, 6000);
     }
 
-    function mountWidget(path, root, pos, size) {
+    function mountWidget(path, root, pos, size, pinned) {
       window.DirWidget.mount({
         path: path,
         root: root,
         pos: pos || null,
         size: size || null,
+        pinned: !!pinned,
         api: BASE + "/api/list",
         fileApi: BASE + "/api/file",
         searchApi: BASE + "/api/search",
@@ -279,12 +280,13 @@
     cs.src = BASE + "/static/calendar-widget.js";
     cs.onload = function () {
       if (!window.CalendarWidget) return;
-      var mountCal = function (pos, size, notes, min) {
+      var mountCal = function (pos, size, notes, min, pinned) {
         window.CalendarWidget.mount({
           settingsApi: BASE + "/api/calendar_settings",
           pos: pos || null,
           size: size || null,
           min: !!min,
+          pinned: !!pinned,
           notes: (notes && typeof notes === "object") ? notes : {}
         });
         var cel = document.getElementById("cw-root");
@@ -296,9 +298,9 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭日历 → 不再自动挂载，直到在应用窗口重新开启
           if (st.calendar_visible === false) return;
-          mountCal(st.calendar_pos, st.calendar_size, st.calendar_notes, st.calendar_min);
+          mountCal(st.calendar_pos, st.calendar_size, st.calendar_notes, st.calendar_min, st.calendar_pinned);
         })
-        .catch(function () { mountCal(null, null, {}, false); });
+        .catch(function () { mountCal(null, null, {}, false, false); });
     };
     document.head.appendChild(cs);
 
@@ -314,13 +316,14 @@
     ws.src = BASE + "/static/weather-widget.js";
     ws.onload = function () {
       if (!window.WeatherWidget) return;
-      var mountW = function (pos, size, location, min) {
+      var mountW = function (pos, size, location, min, pinned) {
         window.WeatherWidget.mount({
           settingsApi: BASE + "/api/weather_settings",
           pos: pos || null,
           size: size || null,
           location: location || "",
-          min: !!min
+          min: !!min,
+          pinned: !!pinned
         });
         var wel = document.getElementById("ww-root");
         if (wel) alignWithDesktopIcons(wel);
@@ -331,9 +334,9 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭天气 → 不再自动挂载，直到在应用窗口重新开启
           if (st.weather_visible === false) return;
-          mountW(st.weather_pos, st.weather_size, st.weather_location, st.weather_min);
+          mountW(st.weather_pos, st.weather_size, st.weather_location, st.weather_min, st.weather_pinned);
         })
-        .catch(function () { mountW(null, null, "", false); });
+        .catch(function () { mountW(null, null, "", false, false); });
     };
     document.head.appendChild(ws);
   }

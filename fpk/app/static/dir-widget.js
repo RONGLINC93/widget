@@ -127,6 +127,7 @@
     this.listTruncated = false;   // 列表是否因超上限被服务端截断
     this.opts = opts;
     this.el = null;
+    this.pinned = !!opts.pinned;   // 固定（锁定位置，禁止拖动/缩放）
     this._build();
   }
 
@@ -138,6 +139,7 @@
       '<div class="dw-header">' +
         '<span class="dw-title">📁 目录浏览器</span>' +
         '<span class="dw-spacer"></span>' +
+        '<button class="dw-btn dw-pin-btn" title="固定位置（锁定，禁止拖动/缩放）">📌</button>' +
         '<button class="dw-btn dw-min-btn" title="最小化">—</button>' +
         '<button class="dw-btn dw-close-btn" title="关闭">×</button>' +
       '</div>' +
@@ -318,6 +320,11 @@
     root.querySelector(".dw-min-btn").addEventListener("click", function () {
       root.classList.toggle("dw-min");
     });
+    root.querySelector(".dw-pin-btn").addEventListener("click", function () {
+      self.pinned = !self.pinned;
+      self._syncPin();
+      self._savePin(self.pinned);
+    });
 
     if ((!this.opts || !this.opts.embed) && this.opts.draggable !== false) {
       this._makeDraggable(root.querySelector(".dw-header"), root);
@@ -325,6 +332,7 @@
     } else if (this.opts && this.opts.draggable === false && root.querySelector(".dw-resize")) {
       root.querySelector(".dw-resize").style.display = "none";
     }
+    this._syncPin();   // 应用初始固定状态（含隐藏缩放把手）
 
     // 还原上次记住的大小（先尺寸后位置：位置钳制要用到实际尺寸）
     if (this.size) this._applySize(this.size.width, this.size.height);
@@ -334,10 +342,39 @@
     if (this.path) this.refresh();
   };
 
+  // 固定（锁定位置）：启用时禁止拖动/缩放，隐藏缩放把手，并给出视觉提示
+  DirWidget.prototype._syncPin = function () {
+    if (!this.el) return;
+    this.el.classList.toggle("dw-pinned", this.pinned);
+    var btn = this.el.querySelector(".dw-pin-btn");
+    if (btn) {
+      btn.classList.toggle("dw-active", this.pinned);
+      btn.title = this.pinned
+        ? "已固定（点击解锁，恢复拖动/缩放）"
+        : "固定位置（锁定，禁止拖动/缩放）";
+    }
+    var rs = this.el.querySelector(".dw-resize");
+    if (rs) rs.style.display = this.pinned ? "none" : "";
+  };
+
+  DirWidget.prototype._savePin = function (v) {
+    this.pinned = !!v;
+    // 仅在有 settingsApi（注入场景）时落盘，与目录组件其它设置一致；
+    // 纯演示页（无后端）不持久化固定状态。
+    if (this.opts && this.opts.settingsApi) {
+      fetch(this.opts.settingsApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: this.pinned })
+      }).catch(function () {});
+    }
+  };
+
   DirWidget.prototype._makeDraggable = function (handle, panel) {
     var self = this;
     var sx, sy, ox, oy, drag = false;
     handle.addEventListener("mousedown", function (e) {
+      if (self.pinned) return;
       if (e.target.closest(".dw-btn")) return;
       drag = true;
       sx = e.clientX; sy = e.clientY;
@@ -373,6 +410,7 @@
     var self = this;
     if (!handle) return;
     handle.addEventListener("mousedown", function (e) {
+      if (self.pinned) return;
       e.preventDefault();
       e.stopPropagation();
       var sx = e.clientX, sy = e.clientY;
