@@ -181,75 +181,56 @@
 
   function enableDrag() {
     var bar = el("wwBar");
-    var sx, sy, ox, oy, drag = false;
-    function down(e) {
+    bar.style.touchAction = "none";
+    bar.addEventListener("pointerdown", function (e) {
       if (e.target.tagName === "BUTTON") return;
-      drag = true;
-      var p = e.touches ? e.touches[0] : e;
-      sx = p.clientX; sy = p.clientY;
+      e.stopPropagation();
+      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+      var sx = e.clientX, sy = e.clientY;
       var r = ROOT.getBoundingClientRect();
-      ox = r.left; oy = r.top;
-      document.addEventListener("mousemove", move);
-      document.addEventListener("mouseup", up);
-      document.addEventListener("touchmove", move, { passive: false });
-      document.addEventListener("touchend", up);
+      var ox = r.left, oy = r.top;
+      function move(ev) {
+        ROOT.style.left = Math.max(0, ox + ev.clientX - sx) + "px";
+        ROOT.style.top = Math.max(0, oy + ev.clientY - sy) + "px";
+      }
+      function up() {
+        bar.removeEventListener("pointermove", move);
+        bar.removeEventListener("pointerup", up);
+        bar.removeEventListener("pointercancel", up);
+        var rr = ROOT.getBoundingClientRect();
+        saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) }, OPTS.size);
+      }
+      bar.addEventListener("pointermove", move);
+      bar.addEventListener("pointerup", up);
+      bar.addEventListener("pointercancel", up);
       e.preventDefault();
-    }
-    function move(e) {
-      if (!drag) return;
-      var p = e.touches ? e.touches[0] : e;
-      var nl = ox + (p.clientX - sx), nt = oy + (p.clientY - sy);
-      ROOT.style.left = Math.max(0, nl) + "px";
-      ROOT.style.top = Math.max(0, nt) + "px";
-      if (e.cancelable) e.preventDefault();
-    }
-    function up() {
-      if (!drag) return;
-      drag = false;
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", up);
-      document.removeEventListener("touchmove", move);
-      document.removeEventListener("touchend", up);
-      var r = ROOT.getBoundingClientRect();
-      saveBox({ left: Math.round(r.left), top: Math.round(r.top) }, OPTS.size);
-    }
-    bar.addEventListener("mousedown", down);
-    bar.addEventListener("touchstart", down, { passive: false });
+    });
   }
 
   function enableResize() {
     var h = el("wwRsz");
-    var sx, sy, sw, sh, rs = false;
-    function down(e) {
-      rs = true;
-      var p = e.touches ? e.touches[0] : e;
-      sx = p.clientX; sy = p.clientY;
-      sw = ROOT.offsetWidth; sh = ROOT.offsetHeight;
-      document.addEventListener("mousemove", move);
-      document.addEventListener("mouseup", up);
-      document.addEventListener("touchmove", move, { passive: false });
-      document.addEventListener("touchend", up);
-      e.preventDefault(); e.stopPropagation();
-    }
-    function move(e) {
-      if (!rs) return;
-      var p = e.touches ? e.touches[0] : e;
-      var nw = Math.max(MINW, sw + (p.clientX - sx));
-      var nh = Math.max(MINH, sh + (p.clientY - sy));
-      ROOT.style.width = nw + "px"; ROOT.style.height = nh + "px";
-      if (e.cancelable) e.preventDefault();
-    }
-    function up() {
-      if (!rs) return;
-      rs = false;
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", up);
-      document.removeEventListener("touchmove", move);
-      document.removeEventListener("touchend", up);
-      saveBox(OPTS.pos, { width: ROOT.offsetWidth, height: ROOT.offsetHeight });
-    }
-    h.addEventListener("mousedown", down);
-    h.addEventListener("touchstart", down, { passive: false });
+    h.style.touchAction = "none";
+    h.addEventListener("pointerdown", function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      try { h.setPointerCapture(e.pointerId); } catch (err) {}
+      var sx = e.clientX, sy = e.clientY;
+      var sw = ROOT.offsetWidth, sh = ROOT.offsetHeight;
+      function move(ev) {
+        var nw = Math.max(MINW, sw + (ev.clientX - sx));
+        var nh = Math.max(MINH, sh + (ev.clientY - sy));
+        ROOT.style.width = nw + "px"; ROOT.style.height = nh + "px";
+      }
+      function up() {
+        h.removeEventListener("pointermove", move);
+        h.removeEventListener("pointerup", up);
+        h.removeEventListener("pointercancel", up);
+        saveBox(OPTS.pos, { width: ROOT.offsetWidth, height: ROOT.offsetHeight });
+      }
+      h.addEventListener("pointermove", move);
+      h.addEventListener("pointerup", up);
+      h.addEventListener("pointercancel", up);
+    });
   }
 
   function bind() {

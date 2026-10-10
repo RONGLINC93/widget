@@ -110,6 +110,7 @@
 
     // 搬进桌面容器后，交互不冒泡到桌面（避免误触桌面处理）
     root.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+    root.addEventListener("pointerdown", function (e) { e.stopPropagation(); });
     root.addEventListener("click", function (e) { e.stopPropagation(); });
 
     this.timeEl = root.querySelector(".cw-time");
@@ -285,52 +286,57 @@
 
   CalendarWidget.prototype._makeDraggable = function (handle, panel) {
     var self = this;
-    var sx, sy, ox, oy, drag = false;
-    handle.addEventListener("mousedown", function (e) {
+    handle.style.touchAction = "none";
+    handle.addEventListener("pointerdown", function (e) {
       if (e.target.closest(".cw-btn")) return;
-      drag = true;
-      sx = e.clientX; sy = e.clientY;
+      e.stopPropagation();
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+      var sx = e.clientX, sy = e.clientY;
       var r = panel.getBoundingClientRect();
-      ox = r.left; oy = r.top;
+      var ox = r.left, oy = r.top;
       panel.style.right = "auto";
-      document.addEventListener("mousemove", move);
-      document.addEventListener("mouseup", up);
+      function move(ev) {
+        panel.style.left = (ox + ev.clientX - sx) + "px";
+        panel.style.top = (oy + ev.clientY - sy) + "px";
+      }
+      function up() {
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
+        self._saveBox(panel);
+      }
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      handle.addEventListener("pointercancel", up);
       e.preventDefault();
     });
-    function move(e) {
-      if (!drag) return;
-      panel.style.left = (ox + e.clientX - sx) + "px";
-      panel.style.top = (oy + e.clientY - sy) + "px";
-    }
-    function up() {
-      drag = false;
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", up);
-      self._saveBox(panel);
-    }
   };
 
   CalendarWidget.prototype._makeResizable = function (handle, panel) {
     var self = this;
     if (!handle) return;
-    handle.addEventListener("mousedown", function (e) {
+    handle.style.touchAction = "none";
+    handle.addEventListener("pointerdown", function (e) {
       e.preventDefault();
       e.stopPropagation();
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
       var sx = e.clientX, sy = e.clientY;
       var r0 = panel.getBoundingClientRect();
       var sw = r0.width, sh = r0.height;
-      document.addEventListener("mousemove", move);
-      document.addEventListener("mouseup", up);
-      function move(e) {
-        var box = clampSize(sw + e.clientX - sx, sh + e.clientY - sy, r0.left, r0.top);
+      function move(ev) {
+        var box = clampSize(sw + ev.clientX - sx, sh + ev.clientY - sy, r0.left, r0.top);
         panel.style.width = box[0] + "px";
         panel.style.height = box[1] + "px";
       }
       function up() {
-        document.removeEventListener("mousemove", move);
-        document.removeEventListener("mouseup", up);
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+        handle.removeEventListener("pointercancel", up);
         self._saveBox(panel);
       }
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      handle.addEventListener("pointercancel", up);
     });
     handle.addEventListener("dblclick", function (e) {
       e.preventDefault();

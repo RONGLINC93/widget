@@ -136,8 +136,12 @@ def read_multiline():
 
 
 def ensure_changelog(ver):
-    """发布前检查：manifest 的 changelog 顶部必须含当前版本条目；
-    缺失时优先从 CHANGELOG.md 自动获取，取不到则交互输入；跳过仅告警不阻断。
+    """发布前检查：manifest 的 changelog 顶部必须含当前版本条目。
+
+    约定（与开发流程一致）：manifest 的 changelog 字段**仅在发布时**更新，
+    开发期间的变更只写在 CHANGELOG.md 的「[ver] — 未发布」小节。
+    因此这里的内容来源唯一是 CHANGELOG.md，缺失即中止发布（不进入交互输入，
+    避免 CI/非交互环境卡死，也避免把旧版 changelog 发出去）。
     """
     with io.open(MANIFEST, encoding="utf-8", newline="") as f:
         text = f.read()
@@ -150,19 +154,18 @@ def ensure_changelog(ver):
         return True
 
     print("")
-    print("=== 发布前：为 v%s 填写更新日志 ===" % ver)
+    print("=== 发布前：为 v%s 填写更新日志（仅发布时写 manifest）===" % ver)
     print("manifest changelog 顶部仍是旧版本（%s），缺少 v%s 条目。"
           % (cur[:40] + ("..." if len(cur) > 40 else ""), ver))
 
     content = changelog_for(ver)
-    if content:
-        print("[信息] 已从 CHANGELOG.md 自动获取 v%s 的更新日志。" % ver)
-    else:
-        content = read_multiline()
-        if not content:
-            print("[警告] 未输入 v%s 更新日志，请发布前务必手动补充 manifest changelog！" % ver)
-            return True
+    if not content:
+        print("[错误] 在 CHANGELOG.md 的 [v%s] 小节找不到更新条目。" % ver)
+        print("        manifest 的 changelog 仅发布时更新，且内容须来自 CHANGELOG.md。")
+        print("        请先在 CHANGELOG.md 的 [v%s] 未发布小节下写好条目，再运行 release.py。" % ver)
+        sys.exit(1)
 
+    print("[信息] 已从 CHANGELOG.md 自动获取 v%s 的更新日志。" % ver)
     new_entry = "v%s：%s" % (ver, content)
     new_cl = new_entry + ("。" + cur if cur else "")
     text2 = re.sub(r"(?m)^(\s*changelog\s*=\s*).*$",
@@ -174,8 +177,20 @@ def ensure_changelog(ver):
     if back and back.startswith("v%s：" % ver):
         print("[完成] 已将 v%s 更新日志写入 manifest 顶部" % ver)
     else:
-        print("[警告] 写回校验失败，请手动检查 manifest changelog")
+        print("[错误] 写回校验失败，请手动检查 manifest changelog")
+        sys.exit(1)
     return True
+
+
+def verify_released_changelog(released):
+    """发布并递增后，确认 manifest changelog 顶部是刚发布的 v<released>。"""
+    with io.open(MANIFEST, encoding="utf-8", newline="") as f:
+        cur = get_changelog(f.read())
+    if cur and re.match(r"^v%s(?![\d.])" % re.escape(released), cur):
+        print("[完成] manifest changelog 顶部已为 v%s（发布内容已落盘）" % released)
+        return True
+    print("[警告] manifest changelog 顶部不是 v%s，请检查发布内容是否完整" % released)
+    return False
 
 
 def bump_manifest_version(ver):
@@ -430,6 +445,7 @@ def main():
         changed = sync_docs_after_release(ver, new_ver)
         if not changed:
             print("[提示] 文档无需改动")
+        verify_released_changelog(ver)
         commit_and_push_bump(new_ver, auth, changed)
     print("")
     print("提示：下一版开发完成后，直接在 CHANGELOG.md 的 [%s] 未发布小节下写条目，" % (new_ver or "x.y.z"))
