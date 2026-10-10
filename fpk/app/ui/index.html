@@ -40,10 +40,10 @@
     .desk-scale #cw-root { position: absolute !important; left: 452px !important; right: auto !important;
       top: 0 !important; }
     .desk-scale #ww-root { position: absolute !important; left: 800px !important; top: 0 !important; }
-    /* 预览里隐藏关闭 / 最小化，避免误关真实开关或回写 visible */
-    .desk-scale #dw-root .dw-close-btn, .desk-scale #dw-root .dw-min-btn,
-    .desk-scale #cw-root .cw-close-btn, .desk-scale #cw-root .cw-min-btn,
-    .desk-scale #ww-root .ww-x { display: none !important; }
+    /* 预览里隐藏关闭 / 最小化 / 固定，避免误关真实开关或回写 visible / min / pinned */
+    .desk-scale #dw-root .dw-close-btn, .desk-scale #dw-root .dw-min-btn, .desk-scale #dw-root .dw-pin-btn,
+    .desk-scale #cw-root .cw-close-btn, .desk-scale #cw-root .cw-min-btn, .desk-scale #cw-root .cw-pin-btn,
+    .desk-scale #ww-root .ww-x, .desk-scale #ww-root .ww-min, .desk-scale #ww-root .ww-pin { display: none !important; }
 
     /* 组件卡 */
     .widget { display: flex; gap: 14px; align-items: flex-start;
@@ -334,20 +334,38 @@
     }
 
     // 载入已保存设置，填充输入框并挂载预览窗
-    fetch("api/settings", { cache: "no-store" })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        var st = j.settings || {};
-        pathInput.value = st.path || "";
-        rootInput.value = st.root || "";
-        visibleChk.checked = st.visible !== false;
-        setStatus($("dirStatus"), visibleChk.checked);
-        if (calVisibleChk) { calVisibleChk.checked = st.calendar_visible !== false; setStatus($("calStatus"), calVisibleChk.checked); }
-        if (weatherLocInput) weatherLocInput.value = st.weather_location || "";
-        if (weatherVisibleChk) { weatherVisibleChk.checked = st.weather_visible !== false; setStatus($("weatherStatus"), weatherVisibleChk.checked); }
-        mountStage(st);
-      })
-      .catch(function () { mountStage({}); });
+    function boot() {
+      fetch("api/settings", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var st = j.settings || {};
+          pathInput.value = st.path || "";
+          rootInput.value = st.root || "";
+          visibleChk.checked = st.visible !== false;
+          setStatus($("dirStatus"), visibleChk.checked);
+          if (calVisibleChk) { calVisibleChk.checked = st.calendar_visible !== false; setStatus($("calStatus"), calVisibleChk.checked); }
+          if (weatherLocInput) weatherLocInput.value = st.weather_location || "";
+          if (weatherVisibleChk) { weatherVisibleChk.checked = st.weather_visible !== false; setStatus($("weatherStatus"), weatherVisibleChk.checked); }
+          mountStage(st);
+        })
+        .catch(function () { mountStage({}); });
+    }
+
+    // 三段组件脚本在本页「底部」加载（dir/calendar/weather-widget.js），而本段内联脚本
+    // 在其之前执行：fetch 回调可能在组件脚本就绪前触发 → mountStage 里组件未定义 → 预览空白。
+    // 因此等三个组件全局就绪后再挂载（含超时兜底，绝不把预览永久卡死）。
+    function whenWidgetsReady(fn) {
+      if (window.DirWidget && window.CalendarWidget && window.WeatherWidget) return fn();
+      var waited = 0;
+      var timer = setInterval(function () {
+        if (window.DirWidget && window.CalendarWidget && window.WeatherWidget) {
+          clearInterval(timer); fn();
+        } else if ((waited += 50) >= 10000) {
+          clearInterval(timer); fn();
+        }
+      }, 50);
+    }
+    whenWidgetsReady(boot);
 
     // 全局：注入 / 清理
     injectBtn.addEventListener("click", function () {
@@ -440,6 +458,9 @@
   <link rel="stylesheet" href="static/calendar-widget.css" />
   <link rel="stylesheet" href="static/weather-widget.css" />
   <script src="static/dir-widget.js"></script>
+  <!-- 农历 / 法定假日数据（calendar-widget.js 依赖 window.Lunar / window.HolidayCN），须先于日历脚本加载 -->
+  <script src="static/lunar.js"></script>
+  <script src="static/holiday-cn.js"></script>
   <script src="static/calendar-widget.js"></script>
   <script src="static/weather-widget.js"></script>
 </body>
