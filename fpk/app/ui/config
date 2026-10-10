@@ -7,7 +7,7 @@
             "protocol": "http",
             "port": "8099",
             "url": "/",
-            "allUsers": true,
+            "allUsers": false,
             "control": {"accessPerm": "editable"}
         }
     }
