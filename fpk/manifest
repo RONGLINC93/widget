@@ -7,8 +7,8 @@
 appname = ronglinc93widget
 name = ronglinc93widget
 display_name = RONGLINC93小组件
-version = 0.1.4
-version_released = 0.1.3
+version = 0.1.5
+version_released = 0.1.4
 desc = 飞牛 fnOS RONGLINC93桌面小工具零依赖，仅用 Python 标准库。
 author = RONGLINC93
 maintainer = RONGLINC93
