@@ -225,7 +225,27 @@
       if (key === todayKey) cls += " cw-today";
       if (key === this.selectedKey) cls += " cw-selected";
       if (this.notes && this.notes[key]) cls += " cw-has-note";
-      cells.push('<div class="' + cls + '" data-key="' + key + '">' + d.getDate() + "</div>");
+      var sm = d.getMonth() + 1, sd = d.getDate();
+      var lunText = "";
+      if (window.Lunar) {
+        var lun = Lunar.solarToLunar(d.getFullYear(), sm, sd);
+        lunText = Lunar.cellText(lun, sm, sd);
+      }
+      var hol = (window.HolidayCN) ? HolidayCN.get(d.getFullYear(), sm, sd) : null;
+      if (hol) cls += (hol.off ? " cw-holiday" : " cw-work");
+      var title = "";
+      if (hol) {
+        title = ' title="' + escapeHtml(hol.name + (hol.off ? "（法定假日·休息）" : "（调休·上班）")) + '"';
+      }
+      var holHtml = "";
+      if (hol) {
+        holHtml = '<span class="cw-htag ' + (hol.off ? "cw-htag-off" : "cw-htag-work") + '">' +
+          (hol.off ? "休" : "班") + "</span>";
+      }
+      cells.push('<div class="' + cls + '" data-key="' + key + '"' + title + '>' +
+        '<span class="cw-day">' + d.getDate() + "</span>" +
+        '<span class="cw-lunar">' + escapeHtml(lunText) + "</span>" +
+        holHtml + "</div>");
     }
     this.gridEl.innerHTML = cells.join("");
 
@@ -244,8 +264,20 @@
     var key = this.selectedKey;
     var parts = key.split("-");
     var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    var y = Number(parts[0]), m = Number(parts[1]), day = Number(parts[2]);
+    var lunStr = "";
+    if (window.Lunar) {
+      var lun = Lunar.solarToLunar(y, m, day);
+      lunStr = Lunar.fullLabel(lun);
+    }
+    var holStr = "";
+    if (window.HolidayCN) {
+      var hol = HolidayCN.get(y, m, day);
+      if (hol) holStr = hol.name + (hol.off ? "（休）" : "（班）");
+    }
     this.memoDateEl.innerHTML = "<b>" + key + "</b> · " + cnWeekday(d) +
-      " · 第 " + isoWeek(d) + " 周";
+      " · 第 " + isoWeek(d) + " 周" +
+      (holStr ? " · " + holStr : "") + (lunStr ? " · " + lunStr : "");
     this.memoInput.value = (this.notes && this.notes[key]) ? this.notes[key] : "";
     this.memoMsg.textContent = "";
     this.memoMsg.className = "cw-memo-msg";
@@ -259,8 +291,20 @@
       self.timeEl.textContent = pad2(n.getHours()) + ":" + pad2(n.getMinutes()) +
         ":" + pad2(n.getSeconds());
       var isToday = isoDate(n) === self.selectedKey;
+      var lunStr = "";
+      if (window.Lunar) {
+        var lun = Lunar.solarToLunar(n.getFullYear(), n.getMonth() + 1, n.getDate());
+        lunStr = Lunar.fullLabel(lun);
+      }
+      var holStr = "";
+      if (window.HolidayCN) {
+        var hol = HolidayCN.get(n.getFullYear(), n.getMonth() + 1, n.getDate());
+        if (hol) holStr = hol.name + (hol.off ? "（休）" : "（班）");
+      }
       self.dateEl.innerHTML = n.getFullYear() + "年" + (n.getMonth() + 1) + "月" +
         n.getDate() + "日 · " + cnWeekday(n) +
+        (holStr ? " · " + holStr : "") +
+        (lunStr ? " · " + lunStr : "") +
         (isToday ? ' · <span class="cw-today-tag">今天</span>' : "");
     }
     tick();

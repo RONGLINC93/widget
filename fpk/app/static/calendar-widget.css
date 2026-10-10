@@ -157,13 +157,40 @@
   position: relative;
   aspect-ratio: 1 / 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
   color: #e6edf3;
+  overflow: hidden;
+  padding: 1px 0;
+  box-sizing: border-box;
 }
+/* 阳历日号（主显示） */
+.cw-cell .cw-day {
+  font-size: 13px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+/* 农历（次显示） */
+.cw-cell .cw-lunar {
+  font-size: 9px;
+  line-height: 1.1;
+  color: #8b949e;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 农历与「今天/周末」等强调色协调：周末的农历略暖 */
+.cw-cell.cw-we .cw-lunar { color: #b0773e; }
+.cw-cell.cw-other .cw-lunar { color: #6e7681; }
+/* 选中/今天时农历保持可读对比 */
+.cw-cell.cw-selected .cw-lunar { color: rgba(255,255,255,0.85); }
+.cw-cell.cw-today .cw-lunar { color: #79c0ff; }
 .cw-cell:hover { background: rgba(255, 255, 255, 0.08); }
 .cw-cell.cw-other { color: #6e7681; }
 .cw-cell.cw-we { color: #f0883e; }
@@ -190,6 +217,26 @@
   background: #3fb950;
 }
 .cw-cell.cw-selected.cw-has-note::after { background: #fff; }
+
+/* 法定节假日 / 调休补班标记 */
+.cw-htag {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 8px;
+  line-height: 1;
+  padding: 1px 2px;
+  border-radius: 3px;
+  font-weight: 600;
+  user-select: none;
+}
+.cw-htag-off { background: rgba(63, 185, 80, 0.22); color: #3fb950; }
+.cw-htag-work { background: rgba(240, 136, 62, 0.22); color: #f0883e; }
+/* 法定假日休息日：日号着色为绿色，略作强调 */
+.cw-cell.cw-holiday .cw-day { color: #3fb950; font-weight: 600; }
+.cw-cell.cw-holiday.cw-we .cw-day { color: #3fb950; }
+/* 调休补班日（本是周末但要上班）：保留周末底色，但用「班」标记提示 */
+.cw-cell.cw-work .cw-day { color: #f0883e; }
 
 /* 每日备忘（flex:1 弹性填充卡片剩余高度 —— 卡片被拉高时输入框跟随变高，
    而不是在卡片底部留一大块空白） */

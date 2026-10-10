@@ -263,6 +263,16 @@
     clink.href = BASE + "/static/calendar-widget.css";
     document.head.appendChild(clink);
 
+    // 农历转换库（calendar-widget.js 依赖 window.Lunar），须先于日历脚本加载
+    var ls = document.createElement("script");
+    ls.src = BASE + "/static/lunar.js";
+    document.head.appendChild(ls);
+
+    // 法定节假日数据（calendar-widget.js 依赖 window.HolidayCN），须先于日历脚本加载
+    var hs = document.createElement("script");
+    hs.src = BASE + "/static/holiday-cn.js";
+    document.head.appendChild(hs);
+
     var cs = document.createElement("script");
     // 告知 calendar-widget.js：由本脚本手动挂载，不要走它的自动挂载（避免重复实例）
     window.__cw_noauto = true;
