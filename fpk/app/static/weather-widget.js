@@ -301,7 +301,8 @@
         '<div class="ww-foot" id="wwFoot"></div>' +
       '</div>' +
       '<div class="ww-rsz" id="wwRsz" title="拖拽缩放"></div>';
-    (document.body || document.documentElement).appendChild(ROOT);
+    var host = OPTS.container || document.body || document.documentElement;
+    host.appendChild(ROOT);
     if (OPTS.embed) ROOT.classList.add("ww-embed");
     applyBox();
     if (!OPTS.embed) { enableDrag(); enableResize(); }
@@ -312,6 +313,12 @@
   }
 
   W.mount = mount;
+  // 从挂载容器中移除（用于管理页预览刷新，清理刷新定时器）
+  W.unmount = function () {
+    if (REFRESH) { clearInterval(REFRESH); REFRESH = null; }
+    if (ROOT && ROOT.parentNode) ROOT.parentNode.removeChild(ROOT);
+    ROOT = null;
+  };
   window.WeatherWidget = W;
 
   if (!window.__ww_noauto) {

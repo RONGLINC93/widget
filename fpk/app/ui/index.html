@@ -8,7 +8,7 @@
     body { margin: 0; min-height: 100vh;
       background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
       color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
-    .wrap { max-width: 680px; margin: 36px auto; padding: 0 16px 56px; }
+    .wrap { margin: 36px auto; padding: 0 16px 56px; }
     h2 { color: #e6edf3; font-size: 20px; margin: 0 0 4px; }
     .sub { font-size: 13px; margin: 0 0 22px; }
 
@@ -19,6 +19,31 @@
     .bar .lead { flex: 1; min-width: 140px; }
     .bar .lead b { color: #e6edf3; font-size: 14px; }
     .bar .lead span { display: block; font-size: 12px; color: #8b949e; margin-top: 2px; }
+
+    /* 桌面预览舞台：真实悬浮窗并排显示 */
+    .stagecard { background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+      padding: 16px; margin-bottom: 18px; }
+    .stagecard h3 { color: #e6edf3; font-size: 15px; margin: 0 0 4px; }
+    .stagecard .stage-tip { font-size: 12px; color: #8b949e; margin: 0 0 12px; }
+    .stage { position: relative; overflow: auto; }
+    /* 迷你桌面：带壁纸的框，三个真实浮窗缩放并排摆进去（真浮窗、不滚动） */
+    .desktop { position: relative; width: 100%; overflow: hidden; border-radius: 10px;
+      border: 1px solid #30363d; display: flex; justify-content: center; align-items: flex-start;
+      background: linear-gradient(135deg, #0b1220, #161b22); }
+    .desktop::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(560px 280px at 82% 8%, #1f6feb26, transparent),
+                  radial-gradient(480px 260px at 8% 96%, #a371f72b, transparent); }
+    .desk-scale { position: relative; width: 1080px; height: 470px; flex: none;
+      transform: scale(0.58); transform-origin: top center; }
+    .desk-scale #dw-root { position: absolute !important; left: 0 !important; right: auto !important;
+      top: 0 !important; max-height: 450px !important; }
+    .desk-scale #cw-root { position: absolute !important; left: 452px !important; right: auto !important;
+      top: 0 !important; }
+    .desk-scale #ww-root { position: absolute !important; left: 800px !important; top: 0 !important; }
+    /* 预览里隐藏关闭 / 最小化，避免误关真实开关或回写 visible */
+    .desk-scale #dw-root .dw-close-btn, .desk-scale #dw-root .dw-min-btn,
+    .desk-scale #cw-root .cw-close-btn, .desk-scale #cw-root .cw-min-btn,
+    .desk-scale #ww-root .ww-x { display: none !important; }
 
     /* 组件卡 */
     .widget { display: flex; gap: 14px; align-items: flex-start;
@@ -35,12 +60,6 @@
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #6e7681; flex: none; }
     .wstatus.on .dot { background: #3fb950; box-shadow: 0 0 6px #3fb95099; }
 
-    /* 实时预览（嵌入真实组件窗口） */
-    .wpreview { margin-top: 12px; }
-    .pv-label { font-size: 11px; color: #6e7681; letter-spacing: .5px; margin-bottom: 8px; }
-    .wframe { width: 100%; border: 1px solid #30363d; border-radius: 10px;
-      display: block; background: #0d1117; }
-
     label { display: block; font-size: 13px; margin-bottom: 6px; color: #c9d1d9; }
     label .hint { color: #8b949e; font-weight: 400; }
     input[type=text] { width: 100%; box-sizing: border-box; background: #0d1117;
@@ -49,6 +68,7 @@
     input[type=text]:focus { outline: none; border-color: #388bfd; }
     .field { margin-bottom: 12px; }
     .field:last-child { margin-bottom: 0; }
+    .row { margin-top: 10px; }
 
     /* iOS 风格开关 */
     .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: none; }
@@ -81,14 +101,20 @@
       padding: 10px; font-size: 12px; color: #8b949e; white-space: pre-wrap;
       word-break: break-all; max-height: 240px; overflow: auto; margin: 12px 0 0; }
     .msg { font-size: 13px; color: #8b949e; }
-    .row { margin-top: 12px; }
     code { background: #0d1117; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h2>🧩 RONGLINC93 小组件</h2>
-    <p class="sub">管理显示在飞牛桌面上的小组件。打开开关即显示，改完配置点「注入桌面」生效。下方为各组件在桌面上的实时窗口。</p>
+    <p class="sub">管理显示在飞牛桌面上的小组件。下方是桌面上真实的悬浮窗（可拖拽 / 缩放），改完配置点「注入桌面」生效。</p>
+
+    <!-- 桌面预览：真实悬浮窗并排 -->
+    <div class="stagecard">
+      <h3>🖥 桌面预览</h3>
+      <p class="stage-tip">这就是桌面上真实的悬浮窗样子 —— 可拖动、可缩放，不是示意图。</p>
+      <div class="desktop"><div class="desk-scale" id="stage"></div></div>
+    </div>
 
     <!-- 顶部主操作栏 -->
     <div class="bar">
@@ -114,10 +140,6 @@
         </div>
         <div class="wdesc">在桌面浏览 NAS 目录，支持预览 / 搜索 / 排序</div>
         <div class="wstatus" id="dirStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="wpreview">
-          <div class="pv-label">实时预览 · 桌面上的样子</div>
-          <iframe id="dirFrame" class="wframe" style="height:300px" title="目录浏览器预览"></iframe>
-        </div>
         <div class="wconfig">
           <div class="field">
             <label for="pathInput">要显示的目录，例如 <code>/vol1/share</code></label>
@@ -145,10 +167,6 @@
         </div>
         <div class="wdesc">月历 + 实时时钟（星期 / 第几周）+ 每日备忘</div>
         <div class="wstatus" id="calStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="wpreview">
-          <div class="pv-label">实时预览 · 桌面上的样子</div>
-          <iframe id="calFrame" class="wframe" style="height:360px" title="日历预览"></iframe>
-        </div>
         <div class="row"><span id="calVisibleMsg" class="msg"></span></div>
       </div>
     </div>
@@ -166,10 +184,6 @@
         </div>
         <div class="wdesc">实时天气 + 未来 6 天预报（Open-Meteo，免 API Key）</div>
         <div class="wstatus" id="weatherStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="wpreview">
-          <div class="pv-label">实时预览 · 桌面上的样子</div>
-          <iframe id="weatherFrame" class="wframe" style="height:300px" title="天气预览"></iframe>
-        </div>
         <div class="wconfig">
           <div class="field">
             <label for="weatherLocInput">地点 <span class="hint">（城市名，或 <code>lat,lon</code>，例如 <code>北京</code> / <code>31.23,121.47</code>）</span></label>
@@ -212,7 +226,7 @@
     var rescueBtn = $("rescueBtn"), diagBtn = $("diagBtn");
     var diagOut = $("diagOut");
 
-    // 与组件脚本一致：经 /rl93w/ 反代时 API / 静态资源都要加前缀
+    // 与组件脚本一致：经 /rl93w/ 反代时 API 要加前缀
     var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
 
     function showDiag(j) { diagOut.textContent = JSON.stringify(j, null, 2); }
@@ -240,18 +254,52 @@
       el.querySelector(".txt").textContent = on ? "显示中" : "已隐藏";
     }
 
-    // 预览 iframe 源（内嵌真实组件，改配置后重载以反映最新值）
-    function dirFrameSrc() {
-      return BASE + "/static/embed-dir.html?dir=" + encodeURIComponent(pathInput.value.trim()) +
-        "&root=" + encodeURIComponent(rootInput.value.trim());
+    // ===== 桌面预览舞台：把三个真实悬浮窗挂进 #stage 并排显示 =====
+    var stage = $("stage");
+    var stageDir = null, stageCal = null, stageWx = null;
+
+    function mountStage(settings) {
+      if (stageDir) stageDir.destroy();
+      stageDir = DirWidget.mount({
+        path: (settings.path || "").trim(),
+        root: (settings.root || "").trim(),
+        api: BASE + "/api/list", fileApi: BASE + "/api/file", searchApi: BASE + "/api/search",
+        settingsApi: null, container: stage, draggable: false
+      });
+
+      if (stageCal) stageCal.destroy();
+      stageCal = CalendarWidget.mount({
+        notes: (settings.notes) || {}, settingsApi: BASE + "/api/settings",
+        container: stage, draggable: false
+      });
+
+      if (stageWx) stageWx.unmount();
+      stageWx = WeatherWidget.mount({
+        location: (settings.weather_location || "").trim(),
+        settingsApi: BASE + "/api/settings", container: stage, draggable: false
+      });
     }
-    function wxFrameSrc() {
-      return BASE + "/static/embed-wx.html?loc=" + encodeURIComponent(weatherLocInput.value.trim());
+
+    // 改配置后只刷新受影响的那个预览窗
+    function refreshDir() {
+      if (stageDir) stageDir.destroy();
+      stageDir = DirWidget.mount({
+        path: pathInput.value.trim(), root: rootInput.value.trim(),
+        api: BASE + "/api/list", fileApi: BASE + "/api/file", searchApi: BASE + "/api/search",
+        settingsApi: null, container: stage, draggable: false
+      });
+    }
+    function refreshWx() {
+      if (stageWx) stageWx.unmount();
+      stageWx = WeatherWidget.mount({
+        location: weatherLocInput.value.trim(),
+        settingsApi: BASE + "/api/settings", container: stage, draggable: false
+      });
     }
 
     // 目录
-    pathInput.addEventListener("change", function () { saveDir($("dirMsg")); $("dirFrame").src = dirFrameSrc(); });
-    rootInput.addEventListener("change", function () { saveDir($("dirMsg")); $("dirFrame").src = dirFrameSrc(); });
+    pathInput.addEventListener("change", function () { saveDir($("dirMsg")); refreshDir(); });
+    rootInput.addEventListener("change", function () { saveDir($("dirMsg")); refreshDir(); });
     visibleChk.addEventListener("change", function () {
       var v = visibleChk.checked;
       setStatus($("dirStatus"), v);
@@ -273,7 +321,7 @@
     if (weatherLocInput) {
       weatherLocInput.addEventListener("change", function () {
         saveSettings({ weather_location: weatherLocInput.value.trim() }, $("weatherMsg"), "✅ 天气地点已保存");
-        $("weatherFrame").src = wxFrameSrc();
+        refreshWx();
       });
     }
     if (weatherVisibleChk) {
@@ -285,7 +333,7 @@
       });
     }
 
-    // 载入已保存设置，并初始化预览
+    // 载入已保存设置，填充输入框并挂载预览窗
     fetch("api/settings", { cache: "no-store" })
       .then(function (r) { return r.json(); })
       .then(function (j) {
@@ -297,15 +345,9 @@
         if (calVisibleChk) { calVisibleChk.checked = st.calendar_visible !== false; setStatus($("calStatus"), calVisibleChk.checked); }
         if (weatherLocInput) weatherLocInput.value = st.weather_location || "";
         if (weatherVisibleChk) { weatherVisibleChk.checked = st.weather_visible !== false; setStatus($("weatherStatus"), weatherVisibleChk.checked); }
-        $("dirFrame").src = dirFrameSrc();
-        $("calFrame").src = BASE + "/static/embed-cal.html";
-        $("weatherFrame").src = wxFrameSrc();
+        mountStage(st);
       })
-      .catch(function () {
-        $("dirFrame").src = dirFrameSrc();
-        $("calFrame").src = BASE + "/static/embed-cal.html";
-        $("weatherFrame").src = wxFrameSrc();
-      });
+      .catch(function () { mountStage({}); });
 
     // 全局：注入 / 清理
     injectBtn.addEventListener("click", function () {
@@ -391,5 +433,14 @@
 
     diagBtn.addEventListener("click", runDiag);
   </script>
+
+  <!-- 引入真实浮层组件（阻止其自带自动挂载，改由上面的舞台手动挂载） -->
+  <script>window.__cw_noauto = true; window.__ww_noauto = true;</script>
+  <link rel="stylesheet" href="static/dir-widget.css" />
+  <link rel="stylesheet" href="static/calendar-widget.css" />
+  <link rel="stylesheet" href="static/weather-widget.css" />
+  <script src="static/dir-widget.js"></script>
+  <script src="static/calendar-widget.js"></script>
+  <script src="static/weather-widget.js"></script>
 </body>
 </html>

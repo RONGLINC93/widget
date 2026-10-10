@@ -174,10 +174,12 @@
 
     // 两个拖拽把手：顶栏 + 时钟区。只有顶栏一个把手时，浮层若被右上角原生
     // 系统小组件（CPU/内存状态）盖住顶栏，整个浮层就再也拖不动了。
-    if (!(this.opts && this.opts.embed)) {
+    if ((!this.opts || !this.opts.embed) && this.opts.draggable !== false) {
       this._makeDraggable(root.querySelector(".cw-header"), root);
       this._makeDraggable(root.querySelector(".cw-clock"), root);
       this._makeResizable(root.querySelector(".cw-resize"), root);
+    } else if (this.opts && this.opts.draggable === false && root.querySelector(".cw-resize")) {
+      root.querySelector(".cw-resize").style.display = "none";
     }
 
     if (this.size) this._applySize(this.size.width, this.size.height);
@@ -403,6 +405,12 @@
   // 公共 API
   CalendarWidget.mount = function (opts) {
     return new CalendarWidget(opts);
+  };
+  // 从挂载容器中移除（用于管理页预览刷新，清理时钟定时器 + 避免重复实例）
+  CalendarWidget.prototype.destroy = function () {
+    if (this._clockTimer) clearInterval(this._clockTimer);
+    if (this.el && this.el.parentNode) this.el.parentNode.removeChild(this.el);
+    this.el = null;
   };
   global.CalendarWidget = CalendarWidget;
 

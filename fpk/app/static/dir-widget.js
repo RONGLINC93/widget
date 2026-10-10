@@ -319,9 +319,11 @@
       root.classList.toggle("dw-min");
     });
 
-    if (!(this.opts && this.opts.embed)) {
+    if ((!this.opts || !this.opts.embed) && this.opts.draggable !== false) {
       this._makeDraggable(root.querySelector(".dw-header"), root);
       this._makeResizable(root.querySelector(".dw-resize"), root);
+    } else if (this.opts && this.opts.draggable === false && root.querySelector(".dw-resize")) {
+      root.querySelector(".dw-resize").style.display = "none";
     }
 
     // 还原上次记住的大小（先尺寸后位置：位置钳制要用到实际尺寸）
@@ -875,6 +877,11 @@
   // 公共 API
   DirWidget.mount = function (opts) {
     return new DirWidget(opts);
+  };
+  // 从挂载容器中移除（用于管理页预览刷新，避免重复实例 / 泄漏）
+  DirWidget.prototype.destroy = function () {
+    if (this.el && this.el.parentNode) this.el.parentNode.removeChild(this.el);
+    this.el = null;
   };
   global.DirWidget = DirWidget;
 
