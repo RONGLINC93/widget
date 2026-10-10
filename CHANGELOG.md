@@ -2,7 +2,33 @@
 
 本项目所有版本变更记录。格式参考 [Keep a Changelog](https://keepachangelog.com/)。
 
-## [0.1.6] — 未发布
+## [0.1.7] — 未发布
+
+---
+
+## [0.1.6] — 2026-10-10
+
+### 新增
+
+- **最小化状态记忆（日历 / 天气）**：最小化状态（`min`）随 `POST /api/calendar_settings`
+  / `weather_settings` 存到服务端 `settings.json`（无服务端时回退 `localStorage`），
+  刷新桌面后保持最小化或自动还原；日历还原时重新套用已保存的尺寸高度。服务端
+  `settings` 响应同步返回 `min` 字段，`load_settings` 默认值补 `calendar_min` /
+  `weather_min` 两个布尔项；`inject.js` 挂载时把该值透传给组件。
+
+### 修复
+
+- **三个组件最小化后收不下去、顶栏下留大片空白**：日历 / 目录 / 天气的最小化 CSS
+  原先只压 `max-height`，但 `min-height` 优先级更高，卡片仍停在原始 `min-height`
+  （日历 320px / 目录 140px），顶栏下空一大片。现最小化时显式把 `min-height` 置 0、
+  `height: auto !important` 并 `overflow: hidden`，只留顶栏。
+- **天气最小化条不可拖动 / 还原**：天气最小化改写 class 方案（`.ww-min`，不再直接
+  `display:none` 收起 body）；最小化条（`.ww-minbar`）变为第二个拖拽把手——
+  缩成一条也能拖动、松手同样吸附图标网格，点条空白处即可还原。
+- **天气组件响应式收缩、不再出滚动条**：新增 `container-type: inline-size` 容器查询，
+  卡片变窄时逐级隐藏（≤220px 收底栏/元信息、≤170px 收 6 天预报只留当前天气），
+  `.ww-body` 改为 `overflow: hidden` 替代原先的内容区滚动方案；最小尺寸下限从
+  230×140 放宽到 150×120，可缩得更小。
 
 ---
 
