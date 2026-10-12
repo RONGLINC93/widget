@@ -50,8 +50,8 @@
           body.innerHTML = '<div class="mn-unavail">系统监控不可用<br>（当前环境非 Linux 或 /proc 不可读）</div>';
           return;
         }
-        var html = meter("CPU", stats.cpu) +
-          meter("内存", stats.mem.percent, fmtBytes(stats.mem.used) + " / " + fmtBytes(stats.mem.total));
+        var html = meter("CPU", stats.cpu, stats.cpu_model) +
+          meter("内存", stats.mem.percent, fmtBytes(stats.mem.used) + " / " + fmtBytes(stats.mem.total) + "（共 " + fmtBytes(stats.mem.total) + "）");
 
         // 磁盘：优先多盘列表，回退到旧的单盘字段
         var diskList = (stats.disks && stats.disks.length) ? stats.disks
@@ -74,9 +74,9 @@
 
         if (stats.fans && stats.fans.length) {
           html += '<div class="mn-sec">风扇</div>' + stats.fans.map(function (f) {
-            return '<div class="mn-top" style="margin:2px 0">' +
+            return '<div class="mn-row"><div class="mn-top">' +
               '<span class="mn-label">' + esc(f.name) + '</span>' +
-              '<span class="mn-val">' + esc(f.rpm) + ' RPM</span></div>';
+              '<span class="mn-val">' + esc(f.rpm) + ' RPM</span></div></div>';
           }).join("");
         }
 

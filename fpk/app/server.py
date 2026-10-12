@@ -523,7 +523,7 @@ def handle_widget_settings(self, parsed: Any, prefix: str,
     return True
 
 
-def _read_sysfs(path, cast=int):
+def _read_sysfs(path, cast: type = int):
     try:
         with open(path) as f:
             return cast(f.read().strip())
@@ -531,8 +531,48 @@ def _read_sysfs(path, cast=int):
         return None
 
 
+def _cn_temp_name(name):
+    """把 Linux 温度传感器名（/sys/class/thermal type、hwmon 的 name/label，多为英文）
+    尽力翻译成中文；认不出的保留原样，不丢信息。"""
+    n = (name or "").strip()
+    low = n.lower()
+    m = re.search(r"package id (\d+)", low)
+    if m:
+        return "CPU 封装" + ("" if m.group(1) == "0" else " " + m.group(1))
+    m = re.search(r"core (\d+)", low)
+    if m:
+        return "CPU 核心 " + m.group(1)
+    m = re.search(r"dimm(\d+)", low)
+    if m:
+        return "内存 Dimm" + m.group(1)
+    m = re.search(r"^sensor\s*(\d+)$", low)
+    if m:
+        return "传感器 " + m.group(1)
+    table = [
+        ("pkg", "CPU 封装"), ("x86_pkg", "CPU 封装"),
+        ("k10temp", "CPU"), ("coretemp", "CPU"),
+        ("tctl", "CPU"), ("tdie", "CPU 裸片"), ("tccd", "CPU CCD"),
+        ("acpitz", "主板"), ("systin", "主板"), ("cputin", "CPU"),
+        ("cpuvin", "CPU"),
+        ("pch", "芯片组 PCH"), ("aux", "主板辅助"), ("peci", "PECI 总线"),
+        ("composite", "NVMe 硬盘"), ("nvme", "NVMe 硬盘"), ("ssd", "硬盘"),
+        ("drivetemp", "硬盘温度"),
+        ("nct", "主板"), ("w83795", "主板"), ("it86", "主板"), ("f718", "主板"),
+        ("iwlwifi", "无线网卡"), ("ath", "无线网卡"), ("rtl", "网卡"),
+        ("gpu", "显卡"), ("amdgpu", "显卡"), ("nvidia", "显卡"),
+        ("i915", "核显"), ("xe", "核显"),
+        ("vrm", "供电模块"), ("soc", "SoC"), ("apu", "APU"),
+        ("battery", "电池"), ("thermal_zone", "传感器"),
+    ]
+    for key, cn in table:
+        if key in low:
+            return cn
+    return n
+
+
 def get_temps() -> list:
-    """采集所有温度传感器（/sys/class/thermal + hwmon），返回 [{name, temp(°C)}]。"""
+    """采集所有温度传感器（/sys/class/thermal + hwmon），返回 [{name, temp(°C)}]。
+    name 经 _cn_temp_name 尽力中文化（如 Tdie→CPU 裸片、nvme→NVMe 硬盘）。"""
     temps = []
     try:
         base = "/sys/class/thermal"
@@ -544,7 +584,7 @@ def get_temps() -> list:
                 name = _read_sysfs(os.path.join(zp, "type"), cast=str) or z
                 mv = _read_sysfs(os.path.join(zp, "temp"))
                 if mv is not None:
-                    temps.append({"name": name, "temp": round(mv / 1000.0, 1)})
+                    temps.append({"name": _cn_temp_name(name), "temp": round(mv / 1000.0, 1)})
     except Exception:
         pass
     try:
@@ -562,10 +602,11 @@ def get_temps() -> list:
                     labf = f.replace("_input", "_label")
                     label = _read_sysfs(os.path.join(hwp, labf), cast=str) if os.path.exists(os.path.join(hwp, labf)) else ""
                     nm = label or ("%s %s" % (hname, f.split("_")[0]))
-                    temps.append({"name": nm, "temp": round(mv / 1000.0, 1)})
+                    temps.append({"name": _cn_temp_name(nm), "temp": round(mv / 1000.0, 1)})
     except Exception:
         pass
-    return temps
+    # 剔除明显无效的读数：传感器未接 / 读数失败时内核常报 -128°C 量级的哨兵值
+    return [t for t in temps if t["temp"] > -100]
 
 
 def get_fans() -> list:
@@ -586,10 +627,30 @@ def get_fans() -> list:
                     labf = f.replace("_input", "_label")
                     label = _read_sysfs(os.path.join(hwp, labf), cast=str) if os.path.exists(os.path.join(hwp, labf)) else ""
                     nm = label or ("%s %s" % (hname, f.split("_")[0]))
-                    fans.append({"name": nm, "rpm": rpm})
+                    fans.append({"name": _cn_fan_name(nm), "rpm": rpm})
     except Exception:
         pass
     return fans
+
+
+def _cn_fan_name(name):
+    """把 hwmon 风扇名尽力中文化：fan1→风扇 1，芯片名(如 nct6798)→主板。"""
+    n = (name or "").strip()
+    m = re.search(r"fan(\d+)", n, re.IGNORECASE)
+    if m:
+        chip = re.sub(r"fan\d+", "", n, flags=re.IGNORECASE).strip()
+        chip = re.sub(r"[\d]+$", "", chip).strip().lower()  # 去尾随数字：nct6798→nct
+        chip_cn = {"nct": "主板", "w83795": "主板", "it86": "主板", "it87": "主板",
+                   "f718": "主板", "amdgpu": "显卡", "nvidia": "显卡",
+                   "coretemp": "CPU", "k10temp": "CPU"}
+        cn = chip_cn.get(chip)
+        if cn is None:  # 前缀兜底：it8688e→it86→主板
+            for k, v in chip_cn.items():
+                if chip.startswith(k):
+                    cn = v
+                    break
+        return ("%s 风扇 %s" % (cn, m.group(1))) if cn else ("风扇 " + m.group(1))
+    return n
 
 
 def get_gpus() -> list:
@@ -753,6 +814,20 @@ def get_monitor_stats() -> dict:
         t2, i2 = cpu_sample()
         cpu = 0.0 if (t2 - t1) <= 0 else round((1 - (i2 - i1) / (t2 - t1)) * 100, 1)
 
+        # CPU 型号：取 /proc/cpuinfo 首个 model name，去重并压缩空白
+        cpu_model = ""
+        try:
+            models = set()
+            with open("/proc/cpuinfo") as f:
+                for line in f:
+                    k, _, v = line.partition(":")
+                    if k.strip() == "model name" and v.strip():
+                        models.add(re.sub(r"\s+", " ", v).strip())
+            if models:
+                cpu_model = " / ".join(sorted(models))
+        except Exception:
+            cpu_model = ""
+
         mem = {}
         with open("/proc/meminfo") as f:
             for line in f:
@@ -782,6 +857,7 @@ def get_monitor_stats() -> dict:
         return {
             "ok": True,
             "cpu": cpu,
+            "cpu_model": cpu_model,
             "mem": {"total": total, "used": mem_used, "available": avail,
                     "percent": mem_pct},
             "disks": disks,

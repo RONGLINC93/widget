@@ -44,13 +44,28 @@
   （`/vol1` / `/vol2` / 系统盘 `/` 等）只显示一个。现新增 `get_disks()` 解析 `/proc/mounts`、
   枚举所有真实块设备卷（剔除 proc/sysfs/tmpfs 等伪文件系统与嵌套子卷），返回 `disks` 列表；前端
   `monitor-widget.js` 改为渲染全部硬盘（旧的单盘 `disk` 字段保留作兼容）。
-- **系统监控只识别到一张显卡**：`get_gpus()` 用 `if not gpus:` 回退写法——只要存在 `nvidia-smi`，
-  就只返回它（单张独显），hwmon 里的集成显卡 / AMD 卡被整个跳过，于是只显示一张。现改为多源合并：
-  `nvidia-smi` 逐行采集的 N 卡 + hwmon 中的 GPU 温度探头（集成 / AMD，及其余未被 `nvidia-smi` 覆盖的卡），
-  按名称去重、一个 GPU 设备取首个温度探头；`nvidia-smi` 已给到的 N 卡不会与 hwmon 里的 nvidia 项重复。
+- **系统监控只识别到一张显卡**：`get_gpus()` 原以 `nvidia-smi` 为唯一来源、`if not gpus:` 才回退
+  hwmon——有独显时集成显卡被整个跳过（且 Intel 核显在 hwmon 里不叫 `gpu`/`amdgpu`，hwmon 关键字
+  过滤本就认不到）。现改为以 `/sys/class/drm/card*` 为**权威 GPU 清单**（内核为每块 GPU 建一个 card
+  节点，核显 / 独显 / AMD 都在），`nvidia-smi` 降级为 N 卡的数据填充（按卡序提供真实型号名、使用率、
+  温度）；非 N 卡显示「厂商 显卡 (cardN)」，温度取该卡设备下 hwmon，使用率仅 amdgpu（`gpu_busy_percent`）
+  有值、其余显示 N/A。集成显卡无温度属内核限制（如 HD 630 不暴露 sysfs 温度）。
+- **温度传感器名中文化**：`/sys` 下的传感器名多为英文（如 `Tdie`、`Tctl`、`AUXTIN1`、`nvme`、`acpitz`、
+  `x86_pkg_temp`），监控浮层里直接显示英文不好读。现 `get_temps` / `get_fans` 经 `_cn_temp_name` /
+  `_cn_fan_name` 尽力翻译成中文（如 `Tdie→CPU 裸片`、`Tccd1→CPU CCD`、`nvme→NVMe 硬盘`、`AUXTIN1→主板辅助`、
+  `drivetemp→硬盘温度`、`Composite→NVMe 硬盘`、`Agent0 Dimm0→内存 Dimm0`、`i915→核显`、`Sensor 1→传感器 1`、
+  `nct6798 fan1→主板 风扇 1`）；认不出的保留原样，不丢信息。同时过滤 `≤ -100°C` 的无效读数
+  （传感器未接 / 读取失败时内核常报 `-128°C` 哨兵值，此前会原样显示）。
 - **浮层内容区滚动条样式**：`.rl-body` 此前未配滚动条样式，内容超长（如系统监控列出全部温度
   传感器时）会露出浏览器默认亮灰滚动条、与深色主题突兀。现与目录组件 `.dw-body` 同款——细滑块
   半透明灰、轨道透明、悬停加深（Firefox `scrollbar-width/color` + Chromium `::-webkit-scrollbar-*`）。
+- **系统监控显示 CPU 型号与内存容量**：`get_monitor_stats` 现额外读取 `/proc/cpuinfo` 的
+  `model name`（多型号去重、压缩空白）并在 JSON 返回 `cpu_model`；前端 CPU 行副行展示型号
+  （如 `Intel Core i7-12700K`），内存行副行补充总容量（`9.2 GB / 16.0 GB（共 16.0 GB）`），
+  一眼可见硬件规格。演示页模拟数据同步加上 `cpu_model`。
+- **系统监控风扇名字与转速粘连**：风扇行此前只用 `class="mn-top"` 而未包在 `.mn-row` 内，
+  而左右分列的 `flex` 样式挂在 `.mn-row .mn-top` 上，导致风扇名与 `RPM` 挤在同一行连在一起、
+  易看错。现每条风扇包进 `.mn-row`，与 CPU / 内存 / 温度一致地左右分列。
 
 ---
 

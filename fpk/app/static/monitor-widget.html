@@ -39,7 +39,7 @@
     // 演示：无后端时用模拟数据（随机漫步）供数，让浮窗有实时变化的内容；
     // 注入到 fnOS 桌面后由 inject.js 换成真实的 GET /api/monitor。
     var sim = {
-      ok: true, cpu: 23,
+      ok: true, cpu: 23, cpu_model: "Intel Core i7-12700K",
       mem: { percent: 61, used: 9.2e9, total: 16e9 },
       disks: [
         { path: "C:", percent: 74, used: 376e9, total: 512e9 },
