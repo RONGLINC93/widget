@@ -27,6 +27,67 @@
   }
 
   function inject() {
+    // ---- 通用浮层外壳：必须先于所有组件加载，提供 RLShell（目录/日历/天气/4 个新组件均依赖）----
+    var shCss = document.createElement("link");
+    shCss.rel = "stylesheet";
+    shCss.href = BASE + "/static/widget-shell.css";
+    document.head.appendChild(shCss);
+
+    var shJs = document.createElement("script");
+    shJs.src = BASE + "/static/widget-shell.js";
+    shJs.onload = function () {
+      if (!window.RLShell) return;
+
+      // 加载单个新组件：脚本就绪后拉设置，若用户曾在桌面关掉（visible===false）则不挂载
+      function mountNewWidget(globalName, src, settingsKey, mountOptsFn) {
+        var s = document.createElement("script");
+        s.src = src;
+        s.onload = function () {
+          var W = window[globalName];
+          if (!W) return;
+          fetch(BASE + "/api/settings", { cache: "no-store" })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              var st = j && j.settings ? j.settings : {};
+              if (st[settingsKey] === false) return;
+              var opts = mountOptsFn(st);
+              W.mount(opts);
+              var el = document.getElementById(opts.__root);
+              if (el) alignWithDesktopIcons(el);
+            })
+            .catch(function () { /* 出错则不挂载，保持桌面干净 */ });
+        };
+        document.head.appendChild(s);
+      }
+
+      mountNewWidget("WorldClockWidget", BASE + "/static/worldclock-widget.js", "worldclock_visible",
+        function (st) {
+          return { __root: "wc-root", settingsApi: BASE + "/api/worldclock_settings",
+            pos: st.worldclock_pos, size: st.worldclock_size,
+            min: !!st.worldclock_min, pinned: !!st.worldclock_pinned,
+            cities: st.worldclock_cities };
+        });
+      mountNewWidget("NotesWidget", BASE + "/static/notes-widget.js", "notes_visible",
+        function (st) {
+          return { __root: "nt-root", settingsApi: BASE + "/api/notes_settings",
+            notesApi: BASE + "/api/notes", pos: st.notes_pos, size: st.notes_size,
+            min: !!st.notes_min, pinned: !!st.notes_pinned };
+        });
+      mountNewWidget("TodoWidget", BASE + "/static/todo-widget.js", "todo_visible",
+        function (st) {
+          return { __root: "td-root", settingsApi: BASE + "/api/todo_settings",
+            todosApi: BASE + "/api/todos", pos: st.todo_pos, size: st.todo_size,
+            min: !!st.todo_min, pinned: !!st.todo_pinned };
+        });
+      mountNewWidget("MonitorWidget", BASE + "/static/monitor-widget.js", "monitor_visible",
+        function (st) {
+          return { __root: "mn-root", settingsApi: BASE + "/api/monitor_settings",
+            monitorApi: BASE + "/api/monitor", pos: st.monitor_pos, size: st.monitor_size,
+            min: !!st.monitor_min, pinned: !!st.monitor_pinned };
+        });
+    };
+    document.head.appendChild(shJs);
+
     var link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = BASE + "/static/dir-widget.css";
@@ -341,67 +402,6 @@
     };
     document.head.appendChild(ws);
 
-    // ---- 通用浮层外壳 + 4 个新增组件（世界时钟 / 便签 / 待办 / 系统监控）----
-    // 必须先加载 widget-shell.js（提供 RLShell），再加载各组件脚本（依赖 RLShell）。
-    var shCss = document.createElement("link");
-    shCss.rel = "stylesheet";
-    shCss.href = BASE + "/static/widget-shell.css";
-    document.head.appendChild(shCss);
-
-    var shJs = document.createElement("script");
-    shJs.src = BASE + "/static/widget-shell.js";
-    shJs.onload = function () {
-      if (!window.RLShell) return;
-
-      // 加载单个新组件：脚本就绪后拉设置，若用户曾在桌面关掉（visible===false）则不挂载
-      function mountNewWidget(globalName, src, settingsKey, mountOptsFn) {
-        var s = document.createElement("script");
-        s.src = src;
-        s.onload = function () {
-          var W = window[globalName];
-          if (!W) return;
-          fetch(BASE + "/api/settings", { cache: "no-store" })
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-              var st = j && j.settings ? j.settings : {};
-              if (st[settingsKey] === false) return;
-              var opts = mountOptsFn(st);
-              W.mount(opts);
-              var el = document.getElementById(opts.__root);
-              if (el) alignWithDesktopIcons(el);
-            })
-            .catch(function () { /* 出错则不挂载，保持桌面干净 */ });
-        };
-        document.head.appendChild(s);
-      }
-
-      mountNewWidget("WorldClockWidget", BASE + "/static/worldclock-widget.js", "worldclock_visible",
-        function (st) {
-          return { __root: "wc-root", settingsApi: BASE + "/api/worldclock_settings",
-            pos: st.worldclock_pos, size: st.worldclock_size,
-            min: !!st.worldclock_min, pinned: !!st.worldclock_pinned,
-            cities: st.worldclock_cities };
-        });
-      mountNewWidget("NotesWidget", BASE + "/static/notes-widget.js", "notes_visible",
-        function (st) {
-          return { __root: "nt-root", settingsApi: BASE + "/api/notes_settings",
-            notesApi: BASE + "/api/notes", pos: st.notes_pos, size: st.notes_size,
-            min: !!st.notes_min, pinned: !!st.notes_pinned };
-        });
-      mountNewWidget("TodoWidget", BASE + "/static/todo-widget.js", "todo_visible",
-        function (st) {
-          return { __root: "td-root", settingsApi: BASE + "/api/todo_settings",
-            todosApi: BASE + "/api/todos", pos: st.todo_pos, size: st.todo_size,
-            min: !!st.todo_min, pinned: !!st.todo_pinned };
-        });
-      mountNewWidget("MonitorWidget", BASE + "/static/monitor-widget.js", "monitor_visible",
-        function (st) {
-          return { __root: "mn-root", settingsApi: BASE + "/api/monitor_settings",
-            monitorApi: BASE + "/api/monitor", pos: st.monitor_pos, size: st.monitor_size,
-            min: !!st.monitor_min, pinned: !!st.monitor_pinned };
-        });
-    };
-    document.head.appendChild(shJs);
   }
 
   ready(inject);

@@ -27,7 +27,7 @@
 }
 .rl-bar button:hover, .rl-minbar button:hover { background: rgba(255, 255, 255, .08); color: #fff; }
 .rl-pin.rl-active { color: #f0c674; }
-.rl-body { padding: 10px; overflow: auto; }
+.rl-body { padding: 10px; overflow: auto; position: relative; }
 /* 深色主题滚动条（与目录组件 .dw-body 同款）：内容超长（如监控的温度列表）时
    不露浏览器默认亮灰滚动条 */
 .rl-body { scrollbar-width: thin; scrollbar-color: rgba(139, 148, 158, 0.45) transparent; }
