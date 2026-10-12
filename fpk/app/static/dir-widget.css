@@ -8,12 +8,13 @@
   max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
-  background: rgba(22, 27, 34, 0.92);
+  background: rgba(22, 27, 34, 0.82);
   color: #e6edf3;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
   font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
   /* 与桌面图标同层：不要给超大值，否则会盖住飞牛原生窗口(10010+)与右键菜单。
      桌面场景由 inject.js 运行时量出图标层 z-index 并对齐（见 alignWithDesktopIcons）。 */
@@ -52,7 +53,7 @@
   gap: 8px;
   padding: 10px 12px;
   cursor: move;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .dw-title { font-weight: 600; flex: 0 0 auto; }
@@ -75,6 +76,20 @@
   justify-content: center;
 }
 .dw-btn:hover { background: rgba(255, 255, 255, 0.18); }
+/* 顶栏固定/最小化/关闭三按钮：与新四组件（widget-shell .rl-bar button）统一的透明底样式 */
+.dw-header .dw-pin-btn, .dw-header .dw-min-btn, .dw-header .dw-close-btn {
+  background: transparent;
+  color: #c9d1d9;
+  width: auto;
+  height: auto;
+  padding: 4px 6px;
+  font-size: 14px;
+  line-height: 1;
+}
+.dw-header .dw-pin-btn:hover, .dw-header .dw-min-btn:hover, .dw-header .dw-close-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
 /* 固定按钮激活（已锁定位置）高亮 */
 .dw-btn.dw-active { background: rgba(88, 166, 255, 0.35); color: #fff; }
 /* 固定后顶栏不再是拖拽把手，鼠标恢复默认 */
@@ -306,7 +321,7 @@
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .dw-pv-title {

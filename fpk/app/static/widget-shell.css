@@ -4,14 +4,17 @@
  * ========================================================================== */
 .rl-root {
   position: fixed; z-index: 1; display: flex; flex-direction: column; overflow: hidden;
-  background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, .5);
+  /* 与目录/日历/天气浮层统一的毛玻璃规格：见 dir-widget.css 注释 */
+  background: rgba(22, 27, 34, .82); color: #e6edf3;
+  border: 1px solid rgba(255, 255, 255, .12); border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+  backdrop-filter: blur(12px) saturate(140%); -webkit-backdrop-filter: blur(12px) saturate(140%);
   font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
   max-height: 90vh;
 }
 .rl-bar, .rl-minbar {
   display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  background: #1c2230; border-bottom: 1px solid #30363d; user-select: none;
+  background: rgba(255, 255, 255, .05); border-bottom: 1px solid rgba(255, 255, 255, .08); user-select: none;
 }
 .rl-bar { cursor: move; }
 .rl-minbar { cursor: move; }
@@ -42,7 +45,7 @@
 .rl-root.rl-min { height: auto !important; }
 .rl-root.rl-min .rl-body, .rl-root.rl-min .rl-rsz { display: none; }
 .rl-root.rl-pinned .rl-rsz { display: none; }
-.rl-root.rl-pinned .rl-bar { background: #232a3a; }
+.rl-root.rl-pinned .rl-bar { background: rgba(255, 255, 255, .12); }
 
 /* ---------- 世界时钟 ---------- */
 .wc-list { display: flex; flex-direction: column; gap: 8px; }
