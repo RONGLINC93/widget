@@ -9,7 +9,7 @@ fnOS 应用包 fpk/app/server.py：提供 HTTP 接口读取指定目录，并托
   GET /api/list?path=<目录>   ->  JSON: { path, error?, entries:[...] }
   GET /api/notes             ->  便签列表；POST 增删改（action=add/update/delete/reorder）
   GET /api/todos              ->  待办列表；POST 增删改（action=add/update/delete/reorder）
-  GET /api/monitor            ->  系统监控（CPU/内存/磁盘/运行时间，Linux /proc）
+  GET /api/monitor            ->  系统监控（CPU/内存/磁盘/运行时间/温度/风扇/显卡，Linux /proc + sysfs + nvidia-smi）
   GET /api/*_settings         ->  各浮层组件的位置/大小/最小化/固定/可见性
   GET /health                 ->  "ok"（供 cmd/main 探活）
 
@@ -523,8 +523,197 @@ def handle_widget_settings(self, parsed: Any, prefix: str,
     return True
 
 
+def _read_sysfs(path, cast=int):
+    try:
+        with open(path) as f:
+            return cast(f.read().strip())
+    except Exception:
+        return None
+
+
+def get_temps() -> list:
+    """采集所有温度传感器（/sys/class/thermal + hwmon），返回 [{name, temp(°C)}]。"""
+    temps = []
+    try:
+        base = "/sys/class/thermal"
+        if os.path.isdir(base):
+            for z in sorted(os.listdir(base)):
+                if not z.startswith("thermal_zone"):
+                    continue
+                zp = os.path.join(base, z)
+                name = _read_sysfs(os.path.join(zp, "type"), cast=str) or z
+                mv = _read_sysfs(os.path.join(zp, "temp"))
+                if mv is not None:
+                    temps.append({"name": name, "temp": round(mv / 1000.0, 1)})
+    except Exception:
+        pass
+    try:
+        hbase = "/sys/class/hwmon"
+        if os.path.isdir(hbase):
+            for hw in sorted(os.listdir(hbase)):
+                hwp = os.path.join(hbase, hw)
+                hname = _read_sysfs(os.path.join(hwp, "name"), cast=str) or hw
+                for f in sorted(os.listdir(hwp)):
+                    if not re.match(r"^temp\d+_input$", f):
+                        continue
+                    mv = _read_sysfs(os.path.join(hwp, f))
+                    if mv is None:
+                        continue
+                    labf = f.replace("_input", "_label")
+                    label = _read_sysfs(os.path.join(hwp, labf), cast=str) if os.path.exists(os.path.join(hwp, labf)) else ""
+                    nm = label or ("%s %s" % (hname, f.split("_")[0]))
+                    temps.append({"name": nm, "temp": round(mv / 1000.0, 1)})
+    except Exception:
+        pass
+    return temps
+
+
+def get_fans() -> list:
+    """采集所有风扇转速（hwmon fan*_input，单位 RPM），返回 [{name, rpm}]。"""
+    fans = []
+    try:
+        hbase = "/sys/class/hwmon"
+        if os.path.isdir(hbase):
+            for hw in sorted(os.listdir(hbase)):
+                hwp = os.path.join(hbase, hw)
+                hname = _read_sysfs(os.path.join(hwp, "name"), cast=str) or hw
+                for f in sorted(os.listdir(hwp)):
+                    if not re.match(r"^fan\d+_input$", f):
+                        continue
+                    rpm = _read_sysfs(os.path.join(hwp, f))
+                    if rpm is None:
+                        continue
+                    labf = f.replace("_input", "_label")
+                    label = _read_sysfs(os.path.join(hwp, labf), cast=str) if os.path.exists(os.path.join(hwp, labf)) else ""
+                    nm = label or ("%s %s" % (hname, f.split("_")[0]))
+                    fans.append({"name": nm, "rpm": rpm})
+    except Exception:
+        pass
+    return fans
+
+
+def get_gpus() -> list:
+    """采集显卡：nvidia-smi（N 卡可多卡，逐行返回）优先，再补 hwmon 里的 GPU 温度探头
+    （集成显卡 / AMD，及 nvidia-smi 未覆盖到的卡）。多源合并、按名称去重，避免只显示一张。"""
+    gpus = []
+    seen = set()
+
+    def _num(x):
+        try:
+            return float(x)
+        except Exception:
+            return None
+
+    # 1) NVIDIA：多卡时 nvidia-smi 返回多行，逐行收集
+    try:
+        nv = shutil.which("nvidia-smi")
+        if nv:
+            out = subprocess.run(
+                [nv, "--query-gpu=name,utilization.gpu,temperature.gpu",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=2).stdout
+            for line in out.strip().splitlines():
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) < 3:
+                    continue
+                nm = parts[0]
+                if nm not in seen:
+                    seen.add(nm)
+                    gpus.append({"name": nm, "usage": _num(parts[1]), "temp": _num(parts[2])})
+    except Exception:
+        pass
+
+    # 2) hwmon 中的 GPU 温度探头（集成显卡 / AMD / 未被 nvidia-smi 覆盖的卡）
+    #    注意：nvidia-smi 已给到 N 卡时，hwmon 里的 nvidia 项跳过以免重复
+    try:
+        hbase = "/sys/class/hwmon"
+        if os.path.isdir(hbase):
+            for hw in sorted(os.listdir(hbase)):
+                hwp = os.path.join(hbase, hw)
+                hname = (_read_sysfs(os.path.join(hwp, "name"), cast=str) or "").lower()
+                if "gpu" not in hname and "nvidia" not in hname and "amdgpu" not in hname:
+                    continue
+                if "nvidia" in hname and any("nvidia" in g["name"].lower() for g in gpus):
+                    continue
+                # 一个 GPU 设备取首个温度探头作为该卡温度
+                temp_val = None
+                for f in sorted(os.listdir(hwp)):
+                    if re.match(r"^temp\d+_input$", f):
+                        temp_val = _read_sysfs(os.path.join(hwp, f))
+                        break
+                if temp_val is None:
+                    continue
+                labf = [f for f in os.listdir(hwp) if f.startswith("temp") and f.endswith("_label")]
+                label = _read_sysfs(os.path.join(hwp, labf[0]), cast=str) if labf else ""
+                nm = (label or ("%s GPU" % (hname or "gpu")))
+                base, i = nm, 1
+                while nm in seen:
+                    i += 1
+                    nm = "%s %d" % (base, i)
+                seen.add(nm)
+                gpus.append({"name": nm, "usage": None, "temp": round(temp_val / 1000.0, 1)})
+    except Exception:
+        pass
+    return gpus
+
+
+def get_disks() -> list:
+    """枚举所有本地磁盘 / 卷（解析 /proc/mounts，剔除伪文件系统），返回
+    [{path, fstype, total, used, free, percent}]。NAS 多卷（/vol1、/vol2、系统盘 /）都会列出，
+    而非仅取其一。"""
+    PSEUDO_FS = {
+        "proc", "sysfs", "devtmpfs", "devpts", "cgroup", "cgroup2", "pstore",
+        "bpf", "configfs", "debugfs", "tracefs", "securityfs", "mqueue",
+        "hugetlbfs", "fusectl", "binfmt_misc", "autofs", "ramfs", "tmpfs",
+        "overlay", "rpc_pipefs", "nsfs", "efivarfs", "squashfs", "fuse",
+        "fuse.gvfsd-fuse", "fuse.sshfs", "proc", "sysctl",
+    }
+    VIRT_MP = {"/dev", "/proc", "/sys", "/run", "/run/shm", "/sys/fs/cgroup"}
+    disks = []
+    seen = []
+    try:
+        with open("/proc/mounts") as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                device, mp, fstype = parts[0], parts[1], parts[2]
+                if fstype in PSEUDO_FS:
+                    continue
+                if mp in VIRT_MP:
+                    continue
+                # 只收真实块设备挂载（/dev/*）；zfs 等 device 形如 rpool/... 也允许
+                if not (device.startswith("/dev/") or fstype == "zfs"):
+                    continue
+                try:
+                    st = os.statvfs(mp)
+                except Exception:
+                    continue
+                total = st.f_blocks * st.f_frsize
+                if total <= 0:
+                    continue
+                free = st.f_bavail * st.f_frsize
+                used = total - free
+                pct = round(used / total * 100, 1) if total > 0 else 0.0
+                # 跳过嵌套挂载（如 /vol1 下的子卷），只保留顶层
+                if any(mp == s or mp.startswith(s + "/") for s in seen):
+                    continue
+                # /proc/mounts 路径是八进制转义（空格->\040），还原成可读路径
+                mp = mp.replace("\\040", " ")
+                seen.append(mp)
+                disks.append({
+                    "path": mp, "fstype": fstype,
+                    "total": total, "used": used, "free": free, "percent": pct,
+                })
+        # 排序：/vol 卷在前、/ 放最后，稳定可读
+        disks.sort(key=lambda d: (not d["path"].startswith("/vol"), d["path"]))
+    except Exception:
+        pass
+    return disks
+
+
 def get_monitor_stats() -> dict:
-    """读取宿主机 CPU/内存/磁盘/运行时间。仅 Linux（fnOS）可取；/proc 不可读或
+    """读取宿主机 CPU/内存/磁盘/运行时间/温度/风扇/显卡。仅 Linux（fnOS）可取；/proc 不可读或
     非 Linux 时返回 ok:false，前端据此显示「不可用」，不报错。"""
     if not os.path.exists("/proc/stat"):
         return {"ok": False, "reason": "unsupported"}
@@ -551,12 +740,12 @@ def get_monitor_stats() -> dict:
         mem_used = max(0, total - avail)
         mem_pct = 0.0 if total <= 0 else round(mem_used / total * 100, 1)
 
-        disk_path = "/vol1" if os.path.exists("/vol1") else "/"
-        st = os.statvfs(disk_path)
-        disk_total = st.f_blocks * st.f_frsize
-        disk_free = st.f_bavail * st.f_frsize
-        disk_used = disk_total - disk_free
-        disk_pct = 0.0 if disk_total <= 0 else round(disk_used / disk_total * 100, 1)
+        disks = get_disks()
+        # 兼容旧字段：取主数据盘（/vol1 优先，否则任意 /vol*，否则 /，否则首盘）
+        disk = (next((d for d in disks if d["path"] == "/vol1"), None)
+                or next((d for d in disks if d["path"].startswith("/vol")), None)
+                or next((d for d in disks if d["path"] == "/"), None)
+                or (disks[0] if disks else None))
 
         uptime = 0.0
         try:
@@ -570,8 +759,11 @@ def get_monitor_stats() -> dict:
             "cpu": cpu,
             "mem": {"total": total, "used": mem_used, "available": avail,
                     "percent": mem_pct},
-            "disk": {"path": disk_path, "total": disk_total, "used": disk_used,
-                     "free": disk_free, "percent": disk_pct},
+            "disks": disks,
+            "disk": disk,
+            "temps": get_temps(),
+            "fans": get_fans(),
+            "gpus": get_gpus(),
             "uptime": uptime,
         }
     except Exception as e:
@@ -1034,6 +1226,18 @@ class DirHandler(BaseHTTPRequestHandler):
                 self.send_error(403)
             return
 
+        # 演示页便捷访问：根路径下直接请求 *-widget.html 时，301 重定向到 /static/ 下同名文件。
+        # 必须用重定向而非直接读取：演示页用相对路径引用 widget-shell.js/css，直接读取会让
+        # 这些相对资源解析到根路径（如 /widget-shell.js）而 404，导致组件整段无法挂载
+        # （之前便签演示页“点击新建没反应”即此原因：外壳脚本没加载，RLShell 未定义）。
+        if parsed.path.endswith("-widget.html"):
+            sep = parsed.path.rfind("/")
+            target = parsed.path[:sep] + "/static" + parsed.path[sep:]
+            self.send_response(301)
+            self.send_header("Location", target)
+            self.end_headers()
+            return
+
         # ===== 目录路径设置（应用窗口写、桌面浮层读，落盘到应用数据目录）=====
         if parsed.path == "/api/settings":
             if self.command == "POST":
@@ -1287,15 +1491,17 @@ class DirHandler(BaseHTTPRequestHandler):
                 notes = load_notes()
                 action = payload.get("action")
                 if action == "add":
-                    text = str(payload.get("text") or "").strip()
-                    if text:
-                        color = payload.get("color")
-                        if color not in NOTE_COLORS:
-                            color = NOTE_COLORS[0]
-                        notes.append({"id": _safe_id(), "text": text[:MAX_NOTE_LEN],
-                                      "color": color, "pinned": False,
-                                      "created": int(time.time())})
-                        notes = notes[-MAX_ITEMS:]
+                    # 新建便签允许空文本：前端先建一张空便签卡，用户随后的输入
+                    # 由 update(action) 防抖保存。若此处丢弃空文本 add，
+                    # 点击「新建便签」将永远无反应（返回列表不变）。
+                    text = str(payload.get("text") or "")
+                    color = payload.get("color")
+                    if color not in NOTE_COLORS:
+                        color = NOTE_COLORS[0]
+                    notes.append({"id": _safe_id(), "text": text[:MAX_NOTE_LEN],
+                                  "color": color, "pinned": False,
+                                  "created": int(time.time())})
+                    notes = notes[-MAX_ITEMS:]
                 elif action == "update":
                     nid = payload.get("id")
                     for n in notes:

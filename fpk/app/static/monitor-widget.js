@@ -43,17 +43,65 @@
           '</div>';
       }
 
+      function tempColor(t) { return t >= 80 ? " crit" : (t >= 60 ? " warn" : ""); }
+
       function render(stats) {
         if (!stats || !stats.ok) {
           body.innerHTML = '<div class="mn-unavail">系统监控不可用<br>（当前环境非 Linux 或 /proc 不可读）</div>';
           return;
         }
-        body.innerHTML =
-          meter("CPU", stats.cpu) +
-          meter("内存", stats.mem.percent, fmtBytes(stats.mem.used) + " / " + fmtBytes(stats.mem.total)) +
-          meter("磁盘 " + (stats.disk.path || ""), stats.disk.percent,
-                 fmtBytes(stats.disk.used) + " / " + fmtBytes(stats.disk.total)) +
-          '<div class="mn-uptime">已运行 ' + esc(fmtUptime(stats.uptime)) + '</div>';
+        var html = meter("CPU", stats.cpu) +
+          meter("内存", stats.mem.percent, fmtBytes(stats.mem.used) + " / " + fmtBytes(stats.mem.total));
+
+        // 磁盘：优先多盘列表，回退到旧的单盘字段
+        var diskList = (stats.disks && stats.disks.length) ? stats.disks
+          : (stats.disk ? [stats.disk] : []);
+        for (var di = 0; di < diskList.length; di++) {
+          var d = diskList[di];
+          html += meter("硬盘 " + (d.path || ""), d.percent,
+                        fmtBytes(d.used) + " / " + fmtBytes(d.total));
+        }
+
+        if (stats.temps && stats.temps.length) {
+          html += '<div class="mn-sec">温度</div>' + stats.temps.map(function (t) {
+            var pct = Math.max(0, Math.min(100, t.temp || 0));
+            return '<div class="mn-row">' +
+              '<div class="mn-top"><span class="mn-label">' + esc(t.name) + '</span>' +
+              '<span class="mn-val">' + esc((t.temp || 0).toFixed(1)) + '°C</span></div>' +
+              '<div class="mn-track"><div class="mn-fill' + tempColor(t.temp) + '" style="width:' + pct + '%"></div></div></div>';
+          }).join("");
+        }
+
+        if (stats.fans && stats.fans.length) {
+          html += '<div class="mn-sec">风扇</div>' + stats.fans.map(function (f) {
+            return '<div class="mn-top" style="margin:2px 0">' +
+              '<span class="mn-label">' + esc(f.name) + '</span>' +
+              '<span class="mn-val">' + esc(f.rpm) + ' RPM</span></div>';
+          }).join("");
+        }
+
+        if (stats.gpus && stats.gpus.length) {
+          html += '<div class="mn-sec">显卡</div>' + stats.gpus.map(function (g) {
+            var u = (g.usage == null) ? null : Math.max(0, Math.min(100, g.usage));
+            var row = '<div class="mn-row">';
+            if (u != null) {
+              row += '<div class="mn-top"><span class="mn-label">' + esc(g.name) + ' 使用率</span>' +
+                '<span class="mn-val">' + esc(u.toFixed(1)) + '%</span></div>' +
+                '<div class="mn-track"><div class="mn-fill" style="width:' + u + '%"></div></div>';
+            } else {
+              row += '<div class="mn-top"><span class="mn-label">' + esc(g.name) + '</span>' +
+                '<span class="mn-val">使用率 N/A</span></div>';
+            }
+            if (g.temp != null) {
+              row += '<div class="mn-top" style="margin-top:3px"><span class="mn-label" style="color:#6e7681">温度</span>' +
+                '<span class="mn-val" style="color:#ff7b72">' + esc(g.temp.toFixed(1)) + '°C</span></div>';
+            }
+            return row + '</div>';
+          }).join("");
+        }
+
+        html += '<div class="mn-uptime">已运行 ' + esc(fmtUptime(stats.uptime)) + '</div>';
+        body.innerHTML = html;
       }
 
       function poll() {

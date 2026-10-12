@@ -14,7 +14,7 @@
   - **世界时钟**：多时区时钟，支持城市名或 IANA 时区（如 `Asia/Shanghai`），每秒走时；城市列表持久化到 `settings.json` 的 `worldclock_cities` 字段。
   - **便签**：桌面便签，支持多张、换色（6 色）、置顶；内容经 `/api/notes` 持久化到 `notes.json`。
   - **待办清单**：可勾选待办，增删改经 `/api/todos` 持久化到 `todos.json`。
-  - **系统监控**：显示 CPU / 内存 / 磁盘占用与运行时间，数据来自 `/api/monitor`（Linux `/proc` 实时读取，非 Linux 或不可读时优雅显示「不可用」）。
+  - **系统监控**：显示 CPU / 内存 / 磁盘占用与运行时间；新增**全部温度**（thermal zone + hwmon 探头）、**风扇转速**（hwmon RPM）、**显卡使用率与温度**（优先 `nvidia-smi`，无 N 卡回退 hwmon GPU 温度、使用率标 `N/A`）。数据来自 `/api/monitor`（Linux `/proc` + sysfs + `nvidia-smi`，异常优雅降级为「不可用」）。
 - **通用浮层外壳 `widget-shell.js`**：为上述 4 个新组件抽取统一的拖拽 / 四边缩放 / 最小化 / 关闭 / 固定能力，复用桌面图标网格吸附（`window.__rl93_snapToGrid`），外观与既有浮层一致。4 个组件的可见性开关分别落盘到 `settings.json` 的 `notes_visible` / `todo_visible` / `worldclock_visible` / `monitor_visible` 等字段。
 
 ### 修复 / 优化
@@ -26,6 +26,27 @@
 - **文档与配置清理**：README 打包脚本名由笔误的 `build_fp.py` 修正为正确的 `build_fpk.py`；
   清理 `pyrightconfig.json` 中 3 个 pyright 已不识别的配置键（`reportImplicitRelativeImport` /
   `reportUnannotatedClassAttribute` / `reportAny`），消除无害告警噪音。
+- **演示页便捷路由**：根路径下直接访问 `*-widget.html`（如 `/notes-widget.html`）现 301 重定向到
+  `/static/` 下同名文件。此前漏写 `/static/` 前缀会命中 404、且相对路径把 `widget-shell.js` 解析到
+  根路径而 404，导致组件整段无法挂载（便签"点击新建没反应"的根因之一）。
+- **便签"新建"无反应**（`/api/notes`）：add 分支原带 `if text:` 守卫，空文本 add 被静默丢弃——
+  而前端"新建便签"是先建一张空卡、再靠 update 防抖保存文本，于是点了永远不出现新卡。改为允许空文本
+  创建；待办 add 的同名守卫保留（其语义本就是输入后回车提交，且空待办无可编辑 UI）。演示页正常是
+  因为 `notesApi:null` 走内存 push、绕过了该守卫。
+- **管理页桌面预览重叠**（`ui/index.html`）：四个新组件原只定 `left` 未定宽度，实际宽度超过间距 →
+  待办与系统监控重叠、系统监控超出舞台右缘被裁切；且日历高度随月份/备忘动态变化，会压住第二排。现每个卡片
+  显式定宽、按真实宽度均匀排布（间距 16px 铺满 1080），第二排整体下移到 `top:620` 避开日历。
+- **浮层外壳两处 bug**（`widget-shell.js`）：① 位置 `(0,0)` 无法恢复——`applyBox` 用
+  `pos.left || pos.top` 把 `0` 当未记忆，组件被拖到左上角刷新跳回级联默认位；改为按
+  `typeof === "number"` 判断。② 拖动标题栏顶部会变成缩放——边缘缩放监听挂 ROOT 捕获阶段、抢在标题栏
+  拖拽前命中北边；现缩放逻辑排除 `.rl-bar` / `.rl-minbar`（拖拽时让缩放让路），并同步不在标题栏区显示缩放光标。
+- **系统监控只识别到一个硬盘**：`get_monitor_stats` 写死只 `statvfs("/vol1")` 一处，NAS 多卷
+  （`/vol1` / `/vol2` / 系统盘 `/` 等）只显示一个。现新增 `get_disks()` 解析 `/proc/mounts`、
+  枚举所有真实块设备卷（剔除 proc/sysfs/tmpfs 等伪文件系统与嵌套子卷），返回 `disks` 列表；前端
+  `monitor-widget.js` 改为渲染全部硬盘（旧的单盘 `disk` 字段保留作兼容）。
+- **浮层内容区滚动条样式**：`.rl-body` 此前未配滚动条样式，内容超长（如系统监控列出全部温度
+  传感器时）会露出浏览器默认亮灰滚动条、与深色主题突兀。现与目录组件 `.dw-body` 同款——细滑块
+  半透明灰、轨道透明、悬停加深（Firefox `scrollbar-width/color` + Chromium `::-webkit-scrollbar-*`）。
 
 ---
 

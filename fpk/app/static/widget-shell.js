@@ -80,9 +80,10 @@
       if (!ROOT) return;
       var w = OPTS.size && OPTS.size.width ? OPTS.size.width : DEFW;
       var p = OPTS.pos && (OPTS.pos.left || OPTS.pos.top);
-      if (p) {
-        if (OPTS.pos.left) ROOT.style.left = OPTS.pos.left + "px";
-        if (OPTS.pos.top) ROOT.style.top = OPTS.pos.top + "px";
+      var hasPos = OPTS.pos && (typeof OPTS.pos.left === "number" || typeof OPTS.pos.top === "number");
+      if (hasPos) {
+        if (typeof OPTS.pos.left === "number") ROOT.style.left = OPTS.pos.left + "px";
+        if (typeof OPTS.pos.top === "number") ROOT.style.top = OPTS.pos.top + "px";
       } else if (!OPTS.preview) {
         // 真实桌面、且未记住位置：用错开默认值，避免多个新组件全塌在 (0,0) 互相重叠、
         // 看起来"显示不出来"。按 2 列网格铺开，每个组件都有独立且互不遮挡的默认位。
@@ -93,11 +94,16 @@
       }
       if (MIN) {
         ROOT.classList.add("rl-min");
+        // 隐藏普通标题栏、显示最小化标题栏，否则点「—」只会一直最小化、无法恢复
+        var mbar = el(ID + "-minbar"); if (mbar) mbar.style.display = "";
+        var bar = el(ID + "-bar"); if (bar) bar.style.display = "none";
         ROOT.style.width = (OPTS.size && OPTS.size.width ? OPTS.size.width : DEFW) + "px";
         ROOT.style.height = "auto";
         return;
       }
       ROOT.classList.remove("rl-min");
+      var mbar2 = el(ID + "-minbar"); if (mbar2) mbar2.style.display = "none";
+      var bar2 = el(ID + "-bar"); if (bar2) bar2.style.display = "";
       if (w) ROOT.style.width = w + "px";
       var h = OPTS.size && OPTS.size.height ? OPTS.size.height : DEFH;
       ROOT.style.height = h ? h + "px" : "auto";
@@ -169,6 +175,8 @@
       ROOT.addEventListener("pointerdown", function (e) {
         if (PINNED) return;
         if (e.target.tagName === "BUTTON") return;
+        // 标题栏/最小化栏上的按下应交给拖拽逻辑，不要让边缘缩放抢先（否则顶部 6px 会变成向北缩放）
+        if (e.target.closest && e.target.closest(".rl-bar, .rl-minbar")) return;
         var dir = edgeAt(e);
         if (!dir) return;
         e.preventDefault(); e.stopPropagation();
@@ -200,6 +208,7 @@
       });
       ROOT.addEventListener("mousemove", function (e) {
         if (PINNED) { ROOT.style.cursor = ""; return; }
+        if (e.target.closest && e.target.closest(".rl-bar, .rl-minbar")) { ROOT.style.cursor = ""; return; }
         var dir = edgeAt(e);
         var map = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
           ne: "nesw-resize", nw: "nwse-resize", se: "nwse-resize", sw: "nesw-resize" };
@@ -216,7 +225,7 @@
         saveVisible(false);
         ROOT = null;
       }
-      var minBtn = el(ID + "-min"); if (minBtn) minBtn.onclick = doMin;
+      var minBtn = el(ID + "-min"); if (minBtn) minBtn.onclick = function () { if (MIN) doRestore(); else doMin(); };
       var minBar = el(ID + "-minbar");
       if (minBar) minBar.onclick = function (e) { if (e.target.tagName === "BUTTON") return; doRestore(); };
       var grip2 = el(ID + "-grip2"); if (grip2) grip2.onclick = doRestore;
