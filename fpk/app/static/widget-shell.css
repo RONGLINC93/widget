@@ -105,3 +105,4 @@
 .mn-unavail { color: #8b949e; font-size: 12px; }
 .mn-uptime { font-size: 11px; color: #8b949e; margin-top: 4px; }
 .mn-sec { font-size: 11px; color: #8b949e; margin: 8px 0 2px; padding-top: 6px; border-top: 1px solid rgba(110,118,129,.25); }
+.mn-sub { font-size: 11px; color: #6e7681; margin: 6px 0 1px; font-weight: 600; letter-spacing: .3px; }

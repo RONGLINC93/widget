@@ -590,9 +590,31 @@ def _cn_temp_name(name):
     return n
 
 
+def _temp_group(cn):
+    """把中文化后的温度名归类到一级分组（CPU/主板/硬盘/显卡/…），用于前端分组显示。
+    认不出归「其它」，不丢信息。"""
+    low = (cn or "").lower()
+    if "cpu" in low:
+        return "CPU"
+    if "nvme" in low or "硬盘" in low:
+        return "硬盘"
+    if "核显" in cn or "显卡" in cn:
+        return "显卡"
+    if "网卡" in cn:
+        return "网卡"
+    if "内存" in cn or "dimm" in low:
+        return "内存"
+    if "电池" in cn:
+        return "电池"
+    if "主板" in cn or "pch" in low or "peci" in low:
+        return "主板"
+    return "其它"
+
+
 def get_temps() -> list:
-    """采集所有温度传感器（/sys/class/thermal + hwmon），返回 [{name, temp(°C)}]。
-    name 经 _cn_temp_name 尽力中文化（如 Tdie→CPU 裸片、nvme→NVMe 硬盘）。"""
+    """采集所有温度传感器（/sys/class/thermal + hwmon），返回 [{name, temp(°C), group}]。
+    name 经 _cn_temp_name 尽力中文化（如 Tdie→CPU 裸片、nvme→NVMe 硬盘）；
+    group 为一级分类（CPU/主板/硬盘/显卡/…，用于前端分组显示）。"""
     temps = []
     try:
         base = "/sys/class/thermal"
@@ -604,7 +626,8 @@ def get_temps() -> list:
                 name = _read_sysfs(os.path.join(zp, "type"), cast=str) or z
                 mv = _read_sysfs(os.path.join(zp, "temp"))
                 if mv is not None:
-                    temps.append({"name": _cn_temp_name(name), "temp": round(mv / 1000.0, 1)})
+                    cn = _cn_temp_name(name)
+                    temps.append({"name": cn, "temp": round(mv / 1000.0, 1), "group": _temp_group(cn)})
     except Exception:
         pass
     try:
@@ -629,7 +652,7 @@ def get_temps() -> list:
                         model = _disk_model(os.path.join(hwp, "device"))
                         if model and model.lower() not in cn.lower():
                             cn = "%s %s" % (cn, model)
-                    temps.append({"name": cn, "temp": round(mv / 1000.0, 1)})
+                    temps.append({"name": cn, "temp": round(mv / 1000.0, 1), "group": _temp_group(cn)})
     except Exception:
         pass
     # 剔除明显无效的读数：传感器未接 / 读数失败时内核常报 -128°C 量级的哨兵值

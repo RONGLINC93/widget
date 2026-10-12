@@ -63,13 +63,31 @@
         }
 
         if (stats.temps && stats.temps.length) {
-          html += '<div class="mn-sec">温度</div>' + stats.temps.map(function (t) {
-            var pct = Math.max(0, Math.min(100, t.temp || 0));
-            return '<div class="mn-row">' +
-              '<div class="mn-top"><span class="mn-label">' + esc(t.name) + '</span>' +
-              '<span class="mn-val">' + esc((t.temp || 0).toFixed(1)) + '°C</span></div>' +
-              '<div class="mn-track"><div class="mn-fill' + tempColor(t.temp) + '" style="width:' + pct + '%"></div></div></div>';
+          // 按 group 一级分组（CPU/主板/显卡/硬盘/…），组内按原顺序，分组按固定优先级排序
+          var groupOrder = ["CPU", "主板", "显卡", "硬盘", "内存", "网卡", "电池", "其它"];
+          var gmap = {}, gorder = [];
+          stats.temps.forEach(function (t) {
+            var g = t.group || "其它";
+            if (!gmap[g]) { gmap[g] = []; gorder.push(g); }
+            gmap[g].push(t);
+          });
+          gorder.sort(function (a, b) {
+            var ia = groupOrder.indexOf(a), ib = groupOrder.indexOf(b);
+            if (ia < 0) ia = groupOrder.length;
+            if (ib < 0) ib = groupOrder.length;
+            return ia - ib;
+          });
+          var th = '<div class="mn-sec">温度</div>';
+          th += gorder.map(function (g) {
+            return '<div class="mn-sub">' + esc(g) + '</div>' + gmap[g].map(function (t) {
+              var pct = Math.max(0, Math.min(100, t.temp || 0));
+              return '<div class="mn-row">' +
+                '<div class="mn-top"><span class="mn-label">' + esc(t.name) + '</span>' +
+                '<span class="mn-val">' + esc((t.temp || 0).toFixed(1)) + '°C</span></div>' +
+                '<div class="mn-track"><div class="mn-fill' + tempColor(t.temp) + '" style="width:' + pct + '%"></div></div></div>';
+            }).join("");
           }).join("");
+          html += th;
         }
 
         if (stats.fans && stats.fans.length) {
