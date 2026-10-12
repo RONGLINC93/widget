@@ -1,8 +1,10 @@
 /* 天气悬浮窗小组件（纯前端，数据来自 Open-Meteo，免 API Key、支持 CORS）
+ * 壳（拖拽/四边缩放/最小化/关闭/固定/设置持久化）由 widget-shell.js 的 RLShell 统一提供，
+ * 本文件只负责天气内容的渲染与数据请求；location 为天气特有字段，仍由本组件自行持久化。
  * 用法：
- *   WeatherWidget.mount({ settingsApi, pos, size, location })
- *   - settingsApi：设置读写接口（POST 接受 {visible,pos,size,location}），传 null 时退回 localStorage
- *   - pos/size：{left,top} / {width,height}，None 用默认
+ *   WeatherWidget.mount({ settingsApi, pos, size, location, min, pinned })
+ *   - settingsApi：设置读写接口（POST 接受 {visible,pos,size,pinned,location}），传 null 时退回 localStorage
+ *   - pos/size/min/pinned：位置/大小/最小化/固定（RLShell 统一读写）
  *   - location：地点字符串（城市名或 "lat,lon"），空则提示用户设置
  * 演示页（weather-widget.html）不设置 __ww_noauto，加载后自动挂载（用 localStorage 存地点）。
  * 注入到飞牛桌面时由 inject.js 设 window.__ww_noauto 后手动挂载。
@@ -10,32 +12,10 @@
 (function () {
   "use strict";
 
-  var W = {};
-  var OPTS = null, API = null, LOC = null, ROOT = null, MIN = false, PINNED = false;
-  var REFRESH = null, MINW = 150, MINH = 120;
-
-  // 按方向（n/s/e/w 任意组合，如 "se" / "n" / "e"）计算缩放后的盒模型，
-  // 仅移动鼠标一侧边缘、对侧边缘固定，并钳制进视口、满足最小尺寸。
-  function computeResize(dir, dx, dy, r0, minW, minH) {
-    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
-    var left = r0.left, top = r0.top, w = r0.width, h = r0.height;
-    var right = r0.left + r0.width, bottom = r0.top + r0.height;
-    if (dir.indexOf("e") >= 0) {
-      w = Math.max(minW, Math.min(r0.width + dx, Math.max(minW, vw - 8 - left)));
-    }
-    if (dir.indexOf("w") >= 0) {
-      left = Math.max(0, Math.min(r0.left + dx, right - minW));
-      w = right - left;
-    }
-    if (dir.indexOf("s") >= 0) {
-      h = Math.max(minH, Math.min(r0.height + dy, Math.max(minH, vh - 8 - top)));
-    }
-    if (dir.indexOf("n") >= 0) {
-      top = Math.max(0, Math.min(r0.top + dy, bottom - minH));
-      h = bottom - top;
-    }
-    return { left: left, top: top, width: w, height: h };
-  }
+  var W = {};                 // 兼容旧引用（本文件不再直接挂 W.mount，改用 RLShell 暴露）
+  var API = null, LOC = null;
+  var REFRESH = null;
+  var MINW = 150, MINH = 120;
 
   // WMO 天气代码 -> [中文描述, emoji]
   var WMO = {
@@ -56,10 +36,11 @@
   function el(id) { return document.getElementById(id); }
   // 顶栏标题与最小化条标题始终一致（最小化条也要显示地点名，别只剩一个图标）
   function setTitle(s) {
-    var a = el("wwTitle"), b = el("wwMinTitle");
+    var a = el("ww-title"), b = el("ww-mintitle");
     if (a) a.textContent = s;
     if (b) b.textContent = s;
   }
+
   function store(k, v) {
     try {
       if (v === undefined) return localStorage.getItem(k);
@@ -75,25 +56,6 @@
       body: JSON.stringify(b)
     }).catch(function () {});
   }
-  function saveBox(pos, size) {
-    if (pos) OPTS.pos = pos;
-    if (size) OPTS.size = size;
-    if (!API) { store("ww_pos", JSON.stringify(OPTS.pos || null));
-                store("ww_size", JSON.stringify(OPTS.size || null)); return; }
-    var b = {};
-    if (pos) b.pos = pos;
-    if (size) b.size = size;
-    send(b);
-  }
-  function saveVisible(v) {
-    if (!API) { store("ww_visible", v ? "1" : "0"); return; }
-    send({ visible: v });
-  }
-  function saveMin(v) {
-    MIN = !!v;
-    if (!API) { store("ww_min", MIN ? "1" : "0"); return; }
-    send({ min: MIN });
-  }
   function saveLocation(loc) {
     LOC = loc;
     if (!API) { store("ww_loc", loc || ""); return; }
@@ -101,7 +63,7 @@
   }
 
   function currentLocation() {
-    if (OPTS && OPTS.location) return OPTS.location;
+    if (LOC) return LOC;
     var l = store("ww_loc");
     return l || "";
   }
@@ -180,7 +142,7 @@
       // 否则最小化时会把这句占位图标当成温度抄进最小化条，出现两个 🌤。
       el("wwIcon").textContent = "🌤";
       el("wwTemp").textContent = "";
-      el("wwMinTemp").textContent = "";
+      var mt0 = el("wwMinTemp"); if (mt0) mt0.textContent = "";
       showMsg("未设置地点");
       var f = el("wwFoot");
       f.innerHTML = '<a href="javascript:void(0)" id="wwSetLoc" style="color:#58a6ff">点击设置地点</a>';
@@ -207,262 +169,51 @@
     loadWeather();
   }
 
-  function applyBox() {
-    var w = OPTS.size && OPTS.size.width ? OPTS.size.width : 260;
-    var p = OPTS.pos && (OPTS.pos.left || OPTS.pos.top);
-    if (p) {
-      if (OPTS.pos.left) ROOT.style.left = OPTS.pos.left + "px";
-      if (OPTS.pos.top) ROOT.style.top = OPTS.pos.top + "px";
-    }
-    if (MIN) {
-      ROOT.classList.add("ww-min");
-      ROOT.style.width = (OPTS.size && OPTS.size.width ? OPTS.size.width : 260) + "px";
-      ROOT.style.height = "auto";
-      return;
-    }
-    ROOT.classList.remove("ww-min");
-    if (w) ROOT.style.width = w + "px";
-    // 高度允许手动调整：卡片变小时，内容区（.ww-body）会滚动而不是溢出卡片外；
-    // 不传高度则 height:auto 跟随内容。
-    var h = OPTS.size && OPTS.size.height ? OPTS.size.height : null;
-    if (h) ROOT.style.height = h + "px";
-    else ROOT.style.height = "auto";
+  function buildContent() {
+    return '<div class="ww-body">' +
+      '<div class="ww-now">' +
+        '<div class="ww-icon" id="wwIcon">🌤</div>' +
+        '<div class="ww-temp" id="wwTemp">--°</div>' +
+        '<div class="ww-cond" id="wwCond">加载中…</div>' +
+        '<div class="ww-meta" id="wwMeta"></div>' +
+      '</div>' +
+      '<div class="ww-days" id="wwDays"></div>' +
+      '<div class="ww-foot" id="wwFoot"></div>' +
+    '</div>';
   }
 
-  function enableDrag() {
-    var bar = el("wwBar");
-    var minbar = el("wwMinBar");
-    bar.style.touchAction = "none";
-    if (minbar) minbar.style.touchAction = "none";
-
-    function bindHandle(handle) {
-      if (!handle) return;
-      handle.addEventListener("pointerdown", function (e) {
-        if (PINNED) return;
-        if (e.target.tagName === "BUTTON") return;
-        e.stopPropagation();
-        try { handle.setPointerCapture(e.pointerId); } catch (err) {}
-        var sx = e.clientX, sy = e.clientY;
-        var r = ROOT.getBoundingClientRect();
-        var ox = r.left, oy = r.top;
-        function move(ev) {
-          ROOT.style.left = Math.max(0, ox + ev.clientX - sx) + "px";
-          ROOT.style.top = Math.max(0, oy + ev.clientY - sy) + "px";
-        }
-        function up() {
-          handle.removeEventListener("pointermove", move);
-          handle.removeEventListener("pointerup", up);
-          handle.removeEventListener("pointercancel", up);
-          // 松手吸附到桌面图标网格（与图标行列对齐，视觉整齐）
-          var rr = ROOT.getBoundingClientRect();
-          if (window.__rl93_snapToGrid) {
-            var sn = window.__rl93_snapToGrid(rr.left, rr.top);
-            ROOT.style.left = sn.left + "px";
-            ROOT.style.top = sn.top + "px";
-            rr = ROOT.getBoundingClientRect();
-          }
-          saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) }, OPTS.size);
-        }
-        handle.addEventListener("pointermove", move);
-        handle.addEventListener("pointerup", up);
-        handle.addEventListener("pointercancel", up);
-        e.preventDefault();
-      });
-    }
-    bindHandle(bar);
-    bindHandle(minbar);
-  }
-
-  // 四边（含四角）缩放：在面板任意边缘 / 角落按下即沿该边调整大小，双击边缘恢复默认。
-  // 捕获阶段的 pointerdown 监听面板：命中边缘时先拦截，避免与 bar / minbar 拖动冲突。
-  function enableResize() {
-    if (!ROOT) return;
-    var EDGE = 6;
-    function edgeAt(e) {
-      var r = ROOT.getBoundingClientRect();
-      var x = e.clientX - r.left, y = e.clientY - r.top;
-      var n = y <= EDGE, s = y >= r.height - EDGE;
-      var w = x <= EDGE, eR = x >= r.width - EDGE;
-      if (!n && !s && !w && !eR) return null;
-      return (n ? "n" : "") + (s ? "s" : "") + (w ? "w" : "") + (eR ? "e" : "");
-    }
-    ROOT.style.touchAction = "none";
-    ROOT.addEventListener("pointerdown", function (e) {
-      if (PINNED) return;
-      if (e.target.tagName === "BUTTON") return;
-      var dir = edgeAt(e);
-      if (!dir) return;                 // 内部：交给正常交互 / 拖动
-      e.preventDefault();
-      e.stopPropagation();
-      try { ROOT.setPointerCapture(e.pointerId); } catch (err) {}
-      var sx = e.clientX, sy = e.clientY;
-      var r0 = ROOT.getBoundingClientRect();
-      function move(ev) {
-        var b = computeResize(dir, ev.clientX - sx, ev.clientY - sy, r0, MINW, MINH);
-        ROOT.style.left = b.left + "px";
-        ROOT.style.top = b.top + "px";
-        ROOT.style.width = b.width + "px";
-        ROOT.style.height = b.height + "px";
+  var Widget = RLShell.create({
+    id: "ww", title: "天气", icon: "🌤", minW: MINW, minH: MINH, defW: 260, defH: null,
+    build: function (body, ctx) {
+      API = ctx.opts.settingsApi || null;
+      LOC = (ctx.opts.location || "").trim() || LOC;
+      body.innerHTML = buildContent();
+      // 最小化条里显示温度（RLShell 最小化条为固定模板，这里注入一个温度位）
+      var minbar = ctx.root.querySelector(".rl-minbar");
+      if (minbar) {
+        var mt = document.createElement("span");
+        mt.id = "wwMinTemp"; mt.className = "ww-mtemp";
+        var sp = minbar.querySelector(".rl-spacer");
+        minbar.insertBefore(mt, sp);
       }
-      function up() {
-        ROOT.removeEventListener("pointermove", move);
-        ROOT.removeEventListener("pointerup", up);
-        ROOT.removeEventListener("pointercancel", up);
-        var rr = ROOT.getBoundingClientRect();
-        saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) },
-                { width: Math.round(rr.width), height: Math.round(rr.height) });
-      }
-      ROOT.addEventListener("pointermove", move);
-      ROOT.addEventListener("pointerup", up);
-      ROOT.addEventListener("pointercancel", up);
-    }, true);   // 捕获阶段：先于 bar / minbar 拖动监听器
-    ROOT.addEventListener("dblclick", function (e) {
-      if (PINNED) return;
-      if (e.target.tagName === "BUTTON") return;
-      if (!edgeAt(e)) return;
-      ROOT.style.width = "";
-      ROOT.style.height = "";
-      OPTS.size = null;                 // 清空尺寸 → 下次用默认大小
-      send({ size: null });
-    });
-    ROOT.addEventListener("mousemove", function (e) {
-      if (PINNED) { ROOT.style.cursor = ""; return; }
-      var dir = edgeAt(e);
-      var map = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
-        ne: "nesw-resize", nw: "nwse-resize", se: "nwse-resize", sw: "nesw-resize" };
-      ROOT.style.cursor = dir ? map[dir] : "";
-    });
-  }
-
-  function bind() {
-    function refreshMinTemp() {
-      var t = el("wwTemp");
-      var mt = el("wwMinTemp");
-      if (!t || !mt) return;
-      var s = (t.textContent || "").trim();
-      mt.textContent = /°/.test(s) ? s : "";   // 仅在有真实温度时显示，避免把占位内容带进最小化条
-    }
-    function doMin() {
-      refreshMinTemp();
-      saveMin(true);
-      applyBox();
-    }
-    function doRestore() {
-      saveMin(false);
-      applyBox();
-    }
-    el("wwMin").onclick = doMin;
-    el("wwGrip2").onclick = doRestore;
-    // 点击最小化条空白处也还原（除按钮外）
-    el("wwMinBar").onclick = function (e) {
-      if (e.target.tagName === "BUTTON") return;
-      doRestore();
-    };
-    function close() {
-      if (ROOT && ROOT.parentNode) ROOT.parentNode.removeChild(ROOT);
+      loadWeather();
       if (REFRESH) clearInterval(REFRESH);
-      saveVisible(false);
+      REFRESH = setInterval(loadWeather, 30 * 60 * 1000);
+      return {
+        onDestroy: function () {
+          if (REFRESH) { clearInterval(REFRESH); REFRESH = null; }
+        }
+      };
     }
-    el("wwX").onclick = close;
-    el("wwX2").onclick = close;
-    el("wwPin").onclick = function () {
-      PINNED = !PINNED;
-      syncPin();
-      savePin();
-    };
-  }
-
-  // 固定（锁定位置）：启用时禁止拖动/缩放，隐藏缩放把手，并给出视觉提示
-  function syncPin() {
-    if (!ROOT) return;
-    ROOT.classList.toggle("ww-pinned", PINNED);
-    var btn = el("wwPin");
-    if (btn) {
-      btn.classList.toggle("ww-active", PINNED);
-      btn.title = PINNED
-        ? "已固定（点击解锁，恢复拖动/缩放）"
-        : "固定位置（锁定，禁止拖动/缩放）";
-    }
-    var rs = el("wwRsz");
-    if (rs) rs.style.display = PINNED ? "none" : "";
-  }
-
-  function savePin() {
-    if (!API) { store("ww_pin", PINNED ? "1" : "0"); return; }
-    send({ pinned: PINNED });
-  }
-
-  function readMin() {
-    if (OPTS && "min" in OPTS) return !!OPTS.min;
-    var s = store("ww_min");
-    return s === "1";
-  }
-
-  function mount(opts) {
-    OPTS = opts || {};
-    API = OPTS.settingsApi || null;
-    if (el("ww-root")) return;
-    if (!OPTS.location && !store("ww_loc")) {
-      // 注入场景：服务端的地点优先；演示场景：localStorage
-    }
-    MIN = readMin();
-    PINNED = ("pinned" in OPTS) ? !!OPTS.pinned : (store("ww_pin") === "1");
-    ROOT = document.createElement("div");
-    ROOT.id = "ww-root";
-    ROOT.innerHTML =
-      '<div class="ww-bar" id="wwBar">' +
-        '<span class="ww-grip">🌤</span>' +
-        '<span class="ww-title" id="wwTitle">天气</span>' +
-        '<span class="ww-spacer"></span>' +
-        '<button class="ww-pin" id="wwPin" title="固定位置（锁定，禁止拖动/缩放）">📌</button>' +
-        '<button class="ww-min" id="wwMin" title="最小化">—</button>' +
-        '<button class="ww-x" id="wwX" title="关闭">×</button>' +
-      '</div>' +
-      '<div class="ww-minbar" id="wwMinBar" style="display:none">' +
-        '<span class="ww-grip" id="wwGrip2">🌤</span>' +
-        '<span class="ww-title" id="wwMinTitle">天气</span>' +
-        '<span class="ww-mtemp" id="wwMinTemp"></span>' +
-        '<span class="ww-spacer"></span>' +
-        '<button class="ww-x" id="wwX2" title="关闭">×</button>' +
-      '</div>' +
-      '<div class="ww-body" id="wwBody">' +
-        '<div class="ww-now">' +
-          '<div class="ww-icon" id="wwIcon">🌤</div>' +
-          '<div class="ww-temp" id="wwTemp">--°</div>' +
-          '<div class="ww-cond" id="wwCond">加载中…</div>' +
-          '<div class="ww-meta" id="wwMeta"></div>' +
-        '</div>' +
-        '<div class="ww-days" id="wwDays"></div>' +
-        '<div class="ww-foot" id="wwFoot"></div>' +
-      '</div>' +
-      '<div class="ww-rsz" id="wwRsz" title="拖拽缩放"></div>';
-    var host = OPTS.container || document.body || document.documentElement;
-    host.appendChild(ROOT);
-    if (OPTS.embed) ROOT.classList.add("ww-embed");
-    applyBox();
-    syncPin();   // 应用初始固定状态（含隐藏缩放把手）
-    if (!OPTS.embed) { enableDrag(); enableResize(); }
-    bind();
-    loadWeather();
-    if (REFRESH) clearInterval(REFRESH);
-    REFRESH = setInterval(loadWeather, 30 * 60 * 1000);
-  }
-
-  W.mount = mount;
-  // 从挂载容器中移除（用于管理页预览刷新，清理刷新定时器）
-  W.unmount = function () {
-    if (REFRESH) { clearInterval(REFRESH); REFRESH = null; }
-    if (ROOT && ROOT.parentNode) ROOT.parentNode.removeChild(ROOT);
-    ROOT = null;
-  };
-  window.WeatherWidget = W;
+  });
+  window.WeatherWidget = Widget;
 
   if (!window.__ww_noauto) {
     window.addEventListener("DOMContentLoaded", function () {
       if (window.__ww_mounted) return;
       window.__ww_mounted = true;
       // 演示页：无后端，地点存 localStorage
-      mount({ settingsApi: null, pos: null, size: null, location: null });
+      Widget.mount({ settingsApi: null, pos: null, size: null, location: null });
     });
   }
 })();

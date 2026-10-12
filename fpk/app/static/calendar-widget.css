@@ -1,111 +1,20 @@
-/* 日历悬浮窗组件样式（深色玻璃风，与目录浏览器浮层同源） */
+/* 日历悬浮窗内容样式（外壳/拖拽/缩放/标题栏由 widget-shell.css 统一提供）
+ * 根节点 id 固定为 cw-root（RLShell 用 id:"cw" 生成），内容选择器沿用 #cw-root .cw-*。
+ */
 #cw-root {
-  position: fixed;
-  /* 默认位置避开屏幕右上角：飞牛桌面原生系统小组件（CPU/内存状态等）也在那个角落，
-     且渲染在注入层之上 —— 放 24px 会被盖住顶栏（唯一拖拽把手）导致整个浮层拖不动。
-     96px 与天气组件默认位一致；已保存过位置的用户以保存值为准。 */
-  top: 96px;
-  right: 24px;
-  width: 320px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 48px);
-  display: flex;
-  flex-direction: column;
-  background: rgba(22, 27, 34, 0.82);
-  color: #e6edf3;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-  /* 与桌面图标同层：桌面场景由 inject.js 运行时对齐图标层 z-index */
-  z-index: 0;
-  overflow: hidden;
-  user-select: none;
+  /* 仅保留尺寸约束：外壳的背景/边框/圆角/模糊/阴影由 .rl-root 统一提供 */
   min-width: 260px;
   min-height: 320px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
 }
 
-/* 右下角调整大小把手（双击恢复默认大小） */
-.cw-resize {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 16px;
-  height: 16px;
-  cursor: nwse-resize;
-  background:
-    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.5) 46% 54%, transparent 54%),
-    linear-gradient(135deg, transparent 0 68%, rgba(255, 255, 255, 0.5) 68% 76%, transparent 76%);
-}
-.cw-resize:hover { background-color: rgba(255, 255, 255, 0.08); }
-
-/* 最小化：只留顶栏。必须显式压掉 min-height —— CSS 中 min-height 优先级高于
-   max-height，只写 max-height:54px 会被上面的 min-height:320px 顶住，
-   结果是内容全隐藏、卡片却仍高 320px（顶栏 + 一大片空白）。
-   height:auto 用来覆盖拖拽缩放写入的行内 height。 */
-#cw-root.cw-min { min-height: 0; height: auto !important; max-height: 54px; overflow: hidden; }
-#cw-root.cw-min .cw-clock,
-#cw-root.cw-min .cw-cal,
-#cw-root.cw-min .cw-memo { display: none !important; }
-#cw-root.cw-min .cw-resize { display: none !important; }
-
-.cw-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  cursor: move;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-.cw-title { font-weight: 600; flex: 0 0 auto; }
-.cw-spacer { flex: 1 1 auto; }
-.cw-btn {
-  border: none;
-  background: rgba(255, 255, 255, 0.1);
-  color: #e6edf3;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  /* 同目录组件：清零默认内边距 + flex 居中，避免 📌 溢出按钮显得没对齐 */
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.cw-btn:hover { background: rgba(255, 255, 255, 0.2); }
-/* 顶栏固定/最小化/关闭三按钮：与新四组件（widget-shell .rl-bar button）统一的透明底样式 */
-.cw-header .cw-pin-btn, .cw-header .cw-min-btn, .cw-header .cw-close-btn {
-  background: transparent;
-  color: #c9d1d9;
-  width: auto;
-  height: auto;
-  padding: 4px 6px;
-  font-size: 14px;
-  line-height: 1;
-}
-.cw-header .cw-pin-btn:hover, .cw-header .cw-min-btn:hover, .cw-header .cw-close-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-/* 固定按钮激活（已锁定位置）高亮 */
-.cw-btn.cw-active { background: rgba(88, 166, 255, 0.35); color: #fff; }
-/* 固定后顶栏/时钟区不再是拖拽把手，鼠标恢复默认 */
-#cw-root.cw-pinned .cw-header,
-#cw-root.cw-pinned .cw-clock { cursor: default; }
-
-/* 实时时钟 + 日期（顶栏被原生小组件盖住时的备用拖拽把手） */
+/* 实时时钟 + 日期 */
 .cw-clock {
   text-align: center;
   padding: 14px 12px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  cursor: move;
-  touch-action: none;
 }
 .cw-time {
   font-size: 30px;
@@ -194,13 +103,11 @@
   padding: 1px 0;
   box-sizing: border-box;
 }
-/* 阳历日号（主显示） */
 .cw-cell .cw-day {
   font-size: 13px;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
-/* 农历（次显示） */
 .cw-cell .cw-lunar {
   font-size: 9px;
   line-height: 1.1;
@@ -210,10 +117,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 农历与「今天/周末」等强调色协调：周末的农历略暖 */
 .cw-cell.cw-we .cw-lunar { color: #b0773e; }
 .cw-cell.cw-other .cw-lunar { color: #6e7681; }
-/* 选中/今天时农历保持可读对比 */
 .cw-cell.cw-selected .cw-lunar { color: rgba(255,255,255,0.85); }
 .cw-cell.cw-today .cw-lunar { color: #79c0ff; }
 .cw-cell:hover { background: rgba(255, 255, 255, 0.08); }
@@ -230,7 +135,6 @@
   font-weight: 700;
 }
 .cw-cell.cw-today.cw-selected { box-shadow: none; }
-/* 有备忘的日期角标 */
 .cw-cell.cw-has-note::after {
   content: "";
   position: absolute;
@@ -257,14 +161,11 @@
 }
 .cw-htag-off { background: rgba(63, 185, 80, 0.22); color: #3fb950; }
 .cw-htag-work { background: rgba(240, 136, 62, 0.22); color: #f0883e; }
-/* 法定假日休息日：日号着色为绿色，略作强调 */
 .cw-cell.cw-holiday .cw-day { color: #3fb950; font-weight: 600; }
 .cw-cell.cw-holiday.cw-we .cw-day { color: #3fb950; }
-/* 调休补班日（本是周末但要上班）：保留周末底色，但用「班」标记提示 */
 .cw-cell.cw-work .cw-day { color: #f0883e; }
 
-/* 每日备忘（flex:1 弹性填充卡片剩余高度 —— 卡片被拉高时输入框跟随变高，
-   而不是在卡片底部留一大块空白） */
+/* 每日备忘（flex:1 弹性填充卡片剩余高度） */
 .cw-memo {
   flex: 1 1 auto;
   min-height: 0;
@@ -316,4 +217,4 @@
 .cw-embed { position: static !important; inset: auto !important; width: 100% !important;
   height: 100% !important; max-width: none !important; max-height: none !important;
   border-radius: 10px !important; box-shadow: none !important; }
-.cw-embed .cw-min-btn, .cw-embed .cw-close-btn, .cw-embed .cw-resize { display: none !important; }
+.cw-embed .rl-min, .cw-embed .rl-x, .cw-embed .rl-rsz { display: none !important; }

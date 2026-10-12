@@ -1,55 +1,8 @@
-/* 天气悬浮窗样式（深色玻璃风，与目录/日历浮层同源） */
-#ww-root {
-  position: absolute; left: 96px; top: 96px; width: 260px;
-  display: flex; flex-direction: column;
-  background: rgba(22, 27, 34, 0.82);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px; color: #e6edf3;
-  font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  overflow: hidden; user-select: none; z-index: 1;
-  container-type: inline-size;   /* 容器查询：按卡片自身宽度响应式布局 */
-}
-#ww-root .ww-bar, #ww-root .ww-minbar {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; cursor: move;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px 12px 0 0;
-}
-#ww-root .ww-minbar { border-radius: 12px; border-bottom: none; cursor: pointer; }
-#ww-root .ww-minbar .ww-grip { cursor: pointer; }
-#ww-root.ww-min { height: auto !important; }
-#ww-root.ww-min .ww-bar,
-#ww-root.ww-min .ww-body,
-#ww-root.ww-min .ww-rsz { display: none !important; }
-#ww-root.ww-min .ww-minbar { display: flex !important; }
-#ww-root .ww-grip { font-size: 15px; }
-#ww-root .ww-title { font-weight: 600; font-size: 13px;
-  color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* 最小化条里的温度：比标题淡一点，没有温度时是空串不占位 */
-#ww-root .ww-mtemp { font-size: 13px; color: #8b949e; white-space: nowrap; }
-#ww-root .ww-mtemp:empty { display: none; }
-#ww-root .ww-spacer { flex: 1; }
-#ww-root .ww-min, #ww-root .ww-x {
-  border: none; cursor: pointer;
-  background: transparent; color: #c9d1d9;
-  border-radius: 6px; font-size: 14px; padding: 4px 6px; line-height: 1;
-}
-#ww-root .ww-min:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-#ww-root .ww-x:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-/* 固定按钮：与 min/x 同款外观，激活（已锁定位置）时高亮 */
-#ww-root .ww-pin {
-  border: none; cursor: pointer;
-  background: transparent; color: #c9d1d9;
-  border-radius: 6px; font-size: 14px; padding: 4px 6px; line-height: 1;
-}
-#ww-root .ww-pin:hover { background: rgba(255, 255, 255, 0.18); }
-#ww-root .ww-pin.ww-active { background: rgba(88, 166, 255, 0.35); color: #fff; }
-/* 固定后顶栏不再是拖拽把手，鼠标恢复默认 */
-#ww-root.ww-pinned .ww-bar, #ww-root.ww-pinned .ww-minbar { cursor: default; }
+/* 天气悬浮窗内容样式（外壳/拖拽/缩放/标题栏由 widget-shell.css 统一提供）
+ * 根节点 id 固定为 ww-root（RLShell 用 id:"ww" 生成），内容选择器沿用 #ww-root .ww-*。
+ */
+#ww-root { container-type: inline-size; }   /* 容器查询：按卡片自身宽度响应式布局 */
+
 #ww-root .ww-body {
   flex: 1 1 auto;
   min-height: 0;            /* 允许在卡片变矮时收缩 */
@@ -61,6 +14,9 @@
 #ww-root .ww-temp { font-size: 38px; font-weight: 700; line-height: 1.1; }
 #ww-root .ww-cond { font-size: 14px; color: #c9d1d9; margin-top: 2px; }
 #ww-root .ww-meta { font-size: 11px; color: #8b949e; margin-top: 6px; text-align: center; }
+/* 最小化条里的温度：比标题淡一点，没有温度时是空串不占位 */
+#ww-root .ww-mtemp { font-size: 13px; color: #8b949e; white-space: nowrap; margin-left: 4px; }
+#ww-root .ww-mtemp:empty { display: none; }
 #ww-root .ww-days {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
@@ -79,17 +35,6 @@
 #ww-root .ww-dt b { color: #ffd479; }
 #ww-root .ww-foot { margin-top: 10px; font-size: 10px; color: #6e7681; text-align: center; }
 #ww-root .ww-foot a { text-decoration: none; }
-#ww-root .ww-rsz {
-  position: absolute; right: 0; bottom: 0; width: 16px; height: 16px;
-  cursor: nwse-resize;
-  background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.25) 50%);
-  border-radius: 0 0 12px 0;
-}
-
-/* 嵌入模式（管理页实时预览）：填满容器、去掉浮窗拖拽/关闭把手 */
-.ww-embed { position: static !important; inset: auto !important; width: 100% !important;
-  height: 100% !important; border-radius: 10px !important; box-shadow: none !important; }
-.ww-embed .ww-min, .ww-embed .ww-x, .ww-embed .ww-rsz { display: none !important; }
 
 /* 响应式：卡片变窄时逐级隐藏，绝不出现滚动条 */
 @container (max-width: 220px) {

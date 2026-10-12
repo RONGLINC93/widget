@@ -350,19 +350,19 @@
         path: (settings.path || "").trim(),
         root: (settings.root || "").trim(),
         api: BASE + "/api/list", fileApi: BASE + "/api/file", searchApi: BASE + "/api/search",
-        settingsApi: null, container: stage, draggable: false
+        settingsApi: null, container: stage, preview: true
       });
 
       if (stageCal) stageCal.destroy();
       stageCal = CalendarWidget.mount({
         notes: (settings.notes) || {}, settingsApi: BASE + "/api/settings",
-        container: stage, draggable: false
+        container: stage, preview: true
       });
 
-      if (stageWx) stageWx.unmount();
+      if (stageWx) stageWx.destroy();
       stageWx = WeatherWidget.mount({
         location: (settings.weather_location || "").trim(),
-        settingsApi: BASE + "/api/settings", container: stage, draggable: false
+        settingsApi: BASE + "/api/settings", container: stage, preview: true
       });
 
       // ---- 4 个新增组件预览（preview:true 不渲染关闭/最小化/固定按钮，避免误改真实状态）----
@@ -399,14 +399,14 @@
       stageDir = DirWidget.mount({
         path: pathInput.value.trim(), root: rootInput.value.trim(),
         api: BASE + "/api/list", fileApi: BASE + "/api/file", searchApi: BASE + "/api/search",
-        settingsApi: null, container: stage, draggable: false
+        settingsApi: null, container: stage, preview: true
       });
     }
     function refreshWx() {
-      if (stageWx) stageWx.unmount();
+      if (stageWx) stageWx.destroy();
       stageWx = WeatherWidget.mount({
         location: weatherLocInput.value.trim(),
-        settingsApi: BASE + "/api/settings", container: stage, draggable: false
+        settingsApi: BASE + "/api/settings", container: stage, preview: true
       });
     }
 

@@ -1,62 +1,14 @@
-/* 目录文件列表浮层组件样式 */
+/* 目录浮层：外壳（背景/边框/圆角/毛玻璃/阴影）由 widget-shell.css 的 .rl-root 统一提供，
+ * 拖拽/四边缩放/最小化/关闭/固定也由 RLShell 处理。这里只保留内容区所需的最小尺寸约束
+ * （id 选择器优先级高于 .rl-root，确保生效）。 */
 #dw-root {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  width: 420px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 48px);
-  display: flex;
-  flex-direction: column;
-  background: rgba(22, 27, 34, 0.82);
-  color: #e6edf3;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
-  /* 与桌面图标同层：不要给超大值，否则会盖住飞牛原生窗口(10010+)与右键菜单。
-     桌面场景由 inject.js 运行时量出图标层 z-index 并对齐（见 alignWithDesktopIcons）。 */
-  z-index: 0;
-  overflow: hidden;
-  user-select: none;
   min-width: 280px;
   min-height: 140px;
+  overflow: hidden;
+  user-select: none;
+  font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 
-/* 右下角调整大小把手（双击恢复默认大小） */
-.dw-resize {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 16px;
-  height: 16px;
-  cursor: nwse-resize;
-  background:
-    linear-gradient(135deg, transparent 0 46%, rgba(255, 255, 255, 0.5) 46% 54%, transparent 54%),
-    linear-gradient(135deg, transparent 0 68%, rgba(255, 255, 255, 0.5) 68% 76%, transparent 76%);
-}
-.dw-resize:hover { background-color: rgba(255, 255, 255, 0.08); }
-
-/* 最小化：只留顶栏。同日历组件——不显式压掉 min-height:140px 的话，
-   max-height 会被 min-height 顶住，卡片收不下去只剩空白。 */
-#dw-root.dw-min { min-height: 0; height: auto !important; max-height: 44px; overflow: hidden; }
-#dw-root.dw-min .dw-body,
-#dw-root.dw-min .dw-status { display: none; }
-/* 最小化时内容都收起了，把手不应再显示 */
-#dw-root.dw-min .dw-resize { display: none; }
-
-.dw-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  cursor: move;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-.dw-title { font-weight: 600; flex: 0 0 auto; }
 .dw-spacer { flex: 1 1 auto; }
 .dw-btn {
   border: none;
@@ -76,24 +28,6 @@
   justify-content: center;
 }
 .dw-btn:hover { background: rgba(255, 255, 255, 0.18); }
-/* 顶栏固定/最小化/关闭三按钮：与新四组件（widget-shell .rl-bar button）统一的透明底样式 */
-.dw-header .dw-pin-btn, .dw-header .dw-min-btn, .dw-header .dw-close-btn {
-  background: transparent;
-  color: #c9d1d9;
-  width: auto;
-  height: auto;
-  padding: 4px 6px;
-  font-size: 14px;
-  line-height: 1;
-}
-.dw-header .dw-pin-btn:hover, .dw-header .dw-min-btn:hover, .dw-header .dw-close-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-/* 固定按钮激活（已锁定位置）高亮 */
-.dw-btn.dw-active { background: rgba(88, 166, 255, 0.35); color: #fff; }
-/* 固定后顶栏不再是拖拽把手，鼠标恢复默认 */
-#dw-root.dw-pinned .dw-header { cursor: default; }
 
 .dw-toolbar {
   display: flex;
@@ -205,24 +139,12 @@
 .dw-filter::placeholder { color: #6e7681; }
 .dw-filter:focus { outline: none; border-color: #4493f8; }
 
+/* 列表区：外壳 .rl-body 负责滚动，这里不再单独滚动（避免双滚动条）；
+ * 表格头用 position:sticky 相对 .rl-body 滚动容器吸顶。 */
 .dw-body {
   flex: 1 1 auto;
-  overflow: auto;
-  /* Firefox：细滚动条，滑块灰色、轨道透明 */
-  scrollbar-width: thin;
-  scrollbar-color: rgba(139, 148, 158, 0.45) transparent;
+  min-height: 0;
 }
-/* Chromium/Safari：深色主题滚动条 */
-.dw-body::-webkit-scrollbar { width: 10px; height: 10px; }
-.dw-body::-webkit-scrollbar-track { background: transparent; }
-.dw-body::-webkit-scrollbar-thumb {
-  background: rgba(139, 148, 158, 0.45);
-  background-clip: content-box;   /* 两边留 2px 透明边，不顶满 */
-  border: 2px solid transparent;
-  border-radius: 6px;
-}
-.dw-body::-webkit-scrollbar-thumb:hover { background-color: rgba(139, 148, 158, 0.7); }
-.dw-body::-webkit-scrollbar-corner { background: transparent; }
 .dw-table { width: 100%; border-collapse: collapse; }
 .dw-table th, .dw-table td {
   text-align: left;
@@ -380,8 +302,8 @@
   text-overflow: ellipsis;
 }
 
-/* 嵌入模式（管理页实时预览）：填满容器、去掉浮窗拖拽/关闭把手 */
+/* 嵌入模式（管理页实时预览）：填满容器、去掉浮窗拖拽/关闭把手（由 RLShell 提供） */
 .dw-embed { position: static !important; inset: auto !important; width: 100% !important;
   height: 100% !important; max-width: none !important; max-height: none !important;
   border-radius: 10px !important; box-shadow: none !important; }
-.dw-embed .dw-min-btn, .dw-embed .dw-close-btn, .dw-embed .dw-resize { display: none !important; }
+.dw-embed .rl-min, .dw-embed .rl-x, .dw-embed .rl-rsz { display: none !important; }

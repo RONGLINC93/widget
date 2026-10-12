@@ -1,10 +1,13 @@
 /* 日历悬浮窗组件（纯原生 JS，零依赖）
+ * 壳（拖拽/四边缩放/最小化/关闭/固定/设置持久化）由 widget-shell.js 的 RLShell 统一提供，
+ * 本文件只负责月历 + 实时时钟 + 每日备忘（持久化）的内容渲染。
  * 用法：
- *   CalendarWidget.mount({ settingsApi: "/calw/api/settings", notes: {} });  // 编程式
- *   或直接引入本脚本，默认挂载到 document.body。
- * 功能：月历（翻月/翻年、今天高亮、点选日期）+ 实时时钟 + 每日备忘（持久化）。
- *       可拖拽、可缩放（双击把手恢复默认）、可最小化、可关闭（关闭后由服务端记住，
- *       刷新桌面不再自动弹出，可在设置窗口重新开启）。
+ *   CalendarWidget.mount({ settingsApi, pos, size, min, pinned, notes });
+ *   - settingsApi：设置读写接口（POST 接受 {visible,pos,size,pinned,notes}），注入场景由 inject.js 传入
+ *   - pos/size/min/pinned：位置/大小/最小化/固定（RLShell 统一读写，备忘另行走 notes 字段）
+ *   - notes：{ "YYYY-MM-DD": "备忘文本" }
+ * 演示页（calendar-widget.html）不设置 __cw_noauto 时自动挂载（用 localStorage 存备忘）。
+ * 注入到飞牛桌面时由 inject.js 设 window.__cw_noauto 后手动挂载。
  */
 (function (global) {
   "use strict";
@@ -41,72 +44,26 @@
     });
   }
 
-  // 卡片最小可调整尺寸（同时受视口约束，不允许拖出屏幕）
-  var MIN_W = 260, MIN_H = 320;
-  function clampSize(w, h, left, top) {
-    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
-    var maxW = Math.max(MIN_W, vw - (left || 0) - 8);
-    var maxH = Math.max(MIN_H, vh - (top || 0) - 8);
-    return [Math.min(Math.max(MIN_W, Number(w) || MIN_W), maxW),
-            Math.min(Math.max(MIN_H, Number(h) || MIN_H), maxH)];
-  }
-
-  // 按方向（n/s/e/w 任意组合，如 "se" / "n" / "e"）计算缩放后的盒模型，
-  // 仅移动鼠标一侧边缘、对侧边缘固定，并钳制进视口、满足最小尺寸。
-  function computeResize(dir, dx, dy, r0, minW, minH) {
-    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
-    var left = r0.left, top = r0.top, w = r0.width, h = r0.height;
-    var right = r0.left + r0.width, bottom = r0.top + r0.height;
-    if (dir.indexOf("e") >= 0) {
-      w = Math.max(minW, Math.min(r0.width + dx, Math.max(minW, vw - 8 - left)));
-    }
-    if (dir.indexOf("w") >= 0) {
-      left = Math.max(0, Math.min(r0.left + dx, right - minW));
-      w = right - left;
-    }
-    if (dir.indexOf("s") >= 0) {
-      h = Math.max(minH, Math.min(r0.height + dy, Math.max(minH, vh - 8 - top)));
-    }
-    if (dir.indexOf("n") >= 0) {
-      top = Math.max(0, Math.min(r0.top + dy, bottom - minH));
-      h = bottom - top;
-    }
-    return { left: left, top: top, width: w, height: h };
-  }
-
-  function CalendarWidget(opts) {
-    opts = opts || {};
-    this.opts = opts;
-    this.settingsApi = opts.settingsApi || null;
-    this.pos = opts.pos || null;
-    this.size = opts.size || null;
-    this.min = opts.min || false;
-    this.notes = (opts.notes && typeof opts.notes === "object") ? opts.notes : {};
-    this.pinned = !!opts.pinned;   // 固定（锁定位置，禁止拖动/缩放）
+  var CalendarWidget = {};   // 仅作命名空间说明；真正实例由 RLShell.create 暴露
+  function CWidget(opts) {
+    this.opts = opts || {};
+    this.settingsApi = this.opts.settingsApi || null;
+    this.notes = (this.opts.notes && typeof this.opts.notes === "object") ? this.opts.notes : {};
     this.viewYear = 0;
     this.viewMonth = 0;     // 0-11
     this.selectedKey = null;
     this.el = null;
-    this._build();
+    this._clockTimer = null;
   }
 
-  CalendarWidget.prototype._build = function () {
+  CWidget.prototype.build = function (root, body) {
     var self = this;
     var now = new Date();
     this.viewYear = now.getFullYear();
     this.viewMonth = now.getMonth();
     this.selectedKey = isoDate(now);
 
-    var root = document.createElement("div");
-    root.id = "cw-root";
-    root.innerHTML =
-      '<div class="cw-header">' +
-        '<span class="cw-title">📅 日历</span>' +
-        '<span class="cw-spacer"></span>' +
-        '<button class="cw-btn cw-pin-btn" title="固定位置（锁定，禁止拖动/缩放）">📌</button>' +
-        '<button class="cw-btn cw-min-btn" title="最小化">—</button>' +
-        '<button class="cw-btn cw-close-btn" title="关闭（可在设置窗口重新开启）">×</button>' +
-      '</div>' +
+    body.innerHTML =
       '<div class="cw-clock">' +
         '<div class="cw-time">--:--:--</div>' +
         '<div class="cw-date"></div>' +
@@ -130,12 +87,9 @@
           '<button class="cw-memo-save">保存</button>' +
           '<span class="cw-memo-msg"></span>' +
         '</div>' +
-      '</div>' +
-      '<span class="cw-resize" title="拖动调整大小（双击恢复默认）"></span>';
-    var host = (this.opts && this.opts.container) || document.body;
-    host.appendChild(root);
+      '</div>';
+
     this.el = root;
-    if (this.opts && this.opts.embed) root.classList.add("cw-embed");
 
     // 搬进桌面容器后，交互不冒泡到桌面（避免误触桌面处理）
     root.addEventListener("mousedown", function (e) { e.stopPropagation(); });
@@ -167,93 +121,23 @@
       self.selectedKey = isoDate(n);
       self._render();
     });
-    this.minBtn = root.querySelector(".cw-min-btn");
-    this.pinBtn = root.querySelector(".cw-pin-btn");
-    this.pinBtn.addEventListener("click", function () {
-      self.pinned = !self.pinned;
-      self._syncPin();
-      self._savePin(self.pinned);
-    });
-    root.querySelector(".cw-close-btn").addEventListener("click", function () {
-      root.remove();
-      if (self.settingsApi) {
-        fetch(self.settingsApi, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ visible: false })
-        }).catch(function () {});
-      }
-    });
-    this.minBtn.addEventListener("click", function () {
-      if (root.classList.contains("cw-min")) self._doRestore();
-      else self._doMin();
-    });
 
     // 备忘保存
     var saveBtn = root.querySelector(".cw-memo-save");
-    function doSave() {
-      self._saveNote(self.selectedKey, self.memoInput.value);
-    }
+    function doSave() { self._saveNote(self.selectedKey, self.memoInput.value); }
     saveBtn.addEventListener("click", doSave);
-    // 失焦自动保存
-    this.memoInput.addEventListener("blur", doSave);
-    // Ctrl/Cmd + Enter 保存
+    this.memoInput.addEventListener("blur", doSave);   // 失焦自动保存
     this.memoInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        doSave();
-      }
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); doSave(); }
       e.stopPropagation();
     });
-
-    // 两个拖拽把手：顶栏 + 时钟区。只有顶栏一个把手时，浮层若被右上角原生
-    // 系统小组件（CPU/内存状态）盖住顶栏，整个浮层就再也拖不动了。
-    if ((!this.opts || !this.opts.embed) && this.opts.draggable !== false) {
-      this._makeDraggable(root.querySelector(".cw-header"), root);
-      this._makeDraggable(root.querySelector(".cw-clock"), root);
-      this._makeResizable(root);
-    } else if (this.opts && this.opts.draggable === false && root.querySelector(".cw-resize")) {
-      root.querySelector(".cw-resize").style.display = "none";
-    }
-
-    if (this.size) this._applySize(this.size.width, this.size.height);
-    if (this.pos) this._applyPos(this.pos.left, this.pos.top);
-    if (this.min) this.el.classList.add("cw-min");
-    this._syncPin();   // 应用初始固定状态（含隐藏缩放把手）
 
     this._render();
     this._startClock();
   };
 
-  // 固定（锁定位置）：启用时禁止拖动/缩放，隐藏缩放把手，并给出视觉提示
-  CalendarWidget.prototype._syncPin = function () {
-    if (!this.el) return;
-    this.el.classList.toggle("cw-pinned", this.pinned);
-    if (this.pinBtn) {
-      this.pinBtn.classList.toggle("cw-active", this.pinned);
-      this.pinBtn.title = this.pinned
-        ? "已固定（点击解锁，恢复拖动/缩放）"
-        : "固定位置（锁定，禁止拖动/缩放）";
-    }
-    var rs = this.el.querySelector(".cw-resize");
-    if (rs) rs.style.display = this.pinned ? "none" : "";
-  };
-
-  CalendarWidget.prototype._savePin = function (v) {
-    this.pinned = !!v;
-    if (this.settingsApi) {
-      fetch(this.settingsApi, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pinned: this.pinned })
-      }).catch(function () {});
-    } else {
-      try { localStorage.setItem("cw_pin", this.pinned ? "1" : "0"); } catch (e) {}
-    }
-  };
-
   // ===================== 渲染月历 =====================
-  CalendarWidget.prototype._stepMonth = function (delta) {
+  CWidget.prototype._stepMonth = function (delta) {
     var m = this.viewMonth + delta;
     var y = this.viewYear + Math.floor(m / 12);
     m = ((m % 12) + 12) % 12;
@@ -262,7 +146,7 @@
     this._render();
   };
 
-  CalendarWidget.prototype._render = function () {
+  CWidget.prototype._render = function () {
     var self = this;
     this.titleEl.textContent = this.viewYear + "年 " + MONTH_LABELS[this.viewMonth];
 
@@ -319,7 +203,7 @@
     this._renderMemo();
   };
 
-  CalendarWidget.prototype._renderMemo = function () {
+  CWidget.prototype._renderMemo = function () {
     var key = this.selectedKey;
     var parts = key.split("-");
     var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
@@ -343,7 +227,7 @@
   };
 
   // ===================== 实时时钟 =====================
-  CalendarWidget.prototype._startClock = function () {
+  CWidget.prototype._startClock = function () {
     var self = this;
     function tick() {
       var n = new Date();
@@ -371,7 +255,7 @@
   };
 
   // ===================== 持久化 =====================
-  CalendarWidget.prototype._saveNote = function (key, text) {
+  CWidget.prototype._saveNote = function (key, text) {
     var self = this;
     if (!this.notes) this.notes = {};
     text = (text || "").trim();
@@ -393,7 +277,7 @@
     if (key === this.selectedKey) this._render();
   };
 
-  CalendarWidget.prototype._noteSaved = function (err) {
+  CWidget.prototype._noteSaved = function (err) {
     this.memoMsg.textContent = err ? err : "✅ 已保存";
     this.memoMsg.className = "cw-memo-msg" + (err ? "" : " cw-ok");
     var self = this;
@@ -401,223 +285,32 @@
     this._noteTimer = setTimeout(function () { self.memoMsg.textContent = ""; }, 2000);
   };
 
-  CalendarWidget.prototype._makeDraggable = function (handle, panel) {
-    var self = this;
-    handle.style.touchAction = "none";
-    handle.addEventListener("pointerdown", function (e) {
-      if (self.pinned) return;
-      if (e.target.closest(".cw-btn")) return;
-      e.stopPropagation();
-      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
-      var sx = e.clientX, sy = e.clientY;
-      var r = panel.getBoundingClientRect();
-      var ox = r.left, oy = r.top;
-      panel.style.right = "auto";
-      function move(ev) {
-        panel.style.left = (ox + ev.clientX - sx) + "px";
-        panel.style.top = (oy + ev.clientY - sy) + "px";
-      }
-      function up() {
-        handle.removeEventListener("pointermove", move);
-        handle.removeEventListener("pointerup", up);
-        handle.removeEventListener("pointercancel", up);
-        // 松手吸附到桌面图标网格（与图标行列对齐，视觉整齐）
-        var r = panel.getBoundingClientRect();
-        if (window.__rl93_snapToGrid) {
-          var sn = window.__rl93_snapToGrid(r.left, r.top);
-          panel.style.left = sn.left + "px";
-          panel.style.top = sn.top + "px";
+  // 公共 API：挂到 RLShell 模板上，mount 透传 opts，build 渲染内容
+  var Widget = RLShell.create({
+    id: "cw", title: "日历", icon: "📅", minW: 260, minH: 320, defW: 320, defH: null,
+    build: function (body, ctx) {
+      var inst = new CWidget(ctx.opts);
+      inst.build(ctx.root, body);
+      return {
+        onDestroy: function () {
+          if (inst._clockTimer) clearInterval(inst._clockTimer);
         }
-        self._saveBox(panel);
-      }
-      handle.addEventListener("pointermove", move);
-      handle.addEventListener("pointerup", up);
-      handle.addEventListener("pointercancel", up);
-      e.preventDefault();
-    });
-  };
-
-  // 四边（含四角）缩放：在面板任意边缘 / 角落按下即沿该边调整大小，双击边缘恢复默认。
-  // 捕获阶段的 pointerdown 监听面板：命中边缘时先拦截，避免与 header / clock 拖动冲突。
-  CalendarWidget.prototype._makeResizable = function (panel) {
-    var self = this;
-    if (!panel) return;
-    var EDGE = 6;
-    function edgeAt(e) {
-      var r = panel.getBoundingClientRect();
-      var x = e.clientX - r.left, y = e.clientY - r.top;
-      var n = y <= EDGE, s = y >= r.height - EDGE;
-      var w = x <= EDGE, eR = x >= r.width - EDGE;
-      if (!n && !s && !w && !eR) return null;
-      return (n ? "n" : "") + (s ? "s" : "") + (w ? "w" : "") + (eR ? "e" : "");
+      };
     }
-    panel.style.touchAction = "none";
-    panel.addEventListener("pointerdown", function (e) {
-      if (self.pinned) return;
-      if (e.target.closest(".cw-btn")) return;
-      var dir = edgeAt(e);
-      if (!dir) return;                 // 内部：交给正常交互 / 拖动
-      e.preventDefault();
-      e.stopPropagation();
-      try { panel.setPointerCapture(e.pointerId); } catch (err) {}
-      var sx = e.clientX, sy = e.clientY;
-      var r0 = panel.getBoundingClientRect();
-      function move(ev) {
-        var b = computeResize(dir, ev.clientX - sx, ev.clientY - sy, r0, MIN_W, MIN_H);
-        panel.style.right = "auto";
-        panel.style.left = b.left + "px";
-        panel.style.top = b.top + "px";
-        panel.style.width = b.width + "px";
-        panel.style.height = b.height + "px";
-      }
-      function up() {
-        panel.removeEventListener("pointermove", move);
-        panel.removeEventListener("pointerup", up);
-        panel.removeEventListener("pointercancel", up);
-        self._saveBox(panel);
-      }
-      panel.addEventListener("pointermove", move);
-      panel.addEventListener("pointerup", up);
-      panel.addEventListener("pointercancel", up);
-    }, true);
-    // 双击边缘 → 恢复默认大小
-    panel.addEventListener("dblclick", function (e) {
-      if (self.pinned) return;
-      if (e.target.closest(".cw-btn, input, textarea")) return;
-      if (!edgeAt(e)) return;
-      panel.style.width = "";
-      panel.style.height = "";
-      self._saveBox(panel, true);
-    });
-    // 边缘悬停光标提示（让"四边可缩放"可见）
-    panel.addEventListener("mousemove", function (e) {
-      if (self.pinned) { panel.style.cursor = ""; return; }
-      var dir = edgeAt(e);
-      var map = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
-        ne: "nesw-resize", nw: "nwse-resize", se: "nwse-resize", sw: "nesw-resize" };
-      panel.style.cursor = dir ? map[dir] : "";
-    });
-  };
-
-  CalendarWidget.prototype._saveMin = function (v) {
-    this.min = !!v;
-    if (this.settingsApi) {
-      fetch(this.settingsApi, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ min: this.min })
-      }).catch(function () {});
-    } else {
-      try { localStorage.setItem("cw_min", this.min ? "1" : "0"); } catch (e) {}
-    }
-  };
-
-  CalendarWidget.prototype._doMin = function () {
-    if (!this.el) return;
-    this.el.classList.add("cw-min");
-    this._saveMin(true);
-  };
-
-  CalendarWidget.prototype._doRestore = function () {
-    if (!this.el) return;
-    this.el.classList.remove("cw-min");
-    // 如果之前保存过尺寸，重新应用以恢复高度
-    if (this.size) this._applySize(this.size.width, this.size.height);
-    this._saveMin(false);
-  };
-
-  CalendarWidget.prototype._saveBox = function (panel, resetSize) {
-    if (!panel) return;
-    var r = panel.getBoundingClientRect();
-    var payload = { pos: { left: Math.round(r.left), top: Math.round(r.top) } };
-    payload.size = resetSize ? null
-      : { width: Math.round(r.width), height: Math.round(r.height) };
-    if (!resetSize) this.size = payload.size;
-    if (this.settingsApi) {
-      fetch(this.settingsApi, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      }).catch(function () {});
-    } else {
-      try { localStorage.setItem("cw_box", JSON.stringify(payload)); } catch (e) {}
-    }
-  };
-
-  CalendarWidget.prototype._applySize = function (width, height) {
-    if (!this.el || width == null || height == null) return;
-    var r = this.el.getBoundingClientRect();
-    var box = clampSize(width, height, r.left, r.top);
-    this.el.style.width = box[0] + "px";
-    this.el.style.height = box[1] + "px";
-  };
-
-  CalendarWidget.prototype._applyPos = function (left, top) {
-    if (left == null || top == null || !this.el) return;
-    var w = this.el.offsetWidth || 320;
-    var h = this.el.offsetHeight || 360;
-    var maxL = Math.max(0, (window.innerWidth || 1024) - w);
-    var maxT = Math.max(0, (window.innerHeight || 768) - h);
-    var L = Math.min(Math.max(0, Number(left) || 0), maxL);
-    var T = Math.min(Math.max(0, Number(top) || 0), maxT);
-    this.el.style.right = "auto";
-    this.el.style.left = L + "px";
-    this.el.style.top = T + "px";
-  };
-
-  // 公共 API
-  CalendarWidget.mount = function (opts) {
-    return new CalendarWidget(opts);
-  };
-  // 从挂载容器中移除（用于管理页预览刷新，清理时钟定时器 + 避免重复实例）
-  CalendarWidget.prototype.destroy = function () {
-    if (this._clockTimer) clearInterval(this._clockTimer);
-    if (this.el && this.el.parentNode) this.el.parentNode.removeChild(this.el);
-    this.el = null;
-  };
-  global.CalendarWidget = CalendarWidget;
+  });
+  global.CalendarWidget = Widget;
 
   // 自动挂载：若 URL 带 ?demo=1 或脚本直接引入，默认挂一个（无服务端时用 localStorage）
-  if (typeof document !== "undefined" && !window.__cw_mounted) {
+  // 桌面注入场景由 inject.js 手动挂载（已置 __cw_noauto），避免重复实例。
+  if (typeof document !== "undefined" && !window.__cw_mounted && !window.__cw_noauto) {
     window.__cw_mounted = true;
     var params = new URLSearchParams(location.search);
-    var auto = params.get("demo");
-    var settingsApi = null;
-    if (location.pathname.indexOf("/calw/") === 0) {
-      settingsApi = "/calw/api/settings";
-    }
-    var initialNotes = {};
-    try {
-      var ln = localStorage.getItem("cw_notes");
-      if (ln) initialNotes = JSON.parse(ln) || {};
-    } catch (e) {}
-    var box = null;
-    try {
-      var lb = localStorage.getItem("cw_box");
-      if (lb) box = JSON.parse(lb);
-    } catch (e) {}
-    // 桌面注入场景由 inject.js 手动挂载（已置 __cw_noauto），避免重复实例；
-    // 普通静态页访问（如演示页）才走自动挂载。
-    var initialMin = false;
-    try {
-      var lm = localStorage.getItem("cw_min");
-      if (lm) initialMin = lm === "1";
-    } catch (e) {}
-    var initialPin = false;
-    try {
-      var lp = localStorage.getItem("cw_pin");
-      if (lp) initialPin = lp === "1";
-    } catch (e) {}
-    if (auto !== "0" && !window.__cw_noauto) {
+    if (params.get("demo") !== "0") {
+      var initialNotes = {};
+      try { var ln = localStorage.getItem("cw_notes"); if (ln) initialNotes = JSON.parse(ln) || {}; } catch (e) {}
       document.addEventListener("DOMContentLoaded", function () {
-        CalendarWidget.mount({
-          settingsApi: settingsApi,
-          notes: initialNotes,
-          pos: box ? box.pos : null,
-          size: box ? box.size : null,
-          min: initialMin,
-          pinned: initialPin
-        });
+        Widget.mount({ settingsApi: null, notes: initialNotes,
+                       pos: null, size: null, min: false, pinned: false });
       });
     }
   }

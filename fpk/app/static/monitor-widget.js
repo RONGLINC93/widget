@@ -108,16 +108,11 @@
 
         if (stats.gpus && stats.gpus.length) {
           html += '<div class="mn-sec">显卡</div>' + stats.gpus.map(function (g) {
-            var u = (g.usage == null) ? null : Math.max(0, Math.min(100, g.usage));
+            var u = Math.max(0, Math.min(100, (g.usage == null) ? 0 : g.usage));
             var row = '<div class="mn-row">';
-            if (u != null) {
-              row += '<div class="mn-top"><span class="mn-label">' + esc(g.name) + ' 使用率</span>' +
-                '<span class="mn-val">' + esc(u.toFixed(1)) + '%</span></div>' +
-                '<div class="mn-track"><div class="mn-fill" style="width:' + u + '%"></div></div>';
-            } else {
-              row += '<div class="mn-top"><span class="mn-label">' + esc(g.name) + '</span>' +
-                '<span class="mn-val">使用率 N/A</span></div>';
-            }
+            row += '<div class="mn-top"><span class="mn-label">' + esc(g.name) + ' 使用率</span>' +
+              '<span class="mn-val">' + esc(u.toFixed(1)) + '%</span></div>' +
+              '<div class="mn-track"><div class="mn-fill" style="width:' + u + '%"></div></div>';
             if (g.temp != null) {
               row += '<div class="mn-top" style="margin-top:3px"><span class="mn-label" style="color:#6e7681">温度</span>' +
                 '<span class="mn-val" style="color:#ff7b72">' + esc(g.temp.toFixed(1)) + '°C</span></div>';

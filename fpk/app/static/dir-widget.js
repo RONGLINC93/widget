@@ -1,8 +1,13 @@
 /* 目录文件列表浮层组件（纯原生 JS，零依赖）
+ * 壳（拖拽/四边缩放/最小化/关闭/固定/设置持久化）由 widget-shell.js 的 RLShell 统一提供，
+ * 本文件只负责目录浏览内容：名称/大小/类型/修改时间、点击进入、返回上级、刷新、搜索、
+ * 过滤、键盘导航、文件预览（图/视频/音频/文本）、复制路径。
  * 用法：
- *   DirWidget.mount({ path: "/vol1/share", api: "/api/list" });  // 编程式
- *   或直接引入本脚本，默认挂载到 document.body，读取当前页 URL 的 ?path=
- * 字段：名称 / 大小 / 类型 / 修改时间；支持目录点击进入、返回上级、刷新、拖拽、最小化。
+ *   DirWidget.mount({ path, root, api, fileApi, searchApi, settingsApi, pos, size, min, pinned })
+ *   - path/root：起始目录 / 主目录边界（向上不可越过）
+ *   - api/fileApi/searchApi：列表/文件/搜索接口
+ *   - settingsApi：设置读写接口（POST 接受 {visible,pos,size,pinned}）；pos/size/min/pinned 由 RLShell 统一读写
+ * 演示页（dir-widget.html）带 ?path= 时自动挂载。注入飞牛桌面时由 inject.js 手动挂载。
  */
 (function (global) {
   "use strict";
@@ -93,49 +98,44 @@
     archive: "压缩包", doc: "文档", other: "文件"
   };
 
-  // 卡片最小 / 最大可调整尺寸（同时受视口约束，不允许拖出屏幕）
+  // 卡片最小尺寸（RLShell 用 minW/minH 约束，这里仅留常量备内容逻辑使用）
   var MIN_W = 280, MIN_H = 140;
 
-  function clampSize(w, h, left, top) {
-    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
-    var maxW = Math.max(MIN_W, vw - (left || 0) - 8);
-    var maxH = Math.max(MIN_H, vh - (top || 0) - 8);
-    return [Math.min(Math.max(MIN_W, Number(w) || MIN_W), maxW),
-            Math.min(Math.max(MIN_H, Number(h) || MIN_H), maxH)];
-  }
-
-  // 按方向（n/s/e/w 任意组合，如 "se" / "n" / "e"）计算缩放后的盒模型，
-  // 仅移动鼠标一侧边缘、对侧边缘固定，并钳制进视口、满足最小尺寸。
-  function computeResize(dir, dx, dy, r0, minW, minH) {
-    var vw = window.innerWidth || 1024, vh = window.innerHeight || 768;
-    var left = r0.left, top = r0.top, w = r0.width, h = r0.height;
-    var right = r0.left + r0.width, bottom = r0.top + r0.height;
-    if (dir.indexOf("e") >= 0) {
-      w = Math.max(minW, Math.min(r0.width + dx, Math.max(minW, vw - 8 - left)));
+  // 客户端排序：目录永远排在文件之前，再按当前排序键排
+  function sortEntries(entries, key, desc) {
+    function nameCmp(a, b) {
+      return String(a.name).localeCompare(String(b.name), undefined,
+                                          { numeric: true, sensitivity: "base" });
     }
-    if (dir.indexOf("w") >= 0) {
-      left = Math.max(0, Math.min(r0.left + dx, right - minW));
-      w = right - left;
+    function val(e, key) {
+      if (key === "size") {
+        return e.is_dir ? (e.items == null ? -1 : Number(e.items))
+                        : (Number(e.size) || 0);
+      }
+      if (key === "mtime") return Number(e.mtime) || 0;
+      if (key === "type") return e.is_dir ? "0文件夹" : (String(e.type) || "file");
+      return null;
     }
-    if (dir.indexOf("s") >= 0) {
-      h = Math.max(minH, Math.min(r0.height + dy, Math.max(minH, vh - 8 - top)));
-    }
-    if (dir.indexOf("n") >= 0) {
-      top = Math.max(0, Math.min(r0.top + dy, bottom - minH));
-      h = bottom - top;
-    }
-    return { left: left, top: top, width: w, height: h };
+    var arr = entries.slice();
+    arr.sort(function (a, b) {
+      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+      if (key === "name") return desc ? nameCmp(b, a) : nameCmp(a, b);
+      var av = val(a, key), bv = val(b, key);
+      if (av < bv) return desc ? 1 : -1;
+      if (av > bv) return desc ? -1 : 1;
+      return nameCmp(a, b);   // 同值时按名称兜底，顺序稳定
+    });
+    return arr;
   }
 
   function DirWidget(opts) {
     opts = opts || {};
+    this.opts = opts;
     this.api = opts.api || "/api/list";
     this.fileApi = opts.fileApi || "/api/file";
     this.searchApi = opts.searchApi || "/api/search";
     this.path = opts.path || "";
     this.root = opts.root || "";   // 主目录边界，向上不可越过
-    this.pos = opts.pos || null;   // 上次记住的位置 {left, top}
-    this.size = opts.size || null; // 上次记住的大小 {width, height}
     this.entries = [];        // 当前目录的原始条目
     this.files = [];          // 当前列表里的文件（供预览上下翻）
     this.sortKey = "name";    // 排序键：name / size / type / mtime
@@ -151,25 +151,17 @@
     this.listLimit = 3000;       // 列表截断上限（与服务端 LIST_MAX_ENTRIES 同步）
     this.selIdx = -1;            // 键盘选中的条目下标（在 this._visible 中的位置，-1=无）
     this._visible = [];          // 当前过滤+排序后实际显示的条目（供键盘导航）
-    this.opts = opts;
-    this.el = null;
-    this.pinned = !!opts.pinned;   // 固定（锁定位置，禁止拖动/缩放）
-    this.min = !!opts.min;         // 最小化（仅留顶栏，状态存服务端）
-    this._build();
+    this.el = null;              // RLShell 生成的 .rl-root 根节点
+    this._keyHandler = null;     // 全局键盘监听句柄，销毁时移除
   }
 
-  DirWidget.prototype._build = function () {
+  // 在 RLShell 提供的内容区（body）里构建目录浏览的 DOM，并绑定交互。
+  // 拖拽/缩放/最小化/关闭/固定由 RLShell 统一处理，这里不再自行实现。
+  DirWidget.prototype.build = function (root, body) {
     var self = this;
-    var root = document.createElement("div");
-    root.id = "dw-root";
-    root.innerHTML =
-      '<div class="dw-header">' +
-        '<span class="dw-title">📁 目录浏览器</span>' +
-        '<span class="dw-spacer"></span>' +
-        '<button class="dw-btn dw-pin-btn" title="固定位置（锁定，禁止拖动/缩放）">📌</button>' +
-        '<button class="dw-btn dw-min-btn" title="最小化">—</button>' +
-        '<button class="dw-btn dw-close-btn" title="关闭">×</button>' +
-      '</div>' +
+    this.el = root;
+
+    body.innerHTML =
       '<div class="dw-toolbar">' +
         '<input class="dw-path" type="text" placeholder="输入目录路径，如 /vol1/share" />' +
         '<button class="dw-btn dw-up-btn" title="上级目录（Alt+↑）">↑</button>' +
@@ -201,7 +193,6 @@
       '</div>' +
       '<div class="dw-body"></div>' +
       '<div class="dw-status"></div>' +
-      '<span class="dw-resize" title="拖动调整大小（双击恢复默认）"></span>' +
       '<div class="dw-preview" hidden>' +
         '<div class="dw-pv-header">' +
           '<span class="dw-pv-title"></span>' +
@@ -214,13 +205,8 @@
         '<div class="dw-pv-body"></div>' +
         '<div class="dw-pv-status"></div>' +
       '</div>';
-    var host = (this.opts && this.opts.container) || document.body;
-    host.appendChild(root);
-    this.el = root;
-    if (this.opts && this.opts.embed) root.classList.add("dw-embed");
 
     // 卡片搬进桌面容器后，点击/按下不能冒泡到桌面
-    // （否则点卡片会误触发桌面自身的处理，如取消图标选中等）
     root.addEventListener("mousedown", function (e) { e.stopPropagation(); });
     root.addEventListener("click", function (e) { e.stopPropagation(); });
 
@@ -299,7 +285,7 @@
     // 快捷键：
     //   预览中  Esc 关闭 / ← → 翻上一个、下一个文件
     //   浏览中  Backspace 或 Alt+↑ 返回上级、Ctrl+F 打开搜索、Esc 退出搜索
-    document.addEventListener("keydown", function (e) {
+    this._keyHandler = function (e) {
       var t = e.target;
       var typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" ||
                          t.tagName === "SELECT");
@@ -339,7 +325,8 @@
         var parent = self._parentPath();
         if (parent) { e.preventDefault(); self.go(parent); }
       }
-    });
+    };
+    document.addEventListener("keydown", this._keyHandler);
     root.querySelector(".dw-refresh-btn").addEventListener("click", function () {
       self.refresh();
     });
@@ -348,21 +335,6 @@
       if (parent) self.go(parent);
     });
     self._syncUpBtn();
-    root.querySelector(".dw-close-btn").addEventListener("click", function () {
-      root.remove();
-      // 记住"已关闭"到服务端，否则刷新桌面时注入脚本会重新挂载
-      if (self.opts.settingsApi) {
-        fetch(self.opts.settingsApi, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ visible: false })
-        }).catch(function () {});
-      }
-    });
-    root.querySelector(".dw-min-btn").addEventListener("click", function () {
-      if (root.classList.contains("dw-min")) self._doRestore();
-      else self._doMin();
-    });
     root.querySelector(".dw-copy-btn").addEventListener("click", function () {
       self._copyText(self.path || "/");
     });
@@ -374,78 +346,8 @@
       e.stopPropagation();
       self._copyText(cell.getAttribute("data-path"));
     });
-    root.querySelector(".dw-pin-btn").addEventListener("click", function () {
-      self.pinned = !self.pinned;
-      self._syncPin();
-      self._savePin(self.pinned);
-    });
-
-    if ((!this.opts || !this.opts.embed) && this.opts.draggable !== false) {
-      this._makeDraggable(root.querySelector(".dw-header"), root);
-      this._makeResizable(root);
-    } else if (this.opts && this.opts.draggable === false && root.querySelector(".dw-resize")) {
-      root.querySelector(".dw-resize").style.display = "none";
-    }
-    this._syncPin();   // 应用初始固定状态（含隐藏缩放把手）
-    if (this.min) this.el.classList.add("dw-min");   // 恢复上次的最小化状态
-
-    // 还原上次记住的大小（先尺寸后位置：位置钳制要用到实际尺寸）
-    if (this.size) this._applySize(this.size.width, this.size.height);
-    // 还原上次记住的位置（越界会被钳制回屏幕内）
-    if (this.pos) this._applyPos(this.pos.left, this.pos.top);
 
     if (this.path) this.refresh();
-  };
-
-  // 固定（锁定位置）：启用时禁止拖动/缩放，隐藏缩放把手，并给出视觉提示
-  DirWidget.prototype._syncPin = function () {
-    if (!this.el) return;
-    this.el.classList.toggle("dw-pinned", this.pinned);
-    var btn = this.el.querySelector(".dw-pin-btn");
-    if (btn) {
-      btn.classList.toggle("dw-active", this.pinned);
-      btn.title = this.pinned
-        ? "已固定（点击解锁，恢复拖动/缩放）"
-        : "固定位置（锁定，禁止拖动/缩放）";
-    }
-    var rs = this.el.querySelector(".dw-resize");
-    if (rs) rs.style.display = this.pinned ? "none" : "";
-  };
-
-  DirWidget.prototype._savePin = function (v) {
-    this.pinned = !!v;
-    // 仅在有 settingsApi（注入场景）时落盘，与目录组件其它设置一致；
-    // 纯演示页（无后端）不持久化固定状态。
-    if (this.opts && this.opts.settingsApi) {
-      fetch(this.opts.settingsApi, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pinned: this.pinned })
-      }).catch(function () {});
-    }
-  };
-
-  DirWidget.prototype._saveMin = function (v) {
-    this.min = !!v;
-    if (this.opts && this.opts.settingsApi) {
-      fetch(this.opts.settingsApi, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ min: this.min })
-      }).catch(function () {});
-    }
-  };
-
-  DirWidget.prototype._doMin = function () {
-    if (!this.el) return;
-    this.el.classList.add("dw-min");
-    this._saveMin(true);
-  };
-
-  DirWidget.prototype._doRestore = function () {
-    if (!this.el) return;
-    this.el.classList.remove("dw-min");
-    this._saveMin(false);
   };
 
   // 列表键盘导航的辅助方法
@@ -522,136 +424,6 @@
     setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 1300);
   };
 
-  DirWidget.prototype._makeDraggable = function (handle, panel) {
-    var self = this;
-    var sx, sy, ox, oy, drag = false;
-    handle.addEventListener("mousedown", function (e) {
-      if (self.pinned) return;
-      if (e.target.closest(".dw-btn")) return;
-      drag = true;
-      sx = e.clientX; sy = e.clientY;
-      var r = panel.getBoundingClientRect();
-      ox = r.left; oy = r.top;
-      panel.style.right = "auto";
-      document.addEventListener("mousemove", move);
-      document.addEventListener("mouseup", up);
-      e.preventDefault();
-    });
-    function move(e) {
-      if (!drag) return;
-      panel.style.left = (ox + e.clientX - sx) + "px";
-      panel.style.top = (oy + e.clientY - sy) + "px";
-    }
-    function up() {
-      drag = false;
-      document.removeEventListener("mousemove", move);
-      document.removeEventListener("mouseup", up);
-      // 松手吸附到桌面图标网格（与图标行列对齐，视觉整齐）
-      var r = panel.getBoundingClientRect();
-      if (window.__rl93_snapToGrid) {
-        var sn = window.__rl93_snapToGrid(r.left, r.top);
-        panel.style.left = sn.left + "px";
-        panel.style.top = sn.top + "px";
-      }
-      self._saveBox(panel);   // 拖动结束即记住位置
-    }
-  };
-
-  // 四边（含四角）缩放：在面板任意边缘 / 角落按下即沿该边调整大小，双击边缘恢复默认。
-  // 用捕获阶段的 mousedown 监听面板：命中边缘时先拦截，避免与 header 拖动冲突。
-  DirWidget.prototype._makeResizable = function (panel) {
-    var self = this;
-    if (!panel) return;
-    var EDGE = 6;
-    function edgeAt(e) {
-      var r = panel.getBoundingClientRect();
-      var x = e.clientX - r.left, y = e.clientY - r.top;
-      var n = y <= EDGE, s = y >= r.height - EDGE;
-      var w = x <= EDGE, eR = x >= r.width - EDGE;
-      if (!n && !s && !w && !eR) return null;
-      return (n ? "n" : "") + (s ? "s" : "") + (w ? "w" : "") + (eR ? "e" : "");
-    }
-    panel.addEventListener("mousedown", function (e) {
-      if (self.pinned) return;
-      if (e.target.closest(".dw-btn")) return;
-      var dir = edgeAt(e);
-      if (!dir) return;                 // 内部：交给正常交互 / 拖动
-      e.preventDefault();
-      e.stopPropagation();              // 阻止冒泡到 header 拖动，也不冒泡到桌面
-      var sx = e.clientX, sy = e.clientY;
-      var r0 = panel.getBoundingClientRect();
-      document.addEventListener("mousemove", move);
-      document.addEventListener("mouseup", up);
-      function move(ev) {
-        var b = computeResize(dir, ev.clientX - sx, ev.clientY - sy, r0, MIN_W, MIN_H);
-        panel.style.right = "auto";
-        panel.style.left = b.left + "px";
-        panel.style.top = b.top + "px";
-        panel.style.width = b.width + "px";
-        panel.style.height = b.height + "px";
-      }
-      function up() {
-        document.removeEventListener("mousemove", move);
-        document.removeEventListener("mouseup", up);
-        self._saveBox(panel);   // 调整结束即记住大小
-      }
-    }, true);
-    // 双击边缘 → 恢复默认大小
-    panel.addEventListener("dblclick", function (e) {
-      if (self.pinned) return;
-      if (e.target.closest(".dw-btn, input, textarea")) return;
-      if (!edgeAt(e)) return;
-      panel.style.width = "";
-      panel.style.height = "";
-      self._saveBox(panel, true);   // size=null → 下次用默认大小
-    });
-    // 边缘悬停光标提示（让"四边可缩放"可见）
-    panel.addEventListener("mousemove", function (e) {
-      if (self.pinned) { panel.style.cursor = ""; return; }
-      var dir = edgeAt(e);
-      var map = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
-        ne: "nesw-resize", nw: "nwse-resize", se: "nwse-resize", sw: "nesw-resize" };
-      panel.style.cursor = dir ? map[dir] : "";
-    });
-  };
-
-  DirWidget.prototype._saveBox = function (panel, resetSize) {
-    if (!panel || !this.opts || !this.opts.settingsApi) return;
-    var r = panel.getBoundingClientRect();
-    // pos 与 size 一起提交：服务端是"读-改-写"，分两次请求会互相覆盖
-    var payload = { pos: { left: Math.round(r.left), top: Math.round(r.top) } };
-    payload.size = resetSize ? null
-      : { width: Math.round(r.width), height: Math.round(r.height) };
-    try {
-      fetch(this.opts.settingsApi, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      }).catch(function () {});
-    } catch (e) {}
-  };
-
-  DirWidget.prototype._applySize = function (width, height) {
-    if (!this.el || width == null || height == null) return;
-    var r = this.el.getBoundingClientRect();
-    var box = clampSize(width, height, r.left, r.top);
-    this.el.style.width = box[0] + "px";
-    this.el.style.height = box[1] + "px";
-  };
-
-  DirWidget.prototype._applyPos = function (left, top) {
-    if (left == null || top == null || !this.el) return;
-    var w = this.el.offsetWidth || 420;
-    var h = this.el.offsetHeight || 240;
-    var maxL = Math.max(0, (window.innerWidth || 1024) - w);
-    var maxT = Math.max(0, (window.innerHeight || 768) - h);
-    var L = Math.min(Math.max(0, Number(left) || 0), maxL);
-    var T = Math.min(Math.max(0, Number(top) || 0), maxT);
-    this.el.style.right = "auto";
-    this.el.style.left = L + "px";
-    this.el.style.top = T + "px";
-  };
-
   // 上级目录路径；已在根本（或已到主目录边界）时返回 null
   DirWidget.prototype._parentPath = function () {
     var cur = normPath(this.path);
@@ -703,33 +475,6 @@
     this.body.innerHTML = '<div class="dw-error">⚠ ' + esc(msg) + '</div>';
     this.status.textContent = "";
   };
-
-  // 客户端排序：目录永远排在文件之前，再按当前排序键排
-  function sortEntries(entries, key, desc) {
-    function nameCmp(a, b) {
-      return String(a.name).localeCompare(String(b.name), undefined,
-                                          { numeric: true, sensitivity: "base" });
-    }
-    function val(e, key) {
-      if (key === "size") {
-        return e.is_dir ? (e.items == null ? -1 : Number(e.items))
-                        : (Number(e.size) || 0);
-      }
-      if (key === "mtime") return Number(e.mtime) || 0;
-      if (key === "type") return e.is_dir ? "0文件夹" : (String(e.type) || "file");
-      return null;
-    }
-    var arr = entries.slice();
-    arr.sort(function (a, b) {
-      if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
-      if (key === "name") return desc ? nameCmp(b, a) : nameCmp(a, b);
-      var av = val(a, key), bv = val(b, key);
-      if (av < bv) return desc ? 1 : -1;
-      if (av > bv) return desc ? -1 : 1;
-      return nameCmp(a, b);   // 同值时按名称兜底，顺序稳定
-    });
-    return arr;
-  }
 
   DirWidget.prototype.setFilter = function (text) {
     this.filter = String(text || "").trim();
@@ -1099,24 +844,33 @@
       '<div class="dw-hint">该类型不支持在线预览<br />点右上角 ⤓ 下载后用其它程序打开</div>';
   };
 
-  // 公共 API
-  DirWidget.mount = function (opts) {
-    return new DirWidget(opts);
-  };
-  // 从挂载容器中移除（用于管理页预览刷新，避免重复实例 / 泄漏）
-  DirWidget.prototype.destroy = function () {
-    if (this.el && this.el.parentNode) this.el.parentNode.removeChild(this.el);
-    this.el = null;
-  };
-  global.DirWidget = DirWidget;
+  // 公共 API：挂到 RLShell 模板上，mount 透传 opts，build 渲染内容
+  var Widget = RLShell.create({
+    id: "dw", title: "目录浏览器", icon: "📁", minW: MIN_W, minH: MIN_H, defW: 420, defH: null,
+    build: function (body, ctx) {
+      var inst = new DirWidget(ctx.opts);
+      inst.build(ctx.root, body);
+      return {
+        // 销毁时移除全局键盘监听，避免与其它组件/页面冲突
+        onDestroy: function () {
+          if (inst._keyHandler) document.removeEventListener("keydown", inst._keyHandler);
+        }
+      };
+    }
+  });
+  global.DirWidget = Widget;
 
-  // 自动挂载：若 URL 带 ?path= 或脚本配置了 data-path，则直接挂载
-  if (typeof document !== "undefined") {
+  // 自动挂载：若 URL 带 ?path= 则直接挂载到 document.body（演示页）
+  if (typeof document !== "undefined" && !window.__dw_noauto) {
     var params = new URLSearchParams(location.search);
     var autoPath = params.get("path");
     if (autoPath) {
       document.addEventListener("DOMContentLoaded", function () {
-        new DirWidget({ path: autoPath });
+        Widget.mount({
+          path: autoPath,
+          api: "/api/list", fileApi: "/api/file", searchApi: "/api/search",
+          settingsApi: null
+        });
       });
     }
   }
