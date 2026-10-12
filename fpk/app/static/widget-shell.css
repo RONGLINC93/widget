@@ -42,7 +42,10 @@
 .rl-body::-webkit-scrollbar-thumb:hover { background-color: rgba(139, 148, 158, 0.7); }
 .rl-body::-webkit-scrollbar-corner { background: transparent; }
 .rl-rsz { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
-.rl-root.rl-min { height: auto !important; }
+/* 最小化：高度塌成标题栏。min-height 必须一并清零——各组件在自己的 CSS 里
+   给根节点设了 min-height（如 #cw-root 320px / #dw-root 140px），
+   只设 height:auto 压不过它，会留下一块空白毛玻璃盒 */
+.rl-root.rl-min { height: auto !important; min-height: 0 !important; }
 .rl-root.rl-min .rl-body, .rl-root.rl-min .rl-rsz { display: none; }
 .rl-root.rl-pinned .rl-rsz { display: none; }
 .rl-root.rl-pinned .rl-bar { background: rgba(255, 255, 255, .12); }
