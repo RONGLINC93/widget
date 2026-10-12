@@ -494,6 +494,69 @@
       border-radius: 4px;
       color: #e6edf3;
     }
+
+    /* ---------- 日间模式：整页外观跟随主题（夜间为默认值，无需覆盖） ----------
+       仅覆盖 [data-theme="light"]；widget-shell.css 里的 --rl-* 变量随之翻转，
+       预览浮窗与整页外壳一并变浅。主题切换由 applyTheme() 写 html[data-theme] 触发。 */
+    [data-theme="light"] body {
+      background: radial-gradient(1200px 600px at 70% -10%, #1f6feb22, transparent), #f6f8fa;
+      color: #57606a;
+    }
+    [data-theme="light"] h2,
+    [data-theme="light"] .stagecard h3,
+    [data-theme="light"] .wtitle,
+    [data-theme="light"] .bar .lead b {
+      color: #1f2328;
+    }
+    [data-theme="light"] .bar,
+    [data-theme="light"] .stagecard,
+    [data-theme="light"] .widget,
+    [data-theme="light"] .card {
+      background: #ffffff;
+      border-color: #d0d7de;
+    }
+    [data-theme="light"] .bar {
+      border-color: rgba(9, 105, 218, .4);
+    }
+    [data-theme="light"] .desktop {
+      border-color: #d0d7de;
+      background: linear-gradient(135deg, #eef2f7, #ffffff);
+    }
+    [data-theme="light"] .themectl label,
+    [data-theme="light"] label,
+    [data-theme="light"] .card h3,
+    [data-theme="light"] .wdesc,
+    [data-theme="light"] .stagecard .stage-tip,
+    [data-theme="light"] .bar .lead span,
+    [data-theme="light"] label .hint,
+    [data-theme="light"] .msg,
+    [data-theme="light"] pre.diag {
+      color: #57606a;
+    }
+    [data-theme="light"] input[type=text],
+    [data-theme="light"] select {
+      background: #ffffff;
+      border-color: #d0d7de;
+      color: #1f2328;
+    }
+    [data-theme="light"] input[type=text]:focus,
+    [data-theme="light"] select:focus {
+      border-color: #0969da;
+    }
+    [data-theme="light"] .dot {
+      background: #8b949e;
+    }
+    [data-theme="light"] .slider {
+      background: #d0d7de;
+    }
+    [data-theme="light"] code,
+    [data-theme="light"] pre.diag {
+      background: #eff1f3;
+      border-color: #d0d7de;
+    }
+    [data-theme="light"] code {
+      color: #1f2328;
+    }
   </style>
 </head>
 
