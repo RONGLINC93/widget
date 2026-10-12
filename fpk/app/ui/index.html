@@ -33,13 +33,18 @@
     .desktop::before { content: ""; position: absolute; inset: 0; pointer-events: none;
       background: radial-gradient(560px 280px at 82% 8%, #1f6feb26, transparent),
                   radial-gradient(480px 260px at 8% 96%, #a371f72b, transparent); }
-    .desk-scale { position: relative; width: 1080px; height: 470px; flex: none;
+    .desk-scale { position: relative; width: 1080px; height: 900px; flex: none;
       transform: scale(0.58); transform-origin: top center; }
     .desk-scale #dw-root { position: absolute !important; left: 0 !important; right: auto !important;
       top: 0 !important; max-height: 450px !important; }
     .desk-scale #cw-root { position: absolute !important; left: 452px !important; right: auto !important;
       top: 0 !important; }
     .desk-scale #ww-root { position: absolute !important; left: 800px !important; top: 0 !important; }
+    /* 预览里为第二排新增组件定位（带壁纸的迷你桌面，纯展示用） */
+    .desk-scale #wc-root { position: absolute !important; left: 0 !important; top: 470px !important; }
+    .desk-scale #nt-root { position: absolute !important; left: 280px !important; top: 470px !important; }
+    .desk-scale #td-root { position: absolute !important; left: 560px !important; top: 470px !important; width: 280px !important; }
+    .desk-scale #mn-root { position: absolute !important; left: 840px !important; top: 470px !important; }
     /* 预览里隐藏关闭 / 最小化 / 固定，避免误关真实开关或回写 visible / min / pinned */
     .desk-scale #dw-root .dw-close-btn, .desk-scale #dw-root .dw-min-btn, .desk-scale #dw-root .dw-pin-btn,
     .desk-scale #cw-root .cw-close-btn, .desk-scale #cw-root .cw-min-btn, .desk-scale #cw-root .cw-pin-btn,
@@ -200,6 +205,74 @@
         </div>
       </div>
     </div>
+    <!-- 世界时钟 -->
+    <div class="widget">
+      <div class="wicon" style="background:linear-gradient(135deg,#1f6feb,#39c5cf)">🕐</div>
+      <div class="wbody">
+        <div class="wtop">
+          <span class="wtitle">世界时钟</span>
+          <label class="switch" style="margin-left:auto">
+            <input id="wcVisibleChk" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="wdesc">多时区时钟，添加任意城市 / IANA 时区</div>
+        <div class="wstatus" id="wcStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+        <div class="row"><span id="wcVisibleMsg" class="msg"></span></div>
+      </div>
+    </div>
+
+    <!-- 便签 -->
+    <div class="widget">
+      <div class="wicon" style="background:linear-gradient(135deg,#d29922,#e3b341)">📝</div>
+      <div class="wbody">
+        <div class="wtop">
+          <span class="wtitle">便签</span>
+          <label class="switch" style="margin-left:auto">
+            <input id="ntVisibleChk" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="wdesc">桌面便签，支持多张、换色、置顶</div>
+        <div class="wstatus" id="ntStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+        <div class="row"><span id="ntVisibleMsg" class="msg"></span></div>
+      </div>
+    </div>
+
+    <!-- 待办清单 -->
+    <div class="widget">
+      <div class="wicon" style="background:linear-gradient(135deg,#238636,#2ea043)">✅</div>
+      <div class="wbody">
+        <div class="wtop">
+          <span class="wtitle">待办清单</span>
+          <label class="switch" style="margin-left:auto">
+            <input id="tdVisibleChk" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="wdesc">可勾选的待办，增删改自动保存</div>
+        <div class="wstatus" id="tdStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+        <div class="row"><span id="tdVisibleMsg" class="msg"></span></div>
+      </div>
+    </div>
+
+    <!-- 系统监控 -->
+    <div class="widget">
+      <div class="wicon" style="background:linear-gradient(135deg,#8957e5,#a371f7)">📊</div>
+      <div class="wbody">
+        <div class="wtop">
+          <span class="wtitle">系统监控</span>
+          <label class="switch" style="margin-left:auto">
+            <input id="mnVisibleChk" type="checkbox" checked />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="wdesc">CPU / 内存 / 磁盘占用（fnOS 本机）</div>
+        <div class="wstatus" id="mnStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+        <div class="row"><span id="mnVisibleMsg" class="msg"></span></div>
+      </div>
+    </div>
+
     </div>
 
     <!-- 急救 -->
@@ -229,6 +302,8 @@
     var visibleChk = $("visibleChk");
     var calVisibleChk = $("calVisibleChk");
     var weatherLocInput = $("weatherLocInput"), weatherVisibleChk = $("weatherVisibleChk");
+    var wcVisibleChk = $("wcVisibleChk"), ntVisibleChk = $("ntVisibleChk");
+    var tdVisibleChk = $("tdVisibleChk"), mnVisibleChk = $("mnVisibleChk");
     var injectBtn = $("injectBtn"), cleanupBtn = $("cleanupBtn");
     var rescueToggle = $("rescueToggle"), rescuePanel = $("rescuePanel");
     var rescueBtn = $("rescueBtn"), diagBtn = $("diagBtn");
@@ -264,9 +339,10 @@
       if (card) card.classList.toggle("off", !on);
     }
 
-    // ===== 桌面预览舞台：把三个真实悬浮窗挂进 #stage 并排显示 =====
+    // ===== 桌面预览舞台：把真实悬浮窗挂进 #stage 并排显示 =====
     var stage = $("stage");
     var stageDir = null, stageCal = null, stageWx = null;
+    var stageWc = null, stageNt = null, stageTd = null, stageMn = null;
 
     function mountStage(settings) {
       if (stageDir) stageDir.destroy();
@@ -287,6 +363,32 @@
       stageWx = WeatherWidget.mount({
         location: (settings.weather_location || "").trim(),
         settingsApi: BASE + "/api/settings", container: stage, draggable: false
+      });
+
+      // ---- 4 个新增组件预览（preview:true 不渲染关闭/最小化/固定按钮，避免误改真实状态）----
+      if (stageWc) stageWc.unmount();
+      stageWc = WorldClockWidget.mount({
+        settingsApi: BASE + "/api/worldclock_settings",
+        cities: (settings.worldclock_cities) || [{ name: "本地", tz: "" }],
+        container: stage, preview: true, draggable: false
+      });
+
+      if (stageNt) stageNt.unmount();
+      stageNt = NotesWidget.mount({
+        settingsApi: null, notesApi: BASE + "/api/notes",
+        container: stage, preview: true, draggable: false
+      });
+
+      if (stageTd) stageTd.unmount();
+      stageTd = TodoWidget.mount({
+        settingsApi: null, todosApi: BASE + "/api/todos",
+        container: stage, preview: true, draggable: false
+      });
+
+      if (stageMn) stageMn.unmount();
+      stageMn = MonitorWidget.mount({
+        settingsApi: BASE + "/api/monitor_settings", monitorApi: BASE + "/api/monitor",
+        container: stage, preview: true, draggable: false
       });
     }
 
@@ -343,6 +445,43 @@
       });
     }
 
+    // 世界时钟
+    if (wcVisibleChk) {
+      wcVisibleChk.addEventListener("change", function () {
+        var v = wcVisibleChk.checked;
+        setStatus($("wcStatus"), v);
+        saveSettings({ worldclock_visible: v }, $("wcVisibleMsg"),
+          v ? "✅ 已开启，刷新桌面即可看到世界时钟" : "✅ 已隐藏，世界时钟不再显示");
+      });
+    }
+    // 便签
+    if (ntVisibleChk) {
+      ntVisibleChk.addEventListener("change", function () {
+        var v = ntVisibleChk.checked;
+        setStatus($("ntStatus"), v);
+        saveSettings({ notes_visible: v }, $("ntVisibleMsg"),
+          v ? "✅ 已开启，刷新桌面即可看到便签" : "✅ 已隐藏，便签不再显示");
+      });
+    }
+    // 待办清单
+    if (tdVisibleChk) {
+      tdVisibleChk.addEventListener("change", function () {
+        var v = tdVisibleChk.checked;
+        setStatus($("tdStatus"), v);
+        saveSettings({ todo_visible: v }, $("tdVisibleMsg"),
+          v ? "✅ 已开启，刷新桌面即可看到待办" : "✅ 已隐藏，待办不再显示");
+      });
+    }
+    // 系统监控
+    if (mnVisibleChk) {
+      mnVisibleChk.addEventListener("change", function () {
+        var v = mnVisibleChk.checked;
+        setStatus($("mnStatus"), v);
+        saveSettings({ monitor_visible: v }, $("mnVisibleMsg"),
+          v ? "✅ 已开启，刷新桌面即可看到系统监控" : "✅ 已隐藏，系统监控不再显示");
+      });
+    }
+
     // 载入已保存设置，填充输入框并挂载预览窗
     function boot() {
       fetch("api/settings", { cache: "no-store" })
@@ -356,6 +495,10 @@
           if (calVisibleChk) { calVisibleChk.checked = st.calendar_visible !== false; setStatus($("calStatus"), calVisibleChk.checked); }
           if (weatherLocInput) weatherLocInput.value = st.weather_location || "";
           if (weatherVisibleChk) { weatherVisibleChk.checked = st.weather_visible !== false; setStatus($("weatherStatus"), weatherVisibleChk.checked); }
+          if (wcVisibleChk) { wcVisibleChk.checked = st.worldclock_visible !== false; setStatus($("wcStatus"), wcVisibleChk.checked); }
+          if (ntVisibleChk) { ntVisibleChk.checked = st.notes_visible !== false; setStatus($("ntStatus"), ntVisibleChk.checked); }
+          if (tdVisibleChk) { tdVisibleChk.checked = st.todo_visible !== false; setStatus($("tdStatus"), tdVisibleChk.checked); }
+          if (mnVisibleChk) { mnVisibleChk.checked = st.monitor_visible !== false; setStatus($("mnStatus"), mnVisibleChk.checked); }
           mountStage(st);
         })
         .catch(function () { mountStage({}); });
@@ -365,10 +508,15 @@
     // 在其之前执行：fetch 回调可能在组件脚本就绪前触发 → mountStage 里组件未定义 → 预览空白。
     // 因此等三个组件全局就绪后再挂载（含超时兜底，绝不把预览永久卡死）。
     function whenWidgetsReady(fn) {
-      if (window.DirWidget && window.CalendarWidget && window.WeatherWidget) return fn();
+      var ready = function () {
+        return window.DirWidget && window.CalendarWidget && window.WeatherWidget &&
+          window.RLShell && window.WorldClockWidget && window.NotesWidget &&
+          window.TodoWidget && window.MonitorWidget;
+      };
+      if (ready()) return fn();
       var waited = 0;
       var timer = setInterval(function () {
-        if (window.DirWidget && window.CalendarWidget && window.WeatherWidget) {
+        if (ready()) {
           clearInterval(timer); fn();
         } else if ((waited += 50) >= 10000) {
           clearInterval(timer); fn();
@@ -473,5 +621,15 @@
   <script src="static/holiday-cn.js"></script>
   <script src="static/calendar-widget.js"></script>
   <script src="static/weather-widget.js"></script>
+
+  <!-- 新增 4 个组件：先加载通用外壳（RLShell），再加载组件脚本；
+       设 __*_noauto 阻止其自带自动挂载，改由上方舞台手动挂载预览 -->
+  <link rel="stylesheet" href="static/widget-shell.css" />
+  <script>window.__wc_noauto = true; window.__nt_noauto = true; window.__td_noauto = true; window.__mn_noauto = true;</script>
+  <script src="static/widget-shell.js"></script>
+  <script src="static/worldclock-widget.js"></script>
+  <script src="static/notes-widget.js"></script>
+  <script src="static/todo-widget.js"></script>
+  <script src="static/monitor-widget.js"></script>
 </body>
 </html>

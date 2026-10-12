@@ -1,7 +1,6 @@
 {
   "typeCheckingMode": "standard",
   "reportConstantRedefinition": false,
-  "reportImplicitRelativeImport": false,
   "reportMissingTypeArgument": false,
   "reportMissingParameterType": false,
   "reportUnknownParameterType": false,
@@ -16,9 +15,7 @@
   "reportUnusedCallResult": false,
   "reportImplicitOverride": false,
   "reportIncompatibleMethodOverride": false,
-  "reportUnannotatedClassAttribute": false,
   "reportImplicitStringConcatenation": false,
-  "reportAny": false,
   "exclude": [
     "**/__pycache__",
     "**/*.fpk"

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 打包 com.dirwidget fpk（与服务端解包器兼容的格式）
-用法: python build_fp.py
+用法: python build_fpk.py
 产物: com.dirwidget-<version>-<platform>.fpk
   platform 取自 fpk/manifest 的 platform 字段（all / x86 / arm）
 """

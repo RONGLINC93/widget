@@ -8,7 +8,7 @@ $root = $PSScriptRoot
 Set-Location $root
 
 Write-Host "[1/1] 打包 fpk ..." -ForegroundColor Cyan
-python build_fp.py
+python build_fpk.py
 if ($LASTEXITCODE -ne 0) {
     Write-Host "打包失败，请检查上方报错信息。" -ForegroundColor Red
     exit 1

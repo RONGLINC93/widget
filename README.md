@@ -89,7 +89,7 @@ nginx 拒绝加载 → **飞牛 Web 完全宕机**（5666/5667/80/443 全部无�
 
 1. 打包（或修改后重新打包）：
    ```bash
-   python build_fp.py     # 产出 ronglinc93widget-0.1.0-all.fpk
+   python build_fpk.py     # 产出 ronglinc93widget-0.1.0-all.fpk
    ```
 2. fnOS **应用中心 → 本地安装**，选择该 fpk。
 3. 装完点桌面图标「RONGLINC93小组件」打开设置窗口。
@@ -216,7 +216,7 @@ fpk/
     ├── ui/config         # 桌面组件声明（原生 iframe）
     ├── ui/images/        # 组件图标 64/256
     └── static/           # inject.js（桌面注入）与 dir-widget.*（浮层）
-build_fp.py               # 打包脚本
+build_fpk.py               # 打包脚本
 pull.py                   # 拉取：pull --rebase（默认当前分支）
 push.py                   # 推送：commit -> rebase -> push
 release.py                # 发布：打包 -> 标签 -> Release -> 版本号自动 +1
@@ -228,7 +228,7 @@ README.md / CHANGELOG.md  # 文档
 
 ### 开发说明
 
-- **打包**：`python build_fp.py`（产出 `ronglinc93widget-<版本>-<平台>.fpk`）。
+- **打包**：`python build_fpk.py`（产出 `ronglinc93widget-<版本>-<平台>.fpk`）。
 - **类型检查**：本项目是零类型标注的脚本型应用，编辑器默认的 `recommended`
   模式会产生大量误报（约 20+ ERROR / 100+ WARNING）。
   已提供 `pyrightconfig.json`：`standard` 模式 + 关闭
@@ -256,7 +256,7 @@ README.md / CHANGELOG.md  # 文档
 1. 先在 `CHANGELOG.md` 添加 `## [x.y.z]` 小节（条目写成 `- …` 列表）；
 2. 运行 `python release.py`，它依次做：
    - 把该版本更新日志自动写进 manifest 的 `changelog` 字段（最多 12 条，超出提示详见 CHANGELOG）；
-   - `build_fp.py` 打包并校验产物存在；
+   - `build_fpk.py` 打包并校验产物存在；
    - 推送当前分支 → 打并推送 `vX.Y.Z` 标签；
    - 创建 GitHub Release 并上传 `ronglinc93widget-<版本>-all.fpk` + `ICON_256.PNG`；
    - **版本号自动 +1**（`version` 补丁号 +1 进入下一开发版，`version_released` 记为刚发布的版本）；
@@ -284,7 +284,7 @@ README.md / CHANGELOG.md  # 文档
 | 验证注入却总失败 | **桌面在 5666(HTTP)/5667(HTTPS)，不是 80/443**；用这两个端口 curl |
 | 浏览器连不上后端 | 后端已做双栈监听（`::` + `IPV6_V6ONLY=0`），IPv4/IPv6 都可连 |
 | 卸载后配置还在 | 旧版卸载不清注入；用「清理残留注入」或新版 `uninstall_init` 自动清理 |
-| 改了代码没生效 | 需重新 `python build_fp.py` 并在应用中心重装 fpk |
+| 改了代码没生效 | 需重新 `python build_fpk.py` 并在应用中心重装 fpk |
 
 ---
 

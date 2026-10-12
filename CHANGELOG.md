@@ -4,6 +4,29 @@
 
 ## [0.1.9] — 未发布
 
+### 新增
+
+- **目录组件键盘列表导航**：非输入态下 `↑` / `↓` 在条目间移动高亮（`..` 返回行算作第一项），
+  `Enter` 进入选中的文件夹 / 打开文件预览，`Esc` 取消选中；与现有 `←/→` 预览翻页、`Alt+↑` 返回上级互不冲突。
+- **目录组件复制路径**：工具栏新增 📋 按钮一键复制当前目录路径；在任意条目（文件/文件夹）上
+  **右键**可直接复制该条目完整路径（空白处不拦截，保留桌面默认右键菜单），复制成功有轻量 toast 提示。
+- **新增 4 个桌面浮层组件**（与目录 / 日历 / 天气一致，支持拖拽 / 缩放 / 最小化 / 关闭 / 固定，并接入 `inject.js` 注入与管理页预览）：
+  - **世界时钟**：多时区时钟，支持城市名或 IANA 时区（如 `Asia/Shanghai`），每秒走时；城市列表持久化到 `settings.json` 的 `worldclock_cities` 字段。
+  - **便签**：桌面便签，支持多张、换色（6 色）、置顶；内容经 `/api/notes` 持久化到 `notes.json`。
+  - **待办清单**：可勾选待办，增删改经 `/api/todos` 持久化到 `todos.json`。
+  - **系统监控**：显示 CPU / 内存 / 磁盘占用与运行时间，数据来自 `/api/monitor`（Linux `/proc` 实时读取，非 Linux 或不可读时优雅显示「不可用」）。
+- **通用浮层外壳 `widget-shell.js`**：为上述 4 个新组件抽取统一的拖拽 / 四边缩放 / 最小化 / 关闭 / 固定能力，复用桌面图标网格吸附（`window.__rl93_snapToGrid`），外观与既有浮层一致。4 个组件的可见性开关分别落盘到 `settings.json` 的 `notes_visible` / `todo_visible` / `worldclock_visible` / `monitor_visible` 等字段。
+
+### 修复 / 优化
+
+- **目录组件最小化持久化**：此前最小化只是切换 CSS class、刷新桌面会复原。现与日历 / 天气一致，
+  状态写入服务端 `settings.json` 的 `dir_min` 字段，刷新 / 重开后会恢复最小化态；`inject.js` 挂载时透传该值。
+- **截断提示文案修正**：状态栏"目录过大"提示由含糊的"前 N 项"改为实际上限"前 3000 项"（与服务端
+  `LIST_MAX_ENTRIES` 同步，常量挂在组件 `listLimit` 上）。
+- **文档与配置清理**：README 打包脚本名由笔误的 `build_fp.py` 修正为正确的 `build_fpk.py`；
+  清理 `pyrightconfig.json` 中 3 个 pyright 已不识别的配置键（`reportImplicitRelativeImport` /
+  `reportUnannotatedClassAttribute` / `reportAny`），消除无害告警噪音。
+
 ---
 
 ## [0.1.8] — 2026-10-10

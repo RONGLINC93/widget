@@ -7,6 +7,10 @@ fnOS 应用包 fpk/app/server.py：提供 HTTP 接口读取指定目录，并托
   GET /                       ->  fpk/app/ui/index.html（桌面入口）
   GET /static/*               ->  前端静态资源（dir-widget.html/js/css）
   GET /api/list?path=<目录>   ->  JSON: { path, error?, entries:[...] }
+  GET /api/notes             ->  便签列表；POST 增删改（action=add/update/delete/reorder）
+  GET /api/todos              ->  待办列表；POST 增删改（action=add/update/delete/reorder）
+  GET /api/monitor            ->  系统监控（CPU/内存/磁盘/运行时间，Linux /proc）
+  GET /api/*_settings         ->  各浮层组件的位置/大小/最小化/固定/可见性
   GET /health                 ->  "ok"（供 cmd/main 探活）
 
 条目字段：name, is_dir, size, items(目录条目数), type, mtime, mtime_str
@@ -88,6 +92,9 @@ APP_DATA_DIR = os.environ.get("TRIM_PKGVAR", "/vol1/@appdata/" + APP_NAME)
 APP_DEST_DIR = os.environ.get("TRIM_APPDEST", "/vol1/@appcenter/" + APP_NAME)
 DESKTOP_INDEX = os.path.join(APP_DATA_DIR, "desktop", "index.html")
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
+# 便签 / 待办清单 的持久化数据文件（与 settings.json 同级，独立存放避免单文件过大）
+NOTES_FILE = os.path.join(APP_DATA_DIR, "notes.json")
+TODOS_FILE = os.path.join(APP_DATA_DIR, "todos.json")
 # 注意：fnOS 解 app.tgz 时会去掉 app/ 前缀，静态资源实际在 <APP_DEST>/static/ 下
 INJECT_JS_DIRECT = os.path.join(APP_DEST_DIR, "static", "inject.js")
 KEYS_FILE = os.path.join(HERE, "conf", "ng_keys.json")
@@ -345,10 +352,20 @@ def load_settings() -> dict:
     visible 记录用户在桌面上是否关过浮层，避免刷新后又自动弹出来。
     pos / size 记录浮层上次的位置与大小（None 表示用默认）。"""
     data = {"path": "", "root": "", "visible": True, "pos": None, "size": None,
+            "dir_min": False,
             "calendar_visible": True, "calendar_pos": None, "calendar_size": None,
             "calendar_notes": {}, "calendar_min": False,
             "weather_visible": True, "weather_pos": None, "weather_size": None,
-            "weather_location": "", "weather_min": False}
+            "weather_location": "", "weather_min": False,
+            "notes_visible": True, "notes_pos": None, "notes_size": None,
+            "notes_min": False, "notes_pinned": False,
+            "todo_visible": True, "todo_pos": None, "todo_size": None,
+            "todo_min": False, "todo_pinned": False,
+            "worldclock_visible": True, "worldclock_pos": None, "worldclock_size": None,
+            "worldclock_min": False, "worldclock_pinned": False,
+            "worldclock_cities": [{"name": "本地", "tz": ""}],
+            "monitor_visible": True, "monitor_pos": None, "monitor_size": None,
+            "monitor_min": False, "monitor_pinned": False}
     try:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             data.update(json.loads(f.read() or "{}"))
@@ -377,6 +394,188 @@ def save_settings(data: dict) -> bool:
         return True
     except Exception:
         return False
+
+
+# ======================================================================
+# 便签 / 待办清单 的内容存储（与 settings.json 分文件，避免单文件过大）
+# ======================================================================
+NOTE_COLORS = ["#fff3a3", "#c8f7c5", "#a3d8ff", "#ffc9de", "#e3c8ff", "#ffe0b3"]
+MAX_NOTE_LEN = 2000
+MAX_TODO_LEN = 500
+MAX_ITEMS = 100
+
+
+def _safe_id() -> str:
+    import uuid
+    return uuid.uuid4().hex[:12]
+
+
+def load_notes() -> list:
+    try:
+        with open(NOTES_FILE, "r", encoding="utf-8") as f:
+            d = json.loads(f.read() or "{}")
+        notes = d.get("notes") if isinstance(d, dict) else None
+        return notes if isinstance(notes, list) else []
+    except Exception:
+        return []
+
+
+def save_notes(notes: list) -> bool:
+    try:
+        os.makedirs(os.path.dirname(NOTES_FILE), exist_ok=True)
+        with open(NOTES_FILE, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"notes": notes}, ensure_ascii=False))
+        return True
+    except Exception:
+        return False
+
+
+def load_todos() -> list:
+    try:
+        with open(TODOS_FILE, "r", encoding="utf-8") as f:
+            d = json.loads(f.read() or "{}")
+        todos = d.get("todos") if isinstance(d, dict) else None
+        return todos if isinstance(todos, list) else []
+    except Exception:
+        return []
+
+
+def save_todos(todos: list) -> bool:
+    try:
+        os.makedirs(os.path.dirname(TODOS_FILE), exist_ok=True)
+        with open(TODOS_FILE, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"todos": todos}, ensure_ascii=False))
+        return True
+    except Exception:
+        return False
+
+
+def _pos_of(p: Any) -> Any:
+    if isinstance(p, dict):
+        return {"left": int(p.get("left", 0) or 0), "top": int(p.get("top", 0) or 0)}
+    return None
+
+
+def _size_of(s: Any) -> Any:
+    if isinstance(s, dict):
+        return {"width": int(s.get("width", 0) or 0), "height": int(s.get("height", 0) or 0)}
+    return None
+
+
+def merge_widget_box(cur: dict, prefix: str, payload: dict) -> None:
+    """把组件提交的明文 box 字段（visible/pos/size/min/pinned）合并进 cur 的
+    `<prefix>_*` 键。各组件用各自独立的设置端点，绝不往 /api/settings 发明文，
+    避免与目录浮层的 dir_min/pos/size 冲突。"""
+    if "visible" in payload:
+        cur[prefix + "_visible"] = bool(payload.get("visible"))
+    if "pos" in payload:
+        cur[prefix + "_pos"] = _pos_of(payload.get("pos"))
+    if "size" in payload:
+        cur[prefix + "_size"] = _size_of(payload.get("size"))
+    if "min" in payload:
+        cur[prefix + "_min"] = bool(payload.get("min"))
+    if "pinned" in payload:
+        cur[prefix + "_pinned"] = bool(payload.get("pinned"))
+
+
+def widget_box_response(st: dict, prefix: str, extra: dict | None = None) -> dict:
+    resp = {
+        "visible": st.get(prefix + "_visible", True),
+        "pos": st.get(prefix + "_pos"),
+        "size": st.get(prefix + "_size"),
+        "min": st.get(prefix + "_min", False),
+        "pinned": st.get(prefix + "_pinned", False),
+    }
+    if extra:
+        resp.update(extra)
+    return resp
+
+
+def handle_widget_settings(self, parsed: Any, prefix: str,
+                           extra_payload=None, extra_response=None) -> bool:
+    """通用组件设置端点：GET 返回 box 状态，POST 合并明文 box 字段到
+    settings.json 的 <prefix>_* 键。extra_payload/extra_response 用于附加字段
+    （如 worldclock 的城市列表）。"""
+    if self.command == "POST":
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b""
+        try:
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        cur = load_settings()
+        merge_widget_box(cur, prefix, payload)
+        if extra_payload:
+            extra_payload(cur, payload)
+        ok = save_settings(cur)
+        st = load_settings()
+        resp = widget_box_response(st, prefix)
+        if extra_response:
+            extra_response(resp, st)
+        self._send_json({"status": "success" if ok else "error", "settings": resp},
+                        200 if ok else 500)
+        return True
+    st = load_settings()
+    resp = widget_box_response(st, prefix)
+    if extra_response:
+        extra_response(resp, st)
+    self._send_json({"settings": resp})
+    return True
+
+
+def get_monitor_stats() -> dict:
+    """读取宿主机 CPU/内存/磁盘/运行时间。仅 Linux（fnOS）可取；/proc 不可读或
+    非 Linux 时返回 ok:false，前端据此显示「不可用」，不报错。"""
+    if not os.path.exists("/proc/stat"):
+        return {"ok": False, "reason": "unsupported"}
+    try:
+        def cpu_sample():
+            with open("/proc/stat") as f:
+                parts = f.readline().split()
+            vals = [int(x) for x in parts[1:] if x.isdigit()]
+            return sum(vals), sum(vals[3:])  # total, idle
+        t1, i1 = cpu_sample()
+        time.sleep(0.2)
+        t2, i2 = cpu_sample()
+        cpu = 0.0 if (t2 - t1) <= 0 else round((1 - (i2 - i1) / (t2 - t1)) * 100, 1)
+
+        mem = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, _, v = line.partition(":")
+                v = v.strip().split()
+                if len(v) >= 1 and v[0].isdigit():
+                    mem[k.strip()] = int(v[0]) * 1024  # KB -> 字节
+        total = mem.get("MemTotal", 0)
+        avail = mem.get("MemAvailable", mem.get("MemFree", 0))
+        mem_used = max(0, total - avail)
+        mem_pct = 0.0 if total <= 0 else round(mem_used / total * 100, 1)
+
+        disk_path = "/vol1" if os.path.exists("/vol1") else "/"
+        st = os.statvfs(disk_path)
+        disk_total = st.f_blocks * st.f_frsize
+        disk_free = st.f_bavail * st.f_frsize
+        disk_used = disk_total - disk_free
+        disk_pct = 0.0 if disk_total <= 0 else round(disk_used / disk_total * 100, 1)
+
+        uptime = 0.0
+        try:
+            with open("/proc/uptime") as f:
+                uptime = float(f.readline().split()[0])
+        except Exception:
+            uptime = 0.0
+
+        return {
+            "ok": True,
+            "cpu": cpu,
+            "mem": {"total": total, "used": mem_used, "available": avail,
+                    "percent": mem_pct},
+            "disk": {"path": disk_path, "total": disk_total, "used": disk_used,
+                     "free": disk_free, "percent": disk_pct},
+            "uptime": uptime,
+        }
+    except Exception as e:
+        return {"ok": False, "reason": "error", "message": str(e)}
 
 
 def _nginx_restart() -> bool:
@@ -854,6 +1053,8 @@ class DirHandler(BaseHTTPRequestHandler):
                     cur["visible"] = bool(payload.get("visible"))
                 if "pinned" in payload:
                     cur["pinned"] = bool(payload.get("pinned"))
+                if "min" in payload:
+                    cur["dir_min"] = bool(payload.get("min"))
                 if "pos" in payload:
                     p = payload.get("pos")
                     if isinstance(p, dict):
@@ -913,6 +1114,15 @@ class DirHandler(BaseHTTPRequestHandler):
                         cur["weather_size"] = None
                 if "weather_location" in payload:
                     cur["weather_location"] = str(payload.get("weather_location") or "")
+                # 新增 4 个组件独立开关（便签/待办/世界时钟/系统监控），与日历/天气一致走主 settings
+                if "notes_visible" in payload:
+                    cur["notes_visible"] = bool(payload.get("notes_visible"))
+                if "todo_visible" in payload:
+                    cur["todo_visible"] = bool(payload.get("todo_visible"))
+                if "worldclock_visible" in payload:
+                    cur["worldclock_visible"] = bool(payload.get("worldclock_visible"))
+                if "monitor_visible" in payload:
+                    cur["monitor_visible"] = bool(payload.get("monitor_visible"))
                 ok = save_settings(cur)
                 self._send_json({"status": "success" if ok else "error",
                                  "settings": cur}, 200 if ok else 500)
@@ -1032,6 +1242,138 @@ class DirHandler(BaseHTTPRequestHandler):
                 "min": st.get("weather_min", False),
                 "location": st.get("weather_location") or "",
             }})
+            return
+
+        # ===== 便签组件设置（独立端点，明文 box 字段映射到 notes_*）=====
+        if parsed.path == "/api/notes_settings":
+            handle_widget_settings(self, parsed, "notes")
+            return
+
+        # ===== 待办清单组件设置 =====
+        if parsed.path == "/api/todo_settings":
+            handle_widget_settings(self, parsed, "todo")
+            return
+
+        # ===== 世界时钟组件设置（含城市列表 worldclock_cities）=====
+        if parsed.path == "/api/worldclock_settings":
+            def _wc_payload(cur, payload):
+                if "cities" in payload and isinstance(payload.get("cities"), list):
+                    cities = []
+                    for c in payload["cities"][:12]:
+                        if isinstance(c, dict) and isinstance(c.get("name"), str):
+                            cities.append({"name": c["name"][:40],
+                                           "tz": str(c.get("tz") or "")[:60]})
+                    cur["worldclock_cities"] = cities
+            def _wc_response(resp, st):
+                resp["cities"] = st.get("worldclock_cities") or [{"name": "本地", "tz": ""}]
+            handle_widget_settings(self, parsed, "worldclock",
+                                  extra_payload=_wc_payload, extra_response=_wc_response)
+            return
+
+        # ===== 系统监控组件设置 =====
+        if parsed.path == "/api/monitor_settings":
+            handle_widget_settings(self, parsed, "monitor")
+            return
+
+        # ===== 便签内容 CRUD（notes.json 持久化）=====
+        if parsed.path == "/api/notes":
+            if self.command == "POST":
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length) if length else b""
+                try:
+                    payload = json.loads(raw.decode("utf-8") or "{}")
+                except Exception:
+                    payload = {}
+                notes = load_notes()
+                action = payload.get("action")
+                if action == "add":
+                    text = str(payload.get("text") or "").strip()
+                    if text:
+                        color = payload.get("color")
+                        if color not in NOTE_COLORS:
+                            color = NOTE_COLORS[0]
+                        notes.append({"id": _safe_id(), "text": text[:MAX_NOTE_LEN],
+                                      "color": color, "pinned": False,
+                                      "created": int(time.time())})
+                        notes = notes[-MAX_ITEMS:]
+                elif action == "update":
+                    nid = payload.get("id")
+                    for n in notes:
+                        if n.get("id") == nid:
+                            if "text" in payload and payload["text"] is not None:
+                                n["text"] = str(payload["text"])[:MAX_NOTE_LEN]
+                            if "color" in payload and payload["color"] in NOTE_COLORS:
+                                n["color"] = payload["color"]
+                            if "pinned" in payload:
+                                n["pinned"] = bool(payload["pinned"])
+                            break
+                elif action == "delete":
+                    nid = payload.get("id")
+                    notes = [n for n in notes if n.get("id") != nid]
+                elif action == "reorder":
+                    ids = payload.get("ids")
+                    if isinstance(ids, list):
+                        m = {n.get("id"): n for n in notes}
+                        ordered = [m[i] for i in ids if i in m]
+                        for n in notes:
+                            if n.get("id") not in ids:
+                                ordered.append(n)
+                        notes = ordered[:MAX_ITEMS]
+                ok = save_notes(notes)
+                self._send_json({"status": "success" if ok else "error", "notes": notes},
+                                200 if ok else 500)
+                return
+            self._send_json({"notes": load_notes()})
+            return
+
+        # ===== 待办清单内容 CRUD（todos.json 持久化）=====
+        if parsed.path == "/api/todos":
+            if self.command == "POST":
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length) if length else b""
+                try:
+                    payload = json.loads(raw.decode("utf-8") or "{}")
+                except Exception:
+                    payload = {}
+                todos = load_todos()
+                action = payload.get("action")
+                if action == "add":
+                    text = str(payload.get("text") or "").strip()
+                    if text:
+                        todos.append({"id": _safe_id(), "text": text[:MAX_TODO_LEN],
+                                      "done": False, "created": int(time.time())})
+                        todos = todos[-MAX_ITEMS:]
+                elif action == "update":
+                    tid = payload.get("id")
+                    for t in todos:
+                        if t.get("id") == tid:
+                            if "text" in payload and payload["text"] is not None:
+                                t["text"] = str(payload["text"])[:MAX_TODO_LEN]
+                            if "done" in payload:
+                                t["done"] = bool(payload["done"])
+                            break
+                elif action == "delete":
+                    tid = payload.get("id")
+                    todos = [t for t in todos if t.get("id") != tid]
+                elif action == "reorder":
+                    ids = payload.get("ids")
+                    if isinstance(ids, list):
+                        m = {t.get("id"): t for t in todos}
+                        ordered = [m[i] for i in ids if i in m]
+                        for t in todos:
+                            if t.get("id") not in ids:
+                                ordered.append(t)
+                        todos = ordered[:MAX_ITEMS]
+                ok = save_todos(todos)
+                self._send_json({"status": "success" if ok else "error", "todos": todos},
+                                200 if ok else 500)
+                return
+            self._send_json({"todos": load_todos()})
+            return
+
+        # ===== 系统监控实时数据（Linux /proc，异常降级）=====
+        if parsed.path == "/api/monitor":
+            self._send_json(get_monitor_stats())
             return
 
         # ===== 体检 / 一键急救（Web 崩溃时通过 :8099 直接访问本页自救）=====

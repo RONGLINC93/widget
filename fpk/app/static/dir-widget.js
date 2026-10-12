@@ -148,9 +148,13 @@
     this.lastSearch = null;   // 上次的搜索参数 {kw, kind}
     this.searchSeq = 0;       // 请求序号，丢弃过期响应
     this.listTruncated = false;   // 列表是否因超上限被服务端截断
+    this.listLimit = 3000;       // 列表截断上限（与服务端 LIST_MAX_ENTRIES 同步）
+    this.selIdx = -1;            // 键盘选中的条目下标（在 this._visible 中的位置，-1=无）
+    this._visible = [];          // 当前过滤+排序后实际显示的条目（供键盘导航）
     this.opts = opts;
     this.el = null;
     this.pinned = !!opts.pinned;   // 固定（锁定位置，禁止拖动/缩放）
+    this.min = !!opts.min;         // 最小化（仅留顶栏，状态存服务端）
     this._build();
   }
 
@@ -172,6 +176,7 @@
         '<button class="dw-btn dw-refresh-btn" title="刷新">⟳</button>' +
         '<button class="dw-btn dw-search-btn" title="搜索子目录（Ctrl+F）">🔍</button>' +
         '<button class="dw-btn dw-hidden-btn" title="显示/隐藏以 . 开头的隐藏文件">👁</button>' +
+        '<button class="dw-btn dw-copy-btn" title="复制当前目录路径到剪贴板">📋</button>' +
       '</div>' +
       '<div class="dw-searchbar" hidden>' +
         '<input class="dw-search" type="text" placeholder="在当前目录及其子目录中搜文件名…" />' +
@@ -316,7 +321,21 @@
         self.toggleSearch(false);
         return;
       }
-      if (e.key === "Backspace" || (e.key === "ArrowUp" && e.altKey)) {
+      // 列表键盘导航：↑/↓ 移动选中、Enter 进入/预览、Esc 取消选中
+      if (e.key === "ArrowDown") { self._moveSel(1); e.preventDefault(); return; }
+      if (e.key === "ArrowUp") {
+        if (e.altKey) {
+          var pUp = self._parentPath();
+          if (pUp) { e.preventDefault(); self.go(pUp); }
+        } else { self._moveSel(-1); e.preventDefault(); }
+        return;
+      }
+      if (e.key === "Enter") { self._activateSel(); e.preventDefault(); return; }
+      if (e.key === "Escape") {
+        if (self.selIdx >= 0) { self.selIdx = -1; self._renderList(); e.preventDefault(); }
+        return;
+      }
+      if (e.key === "Backspace") {
         var parent = self._parentPath();
         if (parent) { e.preventDefault(); self.go(parent); }
       }
@@ -341,7 +360,19 @@
       }
     });
     root.querySelector(".dw-min-btn").addEventListener("click", function () {
-      root.classList.toggle("dw-min");
+      if (root.classList.contains("dw-min")) self._doRestore();
+      else self._doMin();
+    });
+    root.querySelector(".dw-copy-btn").addEventListener("click", function () {
+      self._copyText(self.path || "/");
+    });
+    // 右键任意条目 → 复制该条目完整路径（空白处不拦截，保留桌面默认菜单）
+    this.body.addEventListener("contextmenu", function (e) {
+      var cell = e.target.closest(".dw-dir, .dw-file");
+      if (!cell) return;
+      e.preventDefault();
+      e.stopPropagation();
+      self._copyText(cell.getAttribute("data-path"));
     });
     root.querySelector(".dw-pin-btn").addEventListener("click", function () {
       self.pinned = !self.pinned;
@@ -356,6 +387,7 @@
       root.querySelector(".dw-resize").style.display = "none";
     }
     this._syncPin();   // 应用初始固定状态（含隐藏缩放把手）
+    if (this.min) this.el.classList.add("dw-min");   // 恢复上次的最小化状态
 
     // 还原上次记住的大小（先尺寸后位置：位置钳制要用到实际尺寸）
     if (this.size) this._applySize(this.size.width, this.size.height);
@@ -391,6 +423,103 @@
         body: JSON.stringify({ pinned: this.pinned })
       }).catch(function () {});
     }
+  };
+
+  DirWidget.prototype._saveMin = function (v) {
+    this.min = !!v;
+    if (this.opts && this.opts.settingsApi) {
+      fetch(this.opts.settingsApi, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ min: this.min })
+      }).catch(function () {});
+    }
+  };
+
+  DirWidget.prototype._doMin = function () {
+    if (!this.el) return;
+    this.el.classList.add("dw-min");
+    this._saveMin(true);
+  };
+
+  DirWidget.prototype._doRestore = function () {
+    if (!this.el) return;
+    this.el.classList.remove("dw-min");
+    this._saveMin(false);
+  };
+
+  // 列表键盘导航的辅助方法
+  DirWidget.prototype._highlightSel = function () {
+    if (!this.body) return;
+    var rows = this.body.querySelectorAll("tr[data-idx]");
+    Array.prototype.forEach.call(rows, function (tr) { tr.classList.remove("dw-sel"); });
+    if (this.selIdx < 0) return;
+    var el = this.body.querySelector('tr[data-idx="' + this.selIdx + '"]');
+    if (el) {
+      el.classList.add("dw-sel");
+      el.scrollIntoView({ block: "nearest" });
+    }
+  };
+
+  DirWidget.prototype._moveSel = function (delta) {
+    var n = this._visible.length;
+    if (n === 0) return;
+    var i = this.selIdx < 0 ? -1 : this.selIdx;
+    i += delta;
+    if (i < 0) i = 0;
+    if (i > n - 1) i = n - 1;
+    this.selIdx = i;
+    this._highlightSel();
+  };
+
+  DirWidget.prototype._activateSel = function () {
+    var item = this._visible[this.selIdx];
+    if (!item) return;
+    if (item.type === "up" || item.type === "dir") this.go(item.path);
+    else this._openPreview(item.path);
+  };
+
+  // 复制文本到剪贴板（优先 navigator.clipboard，降级到 execCommand）
+  DirWidget.prototype._copyText = function (text) {
+    var self = this;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(
+          function () { self._toast("已复制：" + text); },
+          function () { self._fallbackCopy(text); }
+        );
+        return;
+      }
+    } catch (e) {}
+    self._fallbackCopy(text);
+  };
+
+  DirWidget.prototype._fallbackCopy = function (text) {
+    var self = this;
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.top = "-9999px";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      self._toast("已复制：" + text);
+    } catch (e) {
+      self._toast("复制失败：" + text);
+    }
+  };
+
+  // 轻量 toast：挂一个会自动消失的提示条（不占用状态栏）
+  DirWidget.prototype._toast = function (msg) {
+    if (!this.el) return;
+    var t = document.createElement("div");
+    t.className = "dw-toast";
+    t.textContent = msg;
+    this.el.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 1300);
   };
 
   DirWidget.prototype._makeDraggable = function (handle, panel) {
@@ -640,7 +769,7 @@
     list = sortEntries(list, this.sortKey, this.sortDesc);
 
     var dirs = 0, files = 0, totalSize = 0;
-    var rows = list.map(function (e) {
+    var rows = list.map(function (e, idx) {
       var fullPath = esc(base + "/" + e.name);
       var sizeCell, nameCell, typeLabel;
       if (e.is_dir) {
@@ -659,7 +788,7 @@
         sizeCell = humanSize(e.size);
         typeLabel = KIND_LABEL[kind] || (e.type && e.type !== "file" ? e.type : "文件");
       }
-      return '<tr>' +
+      return '<tr data-idx="' + (idx + 1) + '">' +
         '<td class="name">' + nameCell + '</td>' +
         '<td class="size">' + esc(sizeCell) + '</td>' +
         '<td><span class="dw-type-pill">' + esc(typeLabel) + '</span></td>' +
@@ -670,7 +799,7 @@
     // 首行的 ".."：返回上级目录（已在根目录 / 主目录边界时不显示）
     var up = this._parentPath();
     var upRow = up
-      ? '<tr class="dw-up-row">' +
+      ? '<tr class="dw-up-row" data-idx="0">' +
           '<td class="name"><span class="dw-dir dw-parent" title="返回上级目录" data-path="' +
             esc(up) + '"><span class="dw-ico">↩</span>..</span></td>' +
           '<td class="size">—</td>' +
@@ -714,10 +843,21 @@
     this.files = list.filter(function (e) { return !e.is_dir; })
                      .map(function (e) { return base + "/" + e.name; });
 
+    // 键盘导航用的可见条目（顺序与表格一致：.. 在 0，之后按列表顺序）
+    this._visible = [];
+    if (up) this._visible.push({ path: up, type: "up" });
+    list.forEach(function (e) {
+      this._visible.push({ path: base + "/" + e.name, type: e.is_dir ? "dir" : "file" });
+    }, this);
+    // 内容重排后清空键盘选中，避免指错行；再以高亮回显（若有）
+    this.selIdx = -1;
+    this._highlightSel();
+
     this.status.textContent = path + "  ·  " + dirs + " 个文件夹, " + files + " 个文件" +
       "（合计 " + humanSize(totalSize) + "）" +
       (kw ? "  ·  已过滤：" + this.filter : "") +
-      (this.listTruncated ? "  ·  目录过大，仅显示前 N 项，请用 Ctrl+F 搜索定位" : "");
+      (this.listTruncated ? "  ·  目录过大，仅显示前 " + (this.listLimit || 3000) +
+        " 项，请用 Ctrl+F 搜索定位" : "");
     this._renderBreadcrumb(path);
     this._syncUpBtn();
   };
