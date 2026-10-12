@@ -782,7 +782,9 @@
 
     function showDiag(j) { diagOut.textContent = JSON.stringify(j, null, 2); }
 
-    function saveSettings(payload, msgEl, okText) {
+    // 保存设置。verifyKey 可选：传 key 时保存成功后回读 /api/settings 校验该字段是否真写入，
+    // 防止服务端因分支缩进等静默丢弃字段（曾出现 theme 未落盘却提示已保存的假成功）。
+    function saveSettings(payload, msgEl, okText, verifyKey) {
       msgEl.textContent = "保存中…";
       fetch("api/settings", {
         method: "POST",
@@ -791,7 +793,21 @@
       })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          msgEl.textContent = j.status === "success" ? (okText || "✅ 已保存") : "⚠ 保存失败";
+          if (j.status !== "success") { msgEl.textContent = "⚠ 保存失败"; return; }
+          if (verifyKey && Object.prototype.hasOwnProperty.call(payload, verifyKey)) {
+            // 回读校验：服务端可能丢弃/忽略该字段，必须确认
+            fetch("api/settings", { cache: "no-store" })
+              .then(function (r2) { return r2.json(); })
+              .then(function (j2) {
+                var st = j2 && j2.settings ? j2.settings : {};
+                msgEl.textContent = (st[verifyKey] !== payload[verifyKey])
+                  ? "⚠ 保存未生效，请重试或检查服务端"
+                  : (okText || "✅ 已保存");
+              })
+              .catch(function () { msgEl.textContent = okText || "✅ 已保存"; });
+          } else {
+            msgEl.textContent = okText || "✅ 已保存";
+          }
         })
         .catch(function (e) { msgEl.textContent = "❌ " + e.message; });
     }
@@ -1035,7 +1051,7 @@
     if (themeSel) {
       themeSel.addEventListener("change", function () {
         var label = themeSel.options[themeSel.selectedIndex].text;
-        saveSettings({ theme: themeSel.value }, $("globalMsg"), "✅ 外观已保存（" + label + "）");
+        saveSettings({ theme: themeSel.value }, $("globalMsg"), "✅ 外观已保存（" + label + "）", "theme");
         applyTheme(themeSel.value);
       });
       // 系统配色变化时，若当前为「跟随系统」则同步刷新
