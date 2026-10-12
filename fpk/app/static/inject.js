@@ -86,6 +86,29 @@
             monitorApi: BASE + "/api/monitor", pos: st.monitor_pos, size: st.monitor_size,
             min: !!st.monitor_min, pinned: !!st.monitor_pinned };
         });
+
+      // 主题：全局生效于所有组件外壳与内容（dark / light / system 跟随系统配色）
+      function applyTheme(t) {
+        var html = document.documentElement;
+        if (t === "light" || t === "dark") {
+          html.setAttribute("data-theme", t);
+        } else {
+          var mq = window.matchMedia("(prefers-color-scheme: light)");
+          html.setAttribute("data-theme", mq.matches ? "light" : "dark");
+        }
+      }
+      fetch(BASE + "/api/settings", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var st = j && j.settings ? j.settings : {};
+          var t = st.theme || "system";
+          applyTheme(t);
+          var mq = window.matchMedia("(prefers-color-scheme: light)");
+          var onScheme = function () { if (t === "system") applyTheme("system"); };
+          if (mq.addEventListener) mq.addEventListener("change", onScheme);
+          else if (mq.addListener) mq.addListener(onScheme);
+        })
+        .catch(function () { /* 取不到则用默认（夜间） */ });
     };
     document.head.appendChild(shJs);
 

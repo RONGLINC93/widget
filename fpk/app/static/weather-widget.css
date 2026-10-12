@@ -12,10 +12,10 @@
 #ww-root .ww-now { display: flex; flex-direction: column; align-items: center; }
 #ww-root .ww-icon { font-size: 44px; line-height: 1; margin-bottom: 2px; }
 #ww-root .ww-temp { font-size: 38px; font-weight: 700; line-height: 1.1; }
-#ww-root .ww-cond { font-size: 14px; color: #c9d1d9; margin-top: 2px; }
-#ww-root .ww-meta { font-size: 11px; color: #8b949e; margin-top: 6px; text-align: center; }
+#ww-root .ww-cond { font-size: 14px; color: var(--rl-subtle); margin-top: 2px; }
+#ww-root .ww-meta { font-size: 11px; color: var(--rl-muted); margin-top: 6px; text-align: center; }
 /* 最小化条里的温度：比标题淡一点，没有温度时是空串不占位 */
-#ww-root .ww-mtemp { font-size: 13px; color: #8b949e; white-space: nowrap; margin-left: 4px; }
+#ww-root .ww-mtemp { font-size: 13px; color: var(--rl-muted); white-space: nowrap; margin-left: 4px; }
 #ww-root .ww-mtemp:empty { display: none; }
 #ww-root .ww-days {
   display: grid;
@@ -24,16 +24,16 @@
   margin-top: 12px;
 }
 #ww-root .ww-day {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--rl-surface);
   border-radius: 8px; padding: 6px 4px; text-align: center;
 }
-#ww-root .ww-dl { font-size: 11px; color: #8b949e; }
+#ww-root .ww-dl { font-size: 11px; color: var(--rl-muted); }
 #ww-root .ww-di { font-size: 20px; line-height: 1.2; }
-#ww-root .ww-dc { font-size: 10px; color: #c9d1d9; white-space: nowrap;
+#ww-root .ww-dc { font-size: 10px; color: var(--rl-subtle); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
-#ww-root .ww-dt { font-size: 11px; color: #e6edf3; margin-top: 2px; }
+#ww-root .ww-dt { font-size: 11px; color: var(--rl-fg); margin-top: 2px; }
 #ww-root .ww-dt b { color: #ffd479; }
-#ww-root .ww-foot { margin-top: 10px; font-size: 10px; color: #6e7681; text-align: center; }
+#ww-root .ww-foot { margin-top: 10px; font-size: 10px; color: var(--rl-muted2); text-align: center; }
 #ww-root .ww-foot a { text-decoration: none; }
 
 /* 响应式：卡片变窄时逐级隐藏，绝不出现滚动条 */

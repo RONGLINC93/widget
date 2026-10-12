@@ -1,131 +1,506 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>RONGLINC93 小组件 · 管理</title>
   <style>
-    body { margin: 0; min-height: 100vh;
+    body {
+      margin: 0;
+      min-height: 100vh;
       background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
-      color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
-    .wrap {margin: 36px auto; padding: 0 16px 56px; }
-    h2 { color: #e6edf3; font-size: 20px; margin: 0 0 4px; }
-    .sub { font-size: 13px; margin: 0 0 22px; }
+      color: #8b949e;
+      font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+
+    .wrap {
+      margin: 36px auto;
+      padding: 0 16px 56px;
+    }
+
+    h2 {
+      color: #e6edf3;
+      font-size: 20px;
+      margin: 0 0 4px;
+    }
+
+    .sub {
+      font-size: 13px;
+      margin: 0 0 22px;
+    }
 
     /* 顶部主操作栏：吸顶，配置时始终可见、无需滚回顶部点「注入桌面」 */
-    .bar { position: sticky; top: 12px; z-index: 5; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-      background: #161b22; border: 1px solid #388bfd66; border-radius: 12px;
-      padding: 16px; margin-bottom: 18px; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
-    .bar .lead { flex: 1; min-width: 140px; }
-    .bar .lead b { color: #e6edf3; font-size: 14px; }
-    .bar .lead span { display: block; font-size: 12px; color: #8b949e; margin-top: 2px; }
+    .bar {
+      position: sticky;
+      top: 12px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: #161b22;
+      border: 1px solid #388bfd66;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 18px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+    }
+
+    .bar .lead {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .bar .lead b {
+      color: #e6edf3;
+      font-size: 14px;
+    }
+
+    .bar .lead span {
+      display: block;
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 2px;
+    }
 
     /* 桌面预览舞台：真实悬浮窗并排显示 */
-    .stagecard { background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-      padding: 16px; margin-bottom: 18px; }
-    .stagecard h3 { color: #e6edf3; font-size: 15px; margin: 0 0 4px; }
-    .stagecard .stage-tip { font-size: 12px; color: #8b949e; margin: 0 0 12px; }
-    .stage { position: relative; overflow: auto; }
+    .stagecard {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+
+    .stagecard h3 {
+      color: #e6edf3;
+      font-size: 15px;
+      margin: 0 0 4px;
+    }
+
+    .stagecard .stage-tip {
+      font-size: 12px;
+      color: #8b949e;
+      margin: 0 0 12px;
+    }
+
+    .stage {
+      position: relative;
+      overflow: auto;
+    }
+
     /* 迷你桌面：带壁纸的框，三个真实浮窗缩放并排摆进去（真浮窗、不滚动） */
-    .desktop { position: relative; width: 100%; overflow: hidden; border-radius: 10px;
-      border: 1px solid #30363d; display: flex; justify-content: center; align-items: flex-start;
-      background: linear-gradient(135deg, #0b1220, #161b22); }
-    .desktop::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+    .desktop {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      border-radius: 10px;
+      border: 1px solid #30363d;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      background: linear-gradient(135deg, #0b1220, #161b22);
+    }
+
+    .desktop::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
       background: radial-gradient(560px 280px at 82% 8%, #1f6feb26, transparent),
-                  radial-gradient(480px 260px at 8% 96%, #a371f72b, transparent); }
-    .desk-scale { position: relative; width: 1080px; height: 900px; flex: none;
-      transform: scale(0.58); transform-origin: top center; }
-    .desk-scale #dw-root { position: absolute !important; left: 0 !important; right: auto !important;
-      top: 0 !important; max-height: 450px !important; }
-    .desk-scale #cw-root { position: absolute !important; left: 452px !important; right: auto !important;
-      top: 0 !important; }
-    .desk-scale #ww-root { position: absolute !important; left: 800px !important; top: 0 !important; }
+        radial-gradient(480px 260px at 8% 96%, #a371f72b, transparent);
+    }
+
+    .desk-scale {
+      position: relative;
+      width: 1080px;
+      height: 900px;
+      flex: none;
+      transform: scale(0.58);
+      transform-origin: top center;
+    }
+
+    .desk-scale #dw-root {
+      position: absolute !important;
+      left: 0 !important;
+      right: auto !important;
+      top: 0 !important;
+      max-height: 450px !important;
+    }
+
+    .desk-scale #cw-root {
+      position: absolute !important;
+      left: 452px !important;
+      right: auto !important;
+      top: 0 !important;
+    }
+
+    .desk-scale #ww-root {
+      position: absolute !important;
+      left: 800px !important;
+      top: 0 !important;
+    }
+
     /* 预览里为第二排新增组件定位（带壁纸的迷你桌面，纯展示用） */
-    .desk-scale #wc-root { position: absolute !important; left: 0 !important; top: 620px !important; width: 250px !important; }
-    .desk-scale #nt-root { position: absolute !important; left: 266px !important; top: 620px !important; width: 260px !important; }
-    .desk-scale #td-root { position: absolute !important; left: 542px !important; top: 620px !important; width: 280px !important; }
-    .desk-scale #mn-root { position: absolute !important; left: 838px !important; top: 620px !important; width: 242px !important; }
+    .desk-scale #wc-root {
+      position: absolute !important;
+      left: 0 !important;
+      top: 620px !important;
+      width: 250px !important;
+    }
+
+    .desk-scale #nt-root {
+      position: absolute !important;
+      left: 266px !important;
+      top: 620px !important;
+      width: 260px !important;
+    }
+
+    .desk-scale #td-root {
+      position: absolute !important;
+      left: 542px !important;
+      top: 620px !important;
+      width: 280px !important;
+    }
+
+    .desk-scale #mn-root {
+      position: absolute !important;
+      left: 838px !important;
+      top: 620px !important;
+      width: 242px !important;
+    }
+
     /* 预览里隐藏关闭 / 最小化 / 固定，避免误关真实开关或回写 visible / min / pinned */
-    .desk-scale #dw-root .dw-close-btn, .desk-scale #dw-root .dw-min-btn, .desk-scale #dw-root .dw-pin-btn,
-    .desk-scale #cw-root .cw-close-btn, .desk-scale #cw-root .cw-min-btn, .desk-scale #cw-root .cw-pin-btn,
-    .desk-scale #ww-root .ww-x, .desk-scale #ww-root .ww-min, .desk-scale #ww-root .ww-pin { display: none !important; }
+    .desk-scale #dw-root .dw-close-btn,
+    .desk-scale #dw-root .dw-min-btn,
+    .desk-scale #dw-root .dw-pin-btn,
+    .desk-scale #cw-root .cw-close-btn,
+    .desk-scale #cw-root .cw-min-btn,
+    .desk-scale #cw-root .cw-pin-btn,
+    .desk-scale #ww-root .ww-x,
+    .desk-scale #ww-root .ww-min,
+    .desk-scale #ww-root .ww-pin {
+      display: none !important;
+    }
 
     /* 组件卡：两列网格，宽屏并排、窄屏单列，缩短页面避免反复滚动 */
-    .widgets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px; align-items: start; margin-bottom: 18px; }
-    .widget { display: flex; gap: 14px; align-items: flex-start;
-      background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-      padding: 16px; }
-    @media (max-width: 720px) { .widgets { grid-template-columns: 1fr; } }
-    /* 关闭的组件卡：整体压暗，一眼看出哪些没开 */
-    .widget.off { opacity: .55; }
-    .widget.off:hover { opacity: .8; }
-    .wicon { width: 46px; height: 46px; border-radius: 11px; flex: none;
-      display: grid; place-items: center; font-size: 24px;
-      background: linear-gradient(135deg, #1f6feb, #388bfd); color: #fff; }
-    .wbody { flex: 1; min-width: 0; }
-    .wtop { display: flex; align-items: center; gap: 10px; }
-    .wtitle { color: #e6edf3; font-size: 15px; font-weight: 600; }
-    .wdesc { font-size: 13px; color: #8b949e; margin-top: 3px; }
-    .wstatus { font-size: 12px; margin-top: 7px; display: flex; align-items: center; gap: 6px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #6e7681; flex: none; }
-    .wstatus.on .dot { background: #3fb950; box-shadow: 0 0 6px #3fb95099; }
+    .widgets {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
 
-    label { display: block; font-size: 13px; margin-bottom: 6px; color: #c9d1d9; }
-    label .hint { color: #8b949e; font-weight: 400; }
-    input[type=text] { width: 100%; box-sizing: border-box; background: #0d1117;
-      border: 1px solid #30363d; color: #e6edf3; border-radius: 6px;
-      padding: 9px 11px; font-size: 14px; font-family: inherit; }
-    input[type=text]:focus { outline: none; border-color: #388bfd; }
-    .field { margin-bottom: 12px; }
-    .field:last-child { margin-bottom: 0; }
-    .row { margin-top: 10px; }
+    .widget {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    @media (max-width: 720px) {
+      .widgets {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* 关闭的组件卡：整体压暗，一眼看出哪些没开 */
+    .widget.off {
+      opacity: .55;
+    }
+
+    .widget.off:hover {
+      opacity: .8;
+    }
+
+    .wicon {
+      width: 46px;
+      height: 46px;
+      border-radius: 11px;
+      flex: none;
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      background: linear-gradient(135deg, #1f6feb, #388bfd);
+      color: #fff;
+    }
+
+    .wbody {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .wtop {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .wtitle {
+      color: #e6edf3;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .wdesc {
+      font-size: 13px;
+      color: #8b949e;
+      margin-top: 3px;
+    }
+
+    .wstatus {
+      font-size: 12px;
+      margin-top: 7px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6e7681;
+      flex: none;
+    }
+
+    .wstatus.on .dot {
+      background: #3fb950;
+      box-shadow: 0 0 6px #3fb95099;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: #c9d1d9;
+    }
+
+    label .hint {
+      color: #8b949e;
+      font-weight: 400;
+    }
+
+    input[type=text] {
+      width: 100%;
+      box-sizing: border-box;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      border-radius: 6px;
+      padding: 9px 11px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    input[type=text]:focus {
+      outline: none;
+      border-color: #388bfd;
+    }
+
+    select {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font: 14px/1.4 inherit;
+    }
+
+    select:focus {
+      outline: none;
+      border-color: #388bfd;
+    }
+
+    .themectl {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .themectl label {
+      margin: 0;
+      color: #c9d1d9;
+    }
+
+    .field {
+      margin-bottom: 12px;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
+    }
+
+    .row {
+      margin-top: 10px;
+    }
 
     /* iOS 风格开关 */
-    .switch { position: relative; display: inline-block; width: 46px; height: 26px; flex: none; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; inset: 0; background: #30363d; border-radius: 999px;
-      transition: background .2s; cursor: pointer; }
-    .slider::before { content: ""; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
-      background: #fff; border-radius: 50%; transition: transform .2s; }
-    .switch input:checked + .slider { background: #238636; }
-    .switch input:checked + .slider::before { transform: translateX(20px); }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 26px;
+      flex: none;
+    }
 
-    .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    button { cursor: pointer; border-radius: 7px; padding: 9px 18px; font-size: 14px;
-      font-weight: 600; font-family: inherit; border: 1px solid transparent; }
-    .btn-save { background: #1f6feb; color: #fff; border-color: #388bfd66; }
-    .btn-save:hover:not(:disabled) { background: #388bfd; }
-    .btn-inject { background: #238636; color: #fff; border-color: #2ea04366; padding: 10px 22px; }
-    .btn-inject:hover:not(:disabled) { background: #2ea043; }
-    .btn-clean { background: #9e6a03; color: #fff; border-color: #d2992266; }
-    .btn-clean:hover:not(:disabled) { background: #bb8009; }
-    .btn-rescue { background: #da3633; color: #fff; border-color: #f8514966; }
-    .btn-rescue:hover:not(:disabled) { background: #f85149; }
-    button:disabled { opacity: .6; cursor: default; }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
 
-    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 16px; }
-    .card h3 { color: #c9d1d9; font-size: 15px; margin: 0; }
-    .card.rescue { margin-top: 18px; }
-    .rescue-tip { font-size: 13px; margin: 12px 0; }
-    pre.diag { background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
-      padding: 10px; font-size: 12px; color: #8b949e; white-space: pre-wrap;
-      word-break: break-all; max-height: 240px; overflow: auto; margin: 12px 0 0; }
-    .msg { font-size: 13px; color: #8b949e; }
-    code { background: #0d1117; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #30363d;
+      border-radius: 999px;
+      transition: background .2s;
+      cursor: pointer;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .2s;
+    }
+
+    .switch input:checked+.slider {
+      background: #238636;
+    }
+
+    .switch input:checked+.slider::before {
+      transform: translateX(20px);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      cursor: pointer;
+      border-radius: 7px;
+      padding: 9px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      border: 1px solid transparent;
+    }
+
+    .btn-save {
+      background: #1f6feb;
+      color: #fff;
+      border-color: #388bfd66;
+    }
+
+    .btn-save:hover:not(:disabled) {
+      background: #388bfd;
+    }
+
+    .btn-inject {
+      background: #238636;
+      color: #fff;
+      border-color: #2ea04366;
+      padding: 10px 22px;
+    }
+
+    .btn-inject:hover:not(:disabled) {
+      background: #2ea043;
+    }
+
+    .btn-clean {
+      background: #9e6a03;
+      color: #fff;
+      border-color: #d2992266;
+    }
+
+    .btn-clean:hover:not(:disabled) {
+      background: #bb8009;
+    }
+
+    .btn-rescue {
+      background: #da3633;
+      color: #fff;
+      border-color: #f8514966;
+    }
+
+    .btn-rescue:hover:not(:disabled) {
+      background: #f85149;
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: default;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .card h3 {
+      color: #c9d1d9;
+      font-size: 15px;
+      margin: 0;
+    }
+
+    .card.rescue {
+      margin-top: 18px;
+    }
+
+    .rescue-tip {
+      font-size: 13px;
+      margin: 12px 0;
+    }
+
+    pre.diag {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 12px;
+      color: #8b949e;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 240px;
+      overflow: auto;
+      margin: 12px 0 0;
+    }
+
+    .msg {
+      font-size: 13px;
+      color: #8b949e;
+    }
+
+    code {
+      background: #0d1117;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #e6edf3;
+    }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <h2>🧩 RONGLINC93 小组件</h2>
     <p class="sub">管理显示在飞牛桌面上的小组件。下方是桌面上真实的悬浮窗（可拖拽 / 缩放），改完配置点「注入桌面」生效。</p>
-
-    <!-- 桌面预览：真实悬浮窗并排 -->
-    <div class="stagecard">
-      <h3>🖥 桌面预览</h3>
-      <p class="stage-tip">这就是桌面上真实的悬浮窗样子 —— 可拖动、可缩放，不是示意图。</p>
-      <div class="desktop"><div class="desk-scale" id="stage"></div></div>
-    </div>
 
     <!-- 顶部主操作栏 -->
     <div class="bar">
@@ -133,145 +508,163 @@
         <b>桌面注入</b>
         <span>把已开启的小组件注入到飞牛桌面</span>
       </div>
+      <div class="themectl">
+        <label for="themeSel">外观</label>
+        <select id="themeSel">
+          <option value="system">跟随系统</option>
+          <option value="dark">夜间</option>
+          <option value="light">日间</option>
+        </select>
+      </div>
       <button id="injectBtn" class="btn-inject">注入桌面</button>
       <button id="cleanupBtn" class="btn-clean">清理残留</button>
       <span id="globalMsg" class="msg"></span>
     </div>
 
+    <!-- 桌面预览：真实悬浮窗并排 -->
+    <div class="stagecard">
+      <h3>🖥 桌面预览</h3>
+      <p class="stage-tip">这就是桌面上真实的悬浮窗样子 —— 可拖动、可缩放，不是示意图。</p>
+      <div class="desktop">
+        <div class="desk-scale" id="stage"></div>
+      </div>
+    </div>
+
     <div class="widgets">
-    <!-- 目录浏览器 -->
-    <div class="widget">
-      <div class="wicon">📁</div>
-      <div class="wbody">
-        <div class="wtop">
-          <span class="wtitle">目录浏览器</span>
-          <label class="switch" style="margin-left:auto">
-            <input id="visibleChk" type="checkbox" checked />
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="wdesc">在桌面浏览 NAS 目录，支持预览 / 搜索 / 排序</div>
-        <div class="wstatus" id="dirStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="wconfig">
-          <div class="field">
-            <label for="pathInput">要显示的目录，例如 <code>/vol1/share</code></label>
-            <input id="pathInput" type="text" placeholder="/vol1/share" />
+      <!-- 目录浏览器 -->
+      <div class="widget">
+        <div class="wicon">📁</div>
+        <div class="wbody">
+          <div class="wtop">
+            <span class="wtitle">目录浏览器</span>
+            <label class="switch" style="margin-left:auto">
+              <input id="visibleChk" type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
           </div>
-          <div class="field">
-            <label for="rootInput">主目录边界 <span class="hint">（向上不可越过，留空 = 不限制）例如 <code>/vol1</code></span></label>
-            <input id="rootInput" type="text" placeholder="/vol1（留空表示不限制）" />
+          <div class="wdesc">在桌面浏览 NAS 目录，支持预览 / 搜索 / 排序</div>
+          <div class="wstatus" id="dirStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="wconfig">
+            <div class="field">
+              <label for="pathInput">要显示的目录，例如 <code>/vol1/share</code></label>
+              <input id="pathInput" type="text" placeholder="/vol1/share" />
+            </div>
+            <div class="field">
+              <label for="rootInput">主目录边界 <span class="hint">（向上不可越过，留空 = 不限制）例如 <code>/vol1</code></span></label>
+              <input id="rootInput" type="text" placeholder="/vol1（留空表示不限制）" />
+            </div>
+            <div class="row"><span id="dirMsg" class="msg"></span></div>
           </div>
-          <div class="row"><span id="dirMsg" class="msg"></span></div>
         </div>
       </div>
-    </div>
 
-    <!-- 日历 -->
-    <div class="widget">
-      <div class="wicon" style="background:linear-gradient(135deg,#8957e5,#a371f7)">📅</div>
-      <div class="wbody">
-        <div class="wtop">
-          <span class="wtitle">日历</span>
-          <label class="switch" style="margin-left:auto">
-            <input id="calVisibleChk" type="checkbox" checked />
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="wdesc">月历 + 实时时钟（星期 / 第几周）+ 每日备忘</div>
-        <div class="wstatus" id="calStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="row"><span id="calVisibleMsg" class="msg"></span></div>
-      </div>
-    </div>
-
-    <!-- 天气 -->
-    <div class="widget">
-      <div class="wicon" style="background:linear-gradient(135deg,#1f6feb,#39c5cf)">🌤</div>
-      <div class="wbody">
-        <div class="wtop">
-          <span class="wtitle">天气</span>
-          <label class="switch" style="margin-left:auto">
-            <input id="weatherVisibleChk" type="checkbox" checked />
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="wdesc">实时天气 + 未来 6 天预报（Open-Meteo，免 API Key）</div>
-        <div class="wstatus" id="weatherStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="wconfig">
-          <div class="field">
-            <label for="weatherLocInput">地点 <span class="hint">（城市名，或 <code>lat,lon</code>，例如 <code>北京</code> / <code>31.23,121.47</code>）</span></label>
-            <input id="weatherLocInput" type="text" placeholder="北京" />
+      <!-- 日历 -->
+      <div class="widget">
+        <div class="wicon" style="background:linear-gradient(135deg,#8957e5,#a371f7)">📅</div>
+        <div class="wbody">
+          <div class="wtop">
+            <span class="wtitle">日历</span>
+            <label class="switch" style="margin-left:auto">
+              <input id="calVisibleChk" type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
           </div>
-          <div class="row"><span id="weatherMsg" class="msg"></span></div>
+          <div class="wdesc">月历 + 实时时钟（星期 / 第几周）+ 每日备忘</div>
+          <div class="wstatus" id="calStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="row"><span id="calVisibleMsg" class="msg"></span></div>
         </div>
       </div>
-    </div>
-    <!-- 世界时钟 -->
-    <div class="widget">
-      <div class="wicon" style="background:linear-gradient(135deg,#1f6feb,#39c5cf)">🕐</div>
-      <div class="wbody">
-        <div class="wtop">
-          <span class="wtitle">世界时钟</span>
-          <label class="switch" style="margin-left:auto">
-            <input id="wcVisibleChk" type="checkbox" checked />
-            <span class="slider"></span>
-          </label>
-        </div>
-        <div class="wdesc">多时区时钟，添加任意城市 / IANA 时区</div>
-        <div class="wstatus" id="wcStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="row"><span id="wcVisibleMsg" class="msg"></span></div>
-      </div>
-    </div>
 
-    <!-- 便签 -->
-    <div class="widget">
-      <div class="wicon" style="background:linear-gradient(135deg,#d29922,#e3b341)">📝</div>
-      <div class="wbody">
-        <div class="wtop">
-          <span class="wtitle">便签</span>
-          <label class="switch" style="margin-left:auto">
-            <input id="ntVisibleChk" type="checkbox" checked />
-            <span class="slider"></span>
-          </label>
+      <!-- 天气 -->
+      <div class="widget">
+        <div class="wicon" style="background:linear-gradient(135deg,#1f6feb,#39c5cf)">🌤</div>
+        <div class="wbody">
+          <div class="wtop">
+            <span class="wtitle">天气</span>
+            <label class="switch" style="margin-left:auto">
+              <input id="weatherVisibleChk" type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="wdesc">实时天气 + 未来 6 天预报（Open-Meteo，免 API Key）</div>
+          <div class="wstatus" id="weatherStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="wconfig">
+            <div class="field">
+              <label for="weatherLocInput">地点 <span class="hint">（城市名，或 <code>lat,lon</code>，例如 <code>北京</code> /
+                  <code>31.23,121.47</code>）</span></label>
+              <input id="weatherLocInput" type="text" placeholder="北京" />
+            </div>
+            <div class="row"><span id="weatherMsg" class="msg"></span></div>
+          </div>
         </div>
-        <div class="wdesc">桌面便签，支持多张、换色、置顶</div>
-        <div class="wstatus" id="ntStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="row"><span id="ntVisibleMsg" class="msg"></span></div>
       </div>
-    </div>
+      <!-- 世界时钟 -->
+      <div class="widget">
+        <div class="wicon" style="background:linear-gradient(135deg,#1f6feb,#39c5cf)">🕐</div>
+        <div class="wbody">
+          <div class="wtop">
+            <span class="wtitle">世界时钟</span>
+            <label class="switch" style="margin-left:auto">
+              <input id="wcVisibleChk" type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="wdesc">多时区时钟，添加任意城市 / IANA 时区</div>
+          <div class="wstatus" id="wcStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="row"><span id="wcVisibleMsg" class="msg"></span></div>
+        </div>
+      </div>
 
-    <!-- 待办清单 -->
-    <div class="widget">
-      <div class="wicon" style="background:linear-gradient(135deg,#238636,#2ea043)">✅</div>
-      <div class="wbody">
-        <div class="wtop">
-          <span class="wtitle">待办清单</span>
-          <label class="switch" style="margin-left:auto">
-            <input id="tdVisibleChk" type="checkbox" checked />
-            <span class="slider"></span>
-          </label>
+      <!-- 便签 -->
+      <div class="widget">
+        <div class="wicon" style="background:linear-gradient(135deg,#d29922,#e3b341)">📝</div>
+        <div class="wbody">
+          <div class="wtop">
+            <span class="wtitle">便签</span>
+            <label class="switch" style="margin-left:auto">
+              <input id="ntVisibleChk" type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="wdesc">桌面便签，支持多张、换色、置顶</div>
+          <div class="wstatus" id="ntStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="row"><span id="ntVisibleMsg" class="msg"></span></div>
         </div>
-        <div class="wdesc">可勾选的待办，增删改自动保存</div>
-        <div class="wstatus" id="tdStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="row"><span id="tdVisibleMsg" class="msg"></span></div>
       </div>
-    </div>
 
-    <!-- 系统监控 -->
-    <div class="widget">
-      <div class="wicon" style="background:linear-gradient(135deg,#8957e5,#a371f7)">📊</div>
-      <div class="wbody">
-        <div class="wtop">
-          <span class="wtitle">系统监控</span>
-          <label class="switch" style="margin-left:auto">
-            <input id="mnVisibleChk" type="checkbox" checked />
-            <span class="slider"></span>
-          </label>
+      <!-- 待办清单 -->
+      <div class="widget">
+        <div class="wicon" style="background:linear-gradient(135deg,#238636,#2ea043)">✅</div>
+        <div class="wbody">
+          <div class="wtop">
+            <span class="wtitle">待办清单</span>
+            <label class="switch" style="margin-left:auto">
+              <input id="tdVisibleChk" type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="wdesc">可勾选的待办，增删改自动保存</div>
+          <div class="wstatus" id="tdStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="row"><span id="tdVisibleMsg" class="msg"></span></div>
         </div>
-        <div class="wdesc">CPU / 内存 / 磁盘占用（fnOS 本机）</div>
-        <div class="wstatus" id="mnStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
-        <div class="row"><span id="mnVisibleMsg" class="msg"></span></div>
       </div>
-    </div>
+
+      <!-- 系统监控 -->
+      <div class="widget">
+        <div class="wicon" style="background:linear-gradient(135deg,#8957e5,#a371f7)">📊</div>
+        <div class="wbody">
+          <div class="wtop">
+            <span class="wtitle">系统监控</span>
+            <label class="switch" style="margin-left:auto">
+              <input id="mnVisibleChk" type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="wdesc">CPU / 内存 / 磁盘占用（fnOS 本机）</div>
+          <div class="wstatus" id="mnStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="row"><span id="mnVisibleMsg" class="msg"></span></div>
+        </div>
+      </div>
 
     </div>
 
@@ -308,6 +701,18 @@
     var rescueToggle = $("rescueToggle"), rescuePanel = $("rescuePanel");
     var rescueBtn = $("rescueBtn"), diagBtn = $("diagBtn");
     var diagOut = $("diagOut");
+    var themeSel = $("themeSel");
+
+    // 主题：dark/light 直接套 data-theme；system 按系统配色解析并随系统切换
+    function applyTheme(t) {
+      var html = document.documentElement;
+      if (t === "light" || t === "dark") {
+        html.setAttribute("data-theme", t);
+      } else {
+        var mq = window.matchMedia("(prefers-color-scheme: light)");
+        html.setAttribute("data-theme", mq.matches ? "light" : "dark");
+      }
+    }
 
     // 与组件脚本一致：经 /rl93w/ 反代时 API 要加前缀
     var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
@@ -500,6 +905,10 @@
           if (ntVisibleChk) { ntVisibleChk.checked = st.notes_visible !== false; setStatus($("ntStatus"), ntVisibleChk.checked); }
           if (tdVisibleChk) { tdVisibleChk.checked = st.todo_visible !== false; setStatus($("tdStatus"), tdVisibleChk.checked); }
           if (mnVisibleChk) { mnVisibleChk.checked = st.monitor_visible !== false; setStatus($("mnStatus"), mnVisibleChk.checked); }
+          // 主题：用已保存值初始化下拉并套用到预览浮窗
+          var savedTheme = st.theme || "system";
+          if (themeSel) themeSel.value = savedTheme;
+          applyTheme(savedTheme);
           mountStage(st);
         })
         .catch(function () { mountStage({}); });
@@ -558,6 +967,19 @@
         .catch(function (e) { $("globalMsg").textContent = "❌ " + e.message; })
         .then(function () { cleanupBtn.disabled = false; });
     });
+
+    // 主题：切换即保存并实时套用到预览浮窗
+    if (themeSel) {
+      themeSel.addEventListener("change", function () {
+        var label = themeSel.options[themeSel.selectedIndex].text;
+        saveSettings({ theme: themeSel.value }, $("globalMsg"), "✅ 外观已保存（" + label + "）");
+        applyTheme(themeSel.value);
+      });
+      // 系统配色变化时，若当前为「跟随系统」则同步刷新
+      var mq = window.matchMedia("(prefers-color-scheme: light)");
+      var onScheme = function () { if (themeSel.value === "system") applyTheme("system"); };
+      if (mq.addEventListener) mq.addEventListener("change", onScheme); else if (mq.addListener) mq.addListener(onScheme);
+    }
 
     // 急救：默认折叠，展开时自动体检一次
     function runDiag() {
@@ -635,4 +1057,5 @@
   <script src="static/todo-widget.js"></script>
   <script src="static/monitor-widget.js"></script>
 </body>
+
 </html>
