@@ -1,5 +1,7 @@
 /* 系统监控悬浮窗组件（数据来自 GET /api/monitor：Linux /proc，异常降级）
  * 用法：MonitorWidget.mount({ settingsApi, monitorApi, pos, size, min, pinned })
+ *   monitorApi 既可以是接口 URL（GET 拉取 JSON），也可以是函数（演示场景直接供数，
+ *   同步返回 stats 或返回 Promise<stats>），便于无后端时展示模拟数据。
  */
 (function () {
   "use strict";
@@ -55,6 +57,14 @@
       }
 
       function poll() {
+        if (typeof API === "function") {          // 演示场景：函数直接供数
+          try {
+            var r = API();
+            if (r && typeof r.then === "function") r.then(render).catch(function () { render(null); });
+            else render(r);
+          } catch (e) { render(null); }
+          return;
+        }
         if (!API) { render(null); return; }
         fetch(API, { cache: "no-store" }).then(function (r) { return r.json(); })
           .then(render).catch(function () { render(null); });

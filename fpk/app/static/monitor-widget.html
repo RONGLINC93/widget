@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>系统监控悬浮窗 · 演示</title>
+  <link rel="stylesheet" href="widget-shell.css" />
+  <style>
+    body { margin: 0; min-height: 100vh;
+      background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
+      color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+    .hint { max-width: 640px; margin: 48px auto; padding: 0 16px; }
+    .hint code { background: #161b22; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
+    .btn-primary { background: #238636; color: #fff; border: 1px solid #2ea04366;
+      padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;
+      font-weight: 600; font-family: inherit; }
+    .btn-primary:hover:not(:disabled) { background: #2ea043; }
+    .btn-primary:disabled { opacity: .6; cursor: default; }
+    .inject-msg { margin-left: 10px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="hint">
+    <h2>📊 系统监控悬浮窗组件</h2>
+    <p>右上角浮层即为组件：CPU / 内存 / 磁盘进度条 + 已运行时间。</p>
+    <p>可拖拽标题栏移动、拖右下角把手缩放（双击恢复默认）、最小化、关闭。</p>
+    <p>数据来自 <code>GET /api/monitor</code>（Linux <code>/proc</code>，异常降级）。
+       本演示页无后端，用<b>模拟数据</b>供数展示效果；注入到 fnOS 桌面后即为真实监控。</p>
+    <p>
+      <button id="injectBtn" class="btn-primary">应用到桌面（注入显示）</button>
+      <span id="injectMsg" class="inject-msg"></span>
+    </p>
+  </div>
+
+  <script>window.__mn_noauto = true;</script>
+  <script src="widget-shell.js"></script>
+  <script src="monitor-widget.js"></script>
+  <script>
+    // 演示：无后端时用模拟数据（随机漫步）供数，让浮窗有实时变化的内容；
+    // 注入到 fnOS 桌面后由 inject.js 换成真实的 GET /api/monitor。
+    var sim = {
+      ok: true, cpu: 23,
+      mem: { percent: 61, used: 9.2e9, total: 16e9 },
+      disk: { path: "C:", percent: 74, used: 376e9, total: 512e9 },
+      uptime: 3 * 86400 + 5 * 3600 + 42 * 60
+    };
+    function walk(v, step, lo, hi) {
+      return Math.max(lo, Math.min(hi, v + (Math.random() * 2 - 1) * step));
+    }
+    MonitorWidget.mount({
+      settingsApi: null,
+      monitorApi: function () {
+        sim.cpu = walk(sim.cpu, 6, 3, 97);
+        sim.mem.percent = walk(sim.mem.percent, 1.5, 30, 92);
+        sim.mem.used = sim.mem.total * sim.mem.percent / 100;
+        sim.disk.percent = walk(sim.disk.percent, 0.05, 60, 90);
+        sim.disk.used = sim.disk.total * sim.disk.percent / 100;
+        sim.uptime += 2;                      // 与 2s 轮询同步
+        return sim;
+      },
+      pos: null, size: null
+    });
+  </script>
+  <script>
+    var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
+    var injectBtn = document.getElementById("injectBtn");
+    var injectMsg = document.getElementById("injectMsg");
+    if (!BASE) {
+      injectBtn.disabled = true;
+      injectMsg.textContent = "（需在 fnOS 内经由 /rl93w/ 访问才能注入桌面）";
+    }
+    injectBtn.addEventListener("click", function () {
+      injectBtn.disabled = true;
+      injectMsg.textContent = "正在注入桌面…（会写 ng.conf.zip 并重启 nginx，请稍候）";
+      fetch(BASE + "/api/inject", { method: "POST" })
+        .then(function (r) {
+          return r.json().catch(function () {
+            return { status: "error", message: "HTTP " + r.status };
+          });
+        })
+        .then(function (j) {
+          if (j.status === "success") {
+            injectMsg.textContent = "✅ 已注入桌面，刷新桌面即可看到浮层（" + (j.message || "") + "）";
+          } else {
+            injectMsg.textContent = "⚠ 注入失败：" + (j.message || j.status);
+          }
+        })
+        .catch(function (e) {
+          injectMsg.textContent = "❌ 请求失败：" + e.message;
+        })
+        .then(function () { injectBtn.disabled = false; });
+    });
+  </script>
+</body>
+</html>

@@ -37,13 +37,13 @@
   <script src="calendar-widget.js"></script>
   <script>
     // 本页可能从根路径(/static/calendar-widget.html)或经 nginx 反代
-    // (/calw/static/calendar-widget.html)加载，两种场景下 API 前缀不同，需自适应。
-    var BASE = location.pathname.indexOf("/calw/") === 0 ? "/calw" : "";
+    // (/rl93w/static/calendar-widget.html)加载，两种场景下 API 前缀不同，需自适应。
+    var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
     var injectBtn = document.getElementById("injectBtn");
     var injectMsg = document.getElementById("injectMsg");
     if (!BASE) {
       injectBtn.disabled = true;
-      injectMsg.textContent = "（需在 fnOS 内经由 /calw/ 访问才能注入桌面）";
+      injectMsg.textContent = "（需在 fnOS 内经由 /rl93w/ 访问才能注入桌面）";
     }
     injectBtn.addEventListener("click", function () {
       injectBtn.disabled = true;

@@ -252,7 +252,9 @@
         '</div>' +
         '<div class="rl-body" id="' + ID + '-body"></div>' +
         (preview ? "" : '<div class="rl-rsz" id="' + ID + '-rsz" title="拖拽缩放"></div>');
-      BODY = el(ID + "-body");
+      // 注意：此刻 ROOT 尚未插入文档，getElementById 找不到子节点（返回 null），
+      // 必须在 ROOT 自身范围内查询；否则 build(body=null) 抛错 → 四个组件内容区全空。
+      BODY = ROOT.querySelector(".rl-body");
       var host = OPTS.container || document.body || document.documentElement;
       host.appendChild(ROOT);
       MIN = ("min" in OPTS) ? !!OPTS.min : false;

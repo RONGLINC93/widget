@@ -366,26 +366,27 @@
       });
 
       // ---- 4 个新增组件预览（preview:true 不渲染关闭/最小化/固定按钮，避免误改真实状态）----
-      if (stageWc) stageWc.unmount();
+      // 外壳 mount() 返回 { root, refresh, destroy }，销毁用 destroy()（没有 unmount 方法）
+      if (stageWc) stageWc.destroy();
       stageWc = WorldClockWidget.mount({
         settingsApi: BASE + "/api/worldclock_settings",
         cities: (settings.worldclock_cities) || [{ name: "本地", tz: "" }],
         container: stage, preview: true, draggable: false
       });
 
-      if (stageNt) stageNt.unmount();
+      if (stageNt) stageNt.destroy();
       stageNt = NotesWidget.mount({
         settingsApi: null, notesApi: BASE + "/api/notes",
         container: stage, preview: true, draggable: false
       });
 
-      if (stageTd) stageTd.unmount();
+      if (stageTd) stageTd.destroy();
       stageTd = TodoWidget.mount({
         settingsApi: null, todosApi: BASE + "/api/todos",
         container: stage, preview: true, draggable: false
       });
 
-      if (stageMn) stageMn.unmount();
+      if (stageMn) stageMn.destroy();
       stageMn = MonitorWidget.mount({
         settingsApi: BASE + "/api/monitor_settings", monitorApi: BASE + "/api/monitor",
         container: stage, preview: true, draggable: false

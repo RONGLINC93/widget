@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>待办清单悬浮窗 · 演示</title>
+  <link rel="stylesheet" href="widget-shell.css" />
+  <style>
+    body { margin: 0; min-height: 100vh;
+      background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
+      color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+    .hint { max-width: 640px; margin: 48px auto; padding: 0 16px; }
+    .hint code { background: #161b22; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
+    .btn-primary { background: #238636; color: #fff; border: 1px solid #2ea04366;
+      padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;
+      font-weight: 600; font-family: inherit; }
+    .btn-primary:hover:not(:disabled) { background: #2ea043; }
+    .btn-primary:disabled { opacity: .6; cursor: default; }
+    .inject-msg { margin-left: 10px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="hint">
+    <h2>✅ 待办清单悬浮窗组件</h2>
+    <p>右上角浮层即为组件：勾选完成、删除、回车新增一项待办。</p>
+    <p>可拖拽标题栏移动、拖右下角把手缩放（双击恢复默认）、最小化、关闭。</p>
+    <p>本演示页没有后端，数据暂存内存；在 fnOS 上则由服务端持久化到 <code>todos.json</code>。</p>
+    <p>
+      <button id="injectBtn" class="btn-primary">应用到桌面（注入显示）</button>
+      <span id="injectMsg" class="inject-msg"></span>
+    </p>
+  </div>
+
+  <script src="widget-shell.js"></script>
+  <script src="todo-widget.js"></script>
+  <script>
+    var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
+    var injectBtn = document.getElementById("injectBtn");
+    var injectMsg = document.getElementById("injectMsg");
+    if (!BASE) {
+      injectBtn.disabled = true;
+      injectMsg.textContent = "（需在 fnOS 内经由 /rl93w/ 访问才能注入桌面）";
+    }
+    injectBtn.addEventListener("click", function () {
+      injectBtn.disabled = true;
+      injectMsg.textContent = "正在注入桌面…（会写 ng.conf.zip 并重启 nginx，请稍候）";
+      fetch(BASE + "/api/inject", { method: "POST" })
+        .then(function (r) {
+          return r.json().catch(function () {
+            return { status: "error", message: "HTTP " + r.status };
+          });
+        })
+        .then(function (j) {
+          if (j.status === "success") {
+            injectMsg.textContent = "✅ 已注入桌面，刷新桌面即可看到浮层（" + (j.message || "") + "）";
+          } else {
+            injectMsg.textContent = "⚠ 注入失败：" + (j.message || j.status);
+          }
+        })
+        .catch(function (e) {
+          injectMsg.textContent = "❌ 请求失败：" + e.message;
+        })
+        .then(function () { injectBtn.disabled = false; });
+    });
+  </script>
+</body>
+</html>
