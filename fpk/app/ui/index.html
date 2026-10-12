@@ -90,10 +90,15 @@
       overflow: auto;
     }
 
-    /* 迷你桌面：带壁纸的框，三个真实浮窗缩放并排摆进去（真浮窗、不滚动） */
+    /* 迷你桌面：带壁纸的框，真实浮窗按 --desk-k 缩放并排摆进去（真浮窗、不滚动）
+       --desk-k 由脚本按容器宽度算出（内容正好铺满框宽），--desk-h 是浮窗内容的逻辑高度，
+       框高 = 逻辑高 × 缩放比，这样缩放后不会在下方留一大片空白，也不会裁掉异步加载的长卡片。 */
     .desktop {
+      --desk-k: .58;
+      --desk-h: 800px;
       position: relative;
       width: 100%;
+      height: calc(var(--desk-h) * var(--desk-k));
       overflow: hidden;
       border-radius: 10px;
       border: 1px solid #30363d;
@@ -112,62 +117,66 @@
         radial-gradient(480px 260px at 8% 96%, #a371f72b, transparent);
     }
 
+    /* 舞台：宽 / 高都由脚本按排版结果写进 inline style，这里的值只是初始占位 */
     .desk-scale {
       position: relative;
-      width: 1080px;
-      height: 900px;
+      width: 1100px;
+      height: var(--desk-h, 800px);
       flex: none;
-      transform: scale(0.58);
+      transform: scale(var(--desk-k, .58));
       transform-origin: top center;
     }
 
+    /* 浮窗在预览里的 left / top 由脚本统一排版后写进 inline style：排满一行再换行、
+       与前一个卡片之间留间距，保证互不重叠（内容变高会把后面的卡片往下推）。
+       所以下面这些 left / top 只是脚本跑之前的初始占位，不能带 !important（否则 inline 改不动）。 */
     .desk-scale #dw-root {
       position: absolute !important;
-      left: 0 !important;
+      left: 0;
       right: auto !important;
-      top: 0 !important;
+      top: 0;
       max-height: 450px !important;
     }
 
     .desk-scale #cw-root {
       position: absolute !important;
-      left: 452px !important;
+      left: 442px;
       right: auto !important;
-      top: 0 !important;
+      top: 0;
     }
 
     .desk-scale #ww-root {
       position: absolute !important;
-      left: 800px !important;
-      top: 0 !important;
+      left: 784px;
+      top: 0;
     }
 
-    /* 预览里为第二排新增组件定位（带壁纸的迷你桌面，纯展示用） */
+    /* 第二排组件：宽度在这里定死（排版脚本按它算换行），left / top 同样是初始占位 */
     .desk-scale #wc-root {
       position: absolute !important;
-      left: 0 !important;
-      top: 620px !important;
+      left: 0;
+      top: 666px;
       width: 250px !important;
     }
 
     .desk-scale #nt-root {
       position: absolute !important;
-      left: 266px !important;
-      top: 620px !important;
+      left: 270px;
+      top: 666px;
       width: 260px !important;
     }
 
     .desk-scale #td-root {
       position: absolute !important;
-      left: 542px !important;
-      top: 620px !important;
+      left: 550px;
+      top: 666px;
       width: 280px !important;
     }
 
     .desk-scale #mn-root {
       position: absolute !important;
-      left: 838px !important;
-      top: 620px !important;
+      left: 850px;
+      top: 666px;
       width: 242px !important;
     }
 
@@ -828,6 +837,80 @@
     var stageDir = null, stageCal = null, stageWx = null;
     var stageWc = null, stageNt = null, stageTd = null, stageMn = null;
 
+    // ---- 预览排版 + 自适应：浮窗按「排满一行再换行」摆放（互不重叠），再按容器宽度等比缩放 ----
+    var deskBox = document.querySelector(".desktop");
+    var STAGE_ROW_W = 1120;                   // 一行允许的最大逻辑宽度，放不下就换行
+    var STAGE_GAP_X = 20, STAGE_GAP_Y = 26;   // 卡片之间的横向 / 纵向间距
+    var STAGE_K_MIN = .32, STAGE_K_MAX = 1.6; // 缩放比上下限
+    var STAGE_K_SCALE = .5;                    // 整体再缩小一半（「同步缩小 50%」）：在自适应 k 之上叠加
+    var stageW = 0, stageH = 0, stageK = 0, stageRO = null, stageFitQueued = false;
+
+    // 舞台里的浮窗（预览都用 absolute 定位在 #stage 里，fixed 之类的排除掉）
+    function stageCards() {
+      var out = [];
+      for (var i = 0; i < stage.children.length; i++) {
+        var c = stage.children[i];
+        if (c.offsetParent === stage) out.push(c);
+      }
+      return out;
+    }
+
+    // 从左到右、由上到下依次摆放：放不下就换行，卡片高度一变后面的顺势下移，绝不重叠
+    function layoutStage() {
+      var kids = stageCards();
+      var x = 0, y = 0, rowH = 0, w = 0;
+      for (var i = 0; i < kids.length; i++) {
+        var el = kids[i], ew = el.offsetWidth, eh = el.offsetHeight;
+        if (x > 0 && x + ew > STAGE_ROW_W) {   // 当前行放不下 → 另起一行
+          y += rowH + STAGE_GAP_Y;
+          x = 0;
+          rowH = 0;
+        }
+        el.style.left = x + "px";
+        el.style.top = y + "px";
+        x += ew + STAGE_GAP_X;
+        if (x - STAGE_GAP_X > w) w = x - STAGE_GAP_X;
+        if (eh > rowH) rowH = eh;
+      }
+      if (w > 0) { stageW = w; stage.style.width = w + "px"; }
+      if (rowH > 0) stageH = y + rowH;
+    }
+
+    function applyStageFit() {
+      stageFitQueued = false;
+      if (!deskBox) return;
+      layoutStage();
+      if (stageH > 0) deskBox.style.setProperty("--desk-h", Math.ceil(stageH) + "px");
+      var avail = deskBox.clientWidth;
+      if (avail > 0 && stageW > 0) {
+        var k = Math.min(STAGE_K_MAX, Math.max(STAGE_K_MIN, avail / stageW)) * STAGE_K_SCALE;
+        k = Math.round(k * 1000) / 1000;
+        if (k !== stageK) {
+          stageK = k;
+          deskBox.style.setProperty("--desk-k", String(k));
+        }
+      }
+    }
+
+    function queueStageFit() {
+      if (stageFitQueued) return;
+      stageFitQueued = true;
+      requestAnimationFrame(applyStageFit);
+    }
+
+    // 浮窗内容高度是异步的（监控 / 便签 / 日历要等接口），尺寸一变就重新贴合
+    function watchStage() {
+      if (typeof ResizeObserver !== "undefined") {
+        if (!stageRO) stageRO = new ResizeObserver(queueStageFit);
+        else stageRO.disconnect();
+        var kids = stage.children;
+        for (var i = 0; i < kids.length; i++) stageRO.observe(kids[i]);
+      }
+      queueStageFit();
+    }
+
+    window.addEventListener("resize", queueStageFit);
+
     function mountStage(settings) {
       if (stageDir) stageDir.destroy();
       stageDir = DirWidget.mount({
@@ -875,6 +958,8 @@
         settingsApi: BASE + "/api/monitor_settings", monitorApi: BASE + "/api/monitor",
         container: stage, preview: true, draggable: false
       });
+
+      watchStage();
     }
 
     // 改配置后只刷新受影响的那个预览窗
@@ -885,6 +970,7 @@
         api: BASE + "/api/list", fileApi: BASE + "/api/file", searchApi: BASE + "/api/search",
         settingsApi: null, container: stage, preview: true
       });
+      watchStage();
     }
     function refreshWx() {
       if (stageWx) stageWx.destroy();
@@ -892,6 +978,7 @@
         location: weatherLocInput.value.trim(),
         settingsApi: BASE + "/api/settings", container: stage, preview: true
       });
+      watchStage();
     }
 
     // 目录
