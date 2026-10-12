@@ -13,6 +13,10 @@
   `findIconNode()` 兜底返回 `.desktop` 时，`icon` 与窗口层子树根的父节点 `parent` 相等或无祖先后代关系，
   第 276 行向上爬升循环会越过 `documentElement` 读到 `null` 而崩溃，每个组件、每次 800/2500/6000ms
   校准都报错。现给爬升循环加 `iroot` 判空保护，爬空则放弃 z-index 对齐（组件仍照常插入桌面容器）。
+- **主题选择不落盘**：`server.py` 的 `theme` 处理被错误缩进在 `if "size" in payload:` 块内，
+  而管理页切外观只发 `{theme: ...}`、不带 `size`，导致外层判断为 `False`、整段（含 theme 写入）
+  被跳过，`settings.json` 永远存不进 `theme`。桌面 `inject.js` 每次都读到默认 `system`，
+  所以"改了外观没起效"。现把 `theme` 处理移出、成为与 `size` 平级的独立分支，切换即持久化。
 
 ---
 
