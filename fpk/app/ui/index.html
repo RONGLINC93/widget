@@ -837,12 +837,10 @@
     var stageDir = null, stageCal = null, stageWx = null;
     var stageWc = null, stageNt = null, stageTd = null, stageMn = null;
 
-    // ---- 预览排版 + 自适应：浮窗按「排满一行再换行」摆放（互不重叠），再按容器宽度等比缩放 ----
+    // ---- 预览排版 + 自适应：浮窗按「一行能放几个由宽度决定、放不下就换行」摆放（互不重叠） ----
     var deskBox = document.querySelector(".desktop");
-    var STAGE_ROW_W = 1120;                   // 一行允许的最大逻辑宽度，放不下就换行
     var STAGE_GAP_X = 20, STAGE_GAP_Y = 26;   // 卡片之间的横向 / 纵向间距
-    var STAGE_K_MIN = .32, STAGE_K_MAX = 1.6; // 缩放比上下限
-    var STAGE_K_SCALE = .5;                    // 整体再缩小一半（「同步缩小 50%」）：在自适应 k 之上叠加
+    var STAGE_K_SCALE = .5;                    // 整体缩小一半（「同步缩小 50%」）
     var stageW = 0, stageH = 0, stageK = 0, stageRO = null, stageFitQueued = false;
 
     // 舞台里的浮窗（预览都用 absolute 定位在 #stage 里，fixed 之类的排除掉）
@@ -855,13 +853,14 @@
       return out;
     }
 
-    // 从左到右、由上到下依次摆放：放不下就换行，卡片高度一变后面的顺势下移，绝不重叠
-    function layoutStage() {
+    // 从左到右、由上到下依次摆放：当前行放不下（rowW 由框宽推出）就换行，
+    // 卡片高度一变后面的顺势下移，绝不重叠
+    function layoutStage(rowW) {
       var kids = stageCards();
       var x = 0, y = 0, rowH = 0, w = 0;
       for (var i = 0; i < kids.length; i++) {
         var el = kids[i], ew = el.offsetWidth, eh = el.offsetHeight;
-        if (x > 0 && x + ew > STAGE_ROW_W) {   // 当前行放不下 → 另起一行
+        if (x > 0 && x + ew > rowW) {   // 当前行放不下 → 另起一行
           y += rowH + STAGE_GAP_Y;
           x = 0;
           rowH = 0;
@@ -879,16 +878,18 @@
     function applyStageFit() {
       stageFitQueued = false;
       if (!deskBox) return;
-      layoutStage();
-      if (stageH > 0) deskBox.style.setProperty("--desk-h", Math.ceil(stageH) + "px");
       var avail = deskBox.clientWidth;
-      if (avail > 0 && stageW > 0) {
-        var k = Math.min(STAGE_K_MAX, Math.max(STAGE_K_MIN, avail / stageW)) * STAGE_K_SCALE;
-        k = Math.round(k * 1000) / 1000;
-        if (k !== stageK) {
-          stageK = k;
-          deskBox.style.setProperty("--desk-k", String(k));
-        }
+      if (avail <= 0) return;
+      // 行宽预算（逻辑像素）：缩小回 1:1 后刚好占满框宽。窄框预算小 → 每行少放 → 提前换行；
+      // 宽框预算大 → 一行能并排更多，放不下的自然换到下一行。
+      layoutStage(avail / STAGE_K_SCALE);
+      if (stageH > 0) deskBox.style.setProperty("--desk-h", Math.ceil(stageH) + "px");
+      // 缩放：固定缩小一半；仅当内容比框还宽（极窄屏）时再收一点防溢出
+      var k = Math.min(STAGE_K_SCALE, avail / (stageW || avail));
+      k = Math.round(k * 1000) / 1000;
+      if (k !== stageK) {
+        stageK = k;
+        deskBox.style.setProperty("--desk-k", String(k));
       }
     }
 
