@@ -611,8 +611,13 @@
     diagBtn.addEventListener("click", runDiag);
   </script>
 
-  <!-- 引入真实浮层组件（阻止其自带自动挂载，改由上面的舞台手动挂载） -->
-  <script>window.__cw_noauto = true; window.__ww_noauto = true;</script>
+  <!-- 通用浮层外壳：须先于所有依赖 RLShell 的组件脚本加载（提供 RLShell.create） -->
+  <link rel="stylesheet" href="static/widget-shell.css" />
+  <script src="static/widget-shell.js"></script>
+
+  <!-- 三个旧组件：设 noauto 阻止其自带自动挂载（calendar/weather 默认会自动挂到 body），
+       改由上方舞台手动挂载预览。同时补各自的样式表 -->
+  <script>window.__dw_noauto = true; window.__cw_noauto = true; window.__ww_noauto = true;</script>
   <link rel="stylesheet" href="static/dir-widget.css" />
   <link rel="stylesheet" href="static/calendar-widget.css" />
   <link rel="stylesheet" href="static/weather-widget.css" />
@@ -623,11 +628,8 @@
   <script src="static/calendar-widget.js"></script>
   <script src="static/weather-widget.js"></script>
 
-  <!-- 新增 4 个组件：先加载通用外壳（RLShell），再加载组件脚本；
-       设 __*_noauto 阻止其自带自动挂载，改由上方舞台手动挂载预览 -->
-  <link rel="stylesheet" href="static/widget-shell.css" />
+  <!-- 新增 4 个组件：设 __*_noauto 阻止其自带自动挂载，改由上方舞台手动挂载预览 -->
   <script>window.__wc_noauto = true; window.__nt_noauto = true; window.__td_noauto = true; window.__mn_noauto = true;</script>
-  <script src="static/widget-shell.js"></script>
   <script src="static/worldclock-widget.js"></script>
   <script src="static/notes-widget.js"></script>
   <script src="static/todo-widget.js"></script>

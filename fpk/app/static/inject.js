@@ -34,6 +34,7 @@
     document.head.appendChild(shCss);
 
     var shJs = document.createElement("script");
+    shJs.async = false;   // 必须按插入顺序先于各组件执行，否则 RLShell 未定义
     shJs.src = BASE + "/static/widget-shell.js";
     shJs.onload = function () {
       if (!window.RLShell) return;
@@ -94,6 +95,7 @@
     document.head.appendChild(link);
 
     var s = document.createElement("script");
+    s.async = false;   // 与外壳同为顺序脚本，保证外壳先执行
     s.src = BASE + "/static/dir-widget.js";
     s.onload = function () {
       if (!window.DirWidget) return;
@@ -328,15 +330,18 @@
 
     // 农历转换库（calendar-widget.js 依赖 window.Lunar），须先于日历脚本加载
     var ls = document.createElement("script");
+    ls.async = false;
     ls.src = BASE + "/static/lunar.js";
     document.head.appendChild(ls);
 
     // 法定节假日数据（calendar-widget.js 依赖 window.HolidayCN），须先于日历脚本加载
     var hs = document.createElement("script");
+    hs.async = false;
     hs.src = BASE + "/static/holiday-cn.js";
     document.head.appendChild(hs);
 
     var cs = document.createElement("script");
+    cs.async = false;
     // 告知 calendar-widget.js：由本脚本手动挂载，不要走它的自动挂载（避免重复实例）
     window.__cw_noauto = true;
     cs.src = BASE + "/static/calendar-widget.js";
@@ -373,6 +378,7 @@
     document.head.appendChild(wlink);
 
     var ws = document.createElement("script");
+    ws.async = false;
     // 告知 weather-widget.js：由本脚本手动挂载，不要走它的自动挂载（避免重复实例）
     window.__ww_noauto = true;
     ws.src = BASE + "/static/weather-widget.js";
