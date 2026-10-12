@@ -531,6 +531,26 @@ def _read_sysfs(path, cast: type = int):
         return None
 
 
+def _disk_model(dev_path):
+    """hwmon 设备目录 → 硬盘型号名。drivetemp/NVMe 的 hwmon 挂在盘设备节点下，
+    device/model 即型号（如 "Samsung SSD 870 EVO 1TB"）；取不到时回退块设备名（sda）。"""
+    model = _read_sysfs(os.path.join(dev_path, "model"), cast=str)
+    if model:
+        model = re.sub(r"\s+", " ", model).strip()
+        if model:
+            return model
+    try:
+        real = os.path.realpath(dev_path)
+        blk = "/sys/class/block"
+        if os.path.isdir(blk):
+            for b in sorted(os.listdir(blk)):
+                if os.path.realpath(os.path.join(blk, b, "device")) == real:
+                    return b
+    except Exception:
+        pass
+    return None
+
+
 def _cn_temp_name(name):
     """把 Linux 温度传感器名（/sys/class/thermal type、hwmon 的 name/label，多为英文）
     尽力翻译成中文；认不出的保留原样，不丢信息。"""
@@ -602,7 +622,14 @@ def get_temps() -> list:
                     labf = f.replace("_input", "_label")
                     label = _read_sysfs(os.path.join(hwp, labf), cast=str) if os.path.exists(os.path.join(hwp, labf)) else ""
                     nm = label or ("%s %s" % (hname, f.split("_")[0]))
-                    temps.append({"name": _cn_temp_name(nm), "temp": round(mv / 1000.0, 1)})
+                    cn = _cn_temp_name(nm)
+                    # 硬盘传感器补充具体型号：drivetemp/NVMe 的 hwmon 挂在盘设备下，
+                    # device/model 即型号名；label 本身已含型号时不重复追加
+                    if "硬盘" in cn:
+                        model = _disk_model(os.path.join(hwp, "device"))
+                        if model and model.lower() not in cn.lower():
+                            cn = "%s %s" % (cn, model)
+                    temps.append({"name": cn, "temp": round(mv / 1000.0, 1)})
     except Exception:
         pass
     # 剔除明显无效的读数：传感器未接 / 读数失败时内核常报 -128°C 量级的哨兵值
