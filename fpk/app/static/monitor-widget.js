@@ -58,7 +58,15 @@
           : (stats.disk ? [stats.disk] : []);
         for (var di = 0; di < diskList.length; di++) {
           var d = diskList[di];
-          html += meter("硬盘 " + (d.path || ""), d.percent,
+          // 存储卷 /volN 显示为「存储空间 N」，其余挂载点（/、/boot/efi 等）保留「硬盘 + 路径」
+          var mpath = d.path || "";
+          var mv = mpath.match(/^\/vol(\d+)$/);
+          var dlabel;
+          if (mv) dlabel = "存储空间 " + mv[1];             // 存储池卷 /volN
+          else if (mpath === "/") dlabel = "系统盘";         // 根文件系统
+          else if (mpath === "/boot/efi") dlabel = "EFI 分区"; // UEFI 引导分区
+          else dlabel = "硬盘 " + mpath;                    // 其它挂载点
+          html += meter(dlabel, d.percent,
                         fmtBytes(d.used) + " / " + fmtBytes(d.total));
         }
 
