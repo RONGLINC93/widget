@@ -75,6 +75,16 @@
 - **系统监控风扇名字与转速粘连**：风扇行此前只用 `class="mn-top"` 而未包在 `.mn-row` 内，
   而左右分列的 `flex` 样式挂在 `.mn-row .mn-top` 上，导致风扇名与 `RPM` 挤在同一行连在一起、
   易看错。现每条风扇包进 `.mn-row`，与 CPU / 内存 / 温度一致地左右分列。
+- **浮层加载顺序导致 `RLShell is not defined`**（`dir/calendar/weather-widget.js` 顶部抛
+  `ReferenceError`）：之前 `ui/index.html` 在目录 / 日历 / 天气三个组件**之后**才加载
+  `widget-shell.js`，且 `inject.js` 用 `createElement("script")` 动态注入的脚本默认 `async`，
+  按下载到达顺序而非插入顺序执行——组件脚本可能抢在外壳前求值 `RLShell.create(...)` 而报错。
+  修复：① `index.html` 把 `widget-shell.css/js` 与 `noauto` 标志前置到三个组件之前，并补齐
+  `__dw_noauto`（原仅 `__cw/__ww_noauto`）；② `inject.js` 给外壳 `shJs` 及 `dir/calendar/weather`
+  脚本（含 `lunar.js` / `holiday-cn.js` 依赖）显式设 `async = false`，保证按插入顺序、外壳先执行。
+- **最小化后留空壳**：通用外壳最小化时只设 `height: auto`，但各组件根节点在自己 CSS 里写了
+  `min-height`（日历 320px / 目录 140px），`height:auto` 压不过 `min-height`，最小化后顶栏下留一大块
+  空白毛玻璃。现 `.rl-root.rl-min` 一并 `min-height: 0 !important`，塌缩为只剩标题栏（宽度仍保留）。
 
 ---
 
