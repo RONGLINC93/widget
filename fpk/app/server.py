@@ -655,8 +655,26 @@ def get_temps() -> list:
                     temps.append({"name": cn, "temp": round(mv / 1000.0, 1), "group": _temp_group(cn)})
     except Exception:
         pass
-    # 剔除明显无效的读数：传感器未接 / 读数失败时内核常报 -128°C 量级的哨兵值
-    return [t for t in temps if t["temp"] > -100]
+    # 剔除明显无效的读数：-128°C 量级哨兵（未接/读数失败），以及 0.0°C
+    # （芯片组 PCH、内存 Dimm 等探头未接时内核常报 0，室温环境不可能是 0.0°C）
+    valid = [t for t in temps if t["temp"] > -100 and t["temp"] != 0.0]
+    # 去重：同一探头常同时经 thermal_zone 和 hwmon 各上报一次（名字、温度完全相同）
+    seen, uniq = set(), []
+    for t in valid:
+        key = (t["name"], t["temp"])
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(t)
+    # 同名不同温度的是真实的不同探头（如主板多个 AUX 探头）：加序号区分，
+    # 避免界面出现一串无法分辨的「主板」「主板辅助」
+    cnt, out = {}, []
+    for t in uniq:
+        n = t["name"]
+        c = cnt.get(n, 0) + 1
+        cnt[n] = c
+        out.append(dict(t, name=n if c == 1 else "%s %d" % (n, c)))
+    return out
 
 
 def get_fans() -> list:
@@ -676,31 +694,13 @@ def get_fans() -> list:
                         continue
                     labf = f.replace("_input", "_label")
                     label = _read_sysfs(os.path.join(hwp, labf), cast=str) if os.path.exists(os.path.join(hwp, labf)) else ""
+                    # 风扇名保留原始名字（hwmon label 优先，回退 name+编号），仅把 fanN 改成 风扇N
                     nm = label or ("%s %s" % (hname, f.split("_")[0]))
-                    fans.append({"name": _cn_fan_name(nm), "rpm": rpm})
+                    nm = re.sub(r"fan(\d+)", "风扇\\1", nm, flags=re.IGNORECASE)
+                    fans.append({"name": nm, "rpm": rpm})
     except Exception:
         pass
     return fans
-
-
-def _cn_fan_name(name):
-    """把 hwmon 风扇名尽力中文化：fan1→风扇 1，芯片名(如 nct6798)→主板。"""
-    n = (name or "").strip()
-    m = re.search(r"fan(\d+)", n, re.IGNORECASE)
-    if m:
-        chip = re.sub(r"fan\d+", "", n, flags=re.IGNORECASE).strip()
-        chip = re.sub(r"[\d]+$", "", chip).strip().lower()  # 去尾随数字：nct6798→nct
-        chip_cn = {"nct": "主板", "w83795": "主板", "it86": "主板", "it87": "主板",
-                   "f718": "主板", "amdgpu": "显卡", "nvidia": "显卡",
-                   "coretemp": "CPU", "k10temp": "CPU"}
-        cn = chip_cn.get(chip)
-        if cn is None:  # 前缀兜底：it8688e→it86→主板
-            for k, v in chip_cn.items():
-                if chip.startswith(k):
-                    cn = v
-                    break
-        return ("%s 风扇 %s" % (cn, m.group(1))) if cn else ("风扇 " + m.group(1))
-    return n
 
 
 def get_gpus() -> list:
