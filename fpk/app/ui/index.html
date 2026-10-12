@@ -79,11 +79,40 @@
       margin: 0 0 4px;
     }
 
+    .stagecard .stage-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 4px;
+    }
+
     .stagecard .stage-tip {
       font-size: 12px;
       color: #8b949e;
       margin: 0 0 12px;
     }
+
+    /* 预览缩放滑动条（10% ~ 200%） */
+    .stage-zoom {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 240px;
+      margin: 0;
+      font-size: 13px;
+      color: #c9d1d9;
+    }
+    .stage-zoom label { white-space: nowrap; }
+    .stage-zoom #zoomVal {
+      display: inline-block;
+      min-width: 44px;
+      color: #58a6ff;
+      font-variant-numeric: tabular-nums;
+    }
+    .stage-zoom input[type="range"] { flex: 1; accent-color: #58a6ff; cursor: pointer; }
+    [data-theme="light"] .stage-zoom { color: #1f2328; }
+    [data-theme="light"] .stage-zoom #zoomVal { color: #0969da; }
 
     .stage {
       position: relative;
@@ -595,7 +624,13 @@
 
     <!-- 桌面预览：真实悬浮窗并排 -->
     <div class="stagecard">
-      <h3>🖥 桌面预览</h3>
+      <div class="stage-head">
+        <h3>🖥 桌面预览</h3>
+        <div class="stage-zoom">
+          <label>缩放 <span id="zoomVal">50%</span></label>
+          <input type="range" id="zoomRange" min="10" max="200" step="5" value="50">
+        </div>
+      </div>
       <p class="stage-tip">这就是桌面上真实的悬浮窗样子 —— 可拖动、可缩放，不是示意图。</p>
       <div class="desktop">
         <div class="desk-scale" id="stage"></div>
@@ -840,7 +875,7 @@
     // ---- 预览排版 + 自适应：浮窗按「一行能放几个由宽度决定、放不下就换行」摆放（互不重叠） ----
     var deskBox = document.querySelector(".desktop");
     var STAGE_GAP_X = 20, STAGE_GAP_Y = 26;   // 卡片之间的横向 / 纵向间距
-    var STAGE_K_SCALE = .5;                    // 整体缩小一半（「同步缩小 50%」）
+    var stageScale = .5;                       // 预览整体缩放，由滑动条控制（10%~200% → .1~2.0，默认 50%）
     var stageW = 0, stageH = 0, stageK = 0, stageRO = null, stageFitQueued = false;
 
     // 舞台里的浮窗（预览都用 absolute 定位在 #stage 里，fixed 之类的排除掉）
@@ -882,10 +917,10 @@
       if (avail <= 0) return;
       // 行宽预算（逻辑像素）：缩小回 1:1 后刚好占满框宽。窄框预算小 → 每行少放 → 提前换行；
       // 宽框预算大 → 一行能并排更多，放不下的自然换到下一行。
-      layoutStage(avail / STAGE_K_SCALE);
+      layoutStage(avail / stageScale);
       if (stageH > 0) deskBox.style.setProperty("--desk-h", Math.ceil(stageH) + "px");
-      // 缩放：固定缩小一半；仅当内容比框还宽（极窄屏）时再收一点防溢出
-      var k = Math.min(STAGE_K_SCALE, avail / (stageW || avail));
+      // 缩放：用滑动条值；仅当内容比框还宽（放大过头时）再收一点防溢出被裁切
+      var k = Math.min(stageScale, avail / (stageW || avail));
       k = Math.round(k * 1000) / 1000;
       if (k !== stageK) {
         stageK = k;
@@ -898,6 +933,22 @@
       stageFitQueued = true;
       requestAnimationFrame(applyStageFit);
     }
+
+    // 缩放滑动条（10% ~ 200%）：直接作为整体缩放系数，并同步用于行宽预算（放大时每行更窄、换行更早）
+    (function bindZoom() {
+      var range = document.getElementById("zoomRange");
+      var label = document.getElementById("zoomVal");
+      if (!range) return;
+      function applyZoom() {
+        var v = parseInt(range.value, 10);
+        if (isNaN(v)) v = 50;
+        stageScale = Math.min(200, Math.max(10, v)) / 100;
+        if (label) label.textContent = v + "%";
+        queueStageFit();
+      }
+      range.addEventListener("input", applyZoom);
+      applyZoom();
+    })();
 
     // 浮窗内容高度是异步的（监控 / 便签 / 日历要等接口），尺寸一变就重新贴合
     function watchStage() {
