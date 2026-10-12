@@ -44,6 +44,10 @@
   （`/vol1` / `/vol2` / 系统盘 `/` 等）只显示一个。现新增 `get_disks()` 解析 `/proc/mounts`、
   枚举所有真实块设备卷（剔除 proc/sysfs/tmpfs 等伪文件系统与嵌套子卷），返回 `disks` 列表；前端
   `monitor-widget.js` 改为渲染全部硬盘（旧的单盘 `disk` 字段保留作兼容）。
+- **系统监控只识别到一张显卡**：`get_gpus()` 用 `if not gpus:` 回退写法——只要存在 `nvidia-smi`，
+  就只返回它（单张独显），hwmon 里的集成显卡 / AMD 卡被整个跳过，于是只显示一张。现改为多源合并：
+  `nvidia-smi` 逐行采集的 N 卡 + hwmon 中的 GPU 温度探头（集成 / AMD，及其余未被 `nvidia-smi` 覆盖的卡），
+  按名称去重、一个 GPU 设备取首个温度探头；`nvidia-smi` 已给到的 N 卡不会与 hwmon 里的 nvidia 项重复。
 - **浮层内容区滚动条样式**：`.rl-body` 此前未配滚动条样式，内容超长（如系统监控列出全部温度
   传感器时）会露出浏览器默认亮灰滚动条、与深色主题突兀。现与目录组件 `.dw-body` 同款——细滑块
   半透明灰、轨道透明、悬停加深（Firefox `scrollbar-width/color` + Chromium `::-webkit-scrollbar-*`）。

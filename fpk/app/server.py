@@ -593,18 +593,13 @@ def get_fans() -> list:
 
 
 def get_gpus() -> list:
-    """采集显卡：nvidia-smi（N 卡可多卡，逐行返回）优先，再补 hwmon 里的 GPU 温度探头
-    （集成显卡 / AMD，及 nvidia-smi 未覆盖到的卡）。多源合并、按名称去重，避免只显示一张。"""
-    gpus = []
-    seen = set()
+    """采集显卡。以 /sys/class/drm/card* 为权威 GPU 清单（内核为每块 GPU 建一个 card 节点，
+    集成显卡 / 独显都在——hwmon 关键字过滤会漏掉 Intel 核显）；nvidia-smi 只作 N 卡的
+    使用率 / 温度 / 型号名数据填充（DRM 给不出这些，按厂商匹配、卡序对应）。"""
+    PCI_VENDORS = {"0x8086": "Intel", "0x10de": "NVIDIA", "0x1002": "AMD", "0x1022": "AMD"}
 
-    def _num(x):
-        try:
-            return float(x)
-        except Exception:
-            return None
-
-    # 1) NVIDIA：多卡时 nvidia-smi 返回多行，逐行收集
+    # 1) nvidia-smi：N 卡的型号名 / 使用率 / 温度（多卡逐行）
+    nvlist = []
     try:
         nv = shutil.which("nvidia-smi")
         if nv:
@@ -616,44 +611,74 @@ def get_gpus() -> list:
                 parts = [p.strip() for p in line.split(",")]
                 if len(parts) < 3:
                     continue
-                nm = parts[0]
-                if nm not in seen:
-                    seen.add(nm)
-                    gpus.append({"name": nm, "usage": _num(parts[1]), "temp": _num(parts[2])})
+                def _num(x):
+                    try:
+                        return float(x)
+                    except Exception:
+                        return None
+                nvlist.append({"name": parts[0], "usage": _num(parts[1]), "temp": _num(parts[2])})
     except Exception:
         pass
 
-    # 2) hwmon 中的 GPU 温度探头（集成显卡 / AMD / 未被 nvidia-smi 覆盖的卡）
-    #    注意：nvidia-smi 已给到 N 卡时，hwmon 里的 nvidia 项跳过以免重复
+    # 2) DRM card 枚举全部 GPU（card0/card1/...；过滤 renderD*、card0-DP-1 等连接器节点）
+    cards = []
     try:
-        hbase = "/sys/class/hwmon"
-        if os.path.isdir(hbase):
-            for hw in sorted(os.listdir(hbase)):
-                hwp = os.path.join(hbase, hw)
-                hname = (_read_sysfs(os.path.join(hwp, "name"), cast=str) or "").lower()
-                if "gpu" not in hname and "nvidia" not in hname and "amdgpu" not in hname:
+        base = "/sys/class/drm"
+        if os.path.isdir(base):
+            for card in sorted(os.listdir(base)):
+                if not re.match(r"^card\d+$", card):
                     continue
-                if "nvidia" in hname and any("nvidia" in g["name"].lower() for g in gpus):
-                    continue
-                # 一个 GPU 设备取首个温度探头作为该卡温度
-                temp_val = None
-                for f in sorted(os.listdir(hwp)):
-                    if re.match(r"^temp\d+_input$", f):
-                        temp_val = _read_sysfs(os.path.join(hwp, f))
-                        break
-                if temp_val is None:
-                    continue
-                labf = [f for f in os.listdir(hwp) if f.startswith("temp") and f.endswith("_label")]
-                label = _read_sysfs(os.path.join(hwp, labf[0]), cast=str) if labf else ""
-                nm = (label or ("%s GPU" % (hname or "gpu")))
-                base, i = nm, 1
-                while nm in seen:
-                    i += 1
-                    nm = "%s %d" % (base, i)
-                seen.add(nm)
-                gpus.append({"name": nm, "usage": None, "temp": round(temp_val / 1000.0, 1)})
+                cdev = os.path.join(base, card, "device")
+                vendor = (_read_sysfs(os.path.join(cdev, "vendor"), cast=str) or "").strip().lower()
+                if not vendor.startswith("0x"):
+                    continue  # 非 PCI 设备（虚拟卡等）
+                # 温度：该卡设备下的 hwmon（N/A 时保留为 None）
+                temp = None
+                hwdir = os.path.join(cdev, "hwmon")
+                if os.path.isdir(hwdir):
+                    for hw in sorted(os.listdir(hwdir)):
+                        hwp = os.path.join(hwdir, hw)
+                        try:
+                            files = os.listdir(hwp)
+                        except Exception:
+                            continue
+                        for f in sorted(files):
+                            if re.match(r"^temp\d+_input$", f):
+                                mv = _read_sysfs(os.path.join(hwp, f))
+                                if mv is not None:
+                                    temp = round(mv / 1000.0, 1)
+                                    break
+                        if temp is not None:
+                            break
+                # 使用率：amdgpu 暴露 gpu_busy_percent，其它驱动一般没有
+                usage = None
+                busy = _read_sysfs(os.path.join(cdev, "gpu_busy_percent"))
+                if busy is not None:
+                    try:
+                        usage = float(busy)
+                    except Exception:
+                        usage = None
+                cards.append({"card": card, "vendor": vendor, "temp": temp, "usage": usage})
     except Exception:
         pass
+
+    # 3) 合并：NVIDIA 卡按卡序填充 nvidia-smi 数据（带真实型号名），其余厂商用通用名
+    gpus = []
+    nvi = 0
+    for c in cards:
+        if c["vendor"] == "0x10de" and nvi < len(nvlist):
+            nv = nvlist[nvi]
+            nvi += 1
+            gpus.append({"name": nv["name"], "usage": nv["usage"], "temp": nv["temp"]})
+        else:
+            vname = PCI_VENDORS.get(c["vendor"], "GPU")
+            gpus.append({"name": "%s 显卡 (%s)" % (vname, c["card"]),
+                         "usage": c["usage"], "temp": c["temp"]})
+    # nvidia-smi 有、DRM 却没枚举到的（罕见），追加以免丢卡
+    while nvi < len(nvlist):
+        nv = nvlist[nvi]
+        nvi += 1
+        gpus.append(nv)
     return gpus
 
 
