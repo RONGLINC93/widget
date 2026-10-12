@@ -1426,11 +1426,12 @@ class DirHandler(BaseHTTPRequestHandler):
                         }
                     elif s is None:
                         cur["size"] = None
-                    # 主题（dark / light / system）：全局生效于所有组件外壳与内容
-                    if "theme" in payload:
-                        t = str(payload.get("theme") or "dark")
-                        if t in ("dark", "light", "system"):
-                            cur["theme"] = t
+                # 主题（dark / light / system）：全局生效于所有组件外壳与内容。
+                # 注意：必须独立于 size 判断，否则只发 {theme:...} 时不带 size 会被整个跳过。
+                if "theme" in payload:
+                    t = str(payload.get("theme") or "dark")
+                    if t in ("dark", "light", "system"):
+                        cur["theme"] = t
                     # 日历组件独立开关（与目录浏览器浮层互不干扰）
                 if "calendar_visible" in payload:
                     cur["calendar_visible"] = bool(payload.get("calendar_visible"))

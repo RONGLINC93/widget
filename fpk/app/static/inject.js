@@ -273,7 +273,9 @@
         if (!parent || !parent.contains(icon)) return false;
         // 图标侧子树根：对齐它的 z-index，保证浮层不被图标压住
         iroot = icon;
-        while (iroot.parentElement !== parent) iroot = iroot.parentElement;
+        // icon 可能等于 parent（findIconNode 兜底返回 .desktop）或与 parent 无祖先后代关系，
+        // 此时向上爬会越过 documentElement 读到 null 而抛错；爬空则放弃 z 对齐（仍正常插入）
+        while (iroot && iroot.parentElement !== parent) iroot = iroot.parentElement;
       } else {
         // 没有已打开的窗口：先放到 .desktop 末尾，等有窗口时下次校准再前插
         var desk = document.querySelector(".desktop");
