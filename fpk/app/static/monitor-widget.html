@@ -49,7 +49,10 @@
       uptime: 3 * 86400 + 5 * 3600 + 42 * 60,
       temps: [ { name: "CPU", temp: 52 }, { name: "主板", temp: 41 }, { name: "NVMe", temp: 48 } ],
       fans: [ { name: "系统风扇1", rpm: 1200 }, { name: "系统风扇2", rpm: 1050 } ],
-      gpus: [ { name: "NVIDIA GeForce RTX 4060", usage: 34, temp: 58 } ]
+      gpus: [
+        { name: "NVIDIA GeForce RTX 4060", usage: 34, temp: 58 },
+        { name: "Intel Arc A380", usage: 12, temp: 46 }
+      ]
     };
     function walk(v, step, lo, hi) {
       return Math.max(lo, Math.min(hi, v + (Math.random() * 2 - 1) * step));
@@ -66,10 +69,10 @@
         });
         sim.temps = sim.temps.map(function (t) { return { name: t.name, temp: walk(t.temp, 1.5, 30, 85) }; });
         sim.fans = sim.fans.map(function (f) { return { name: f.name, rpm: Math.round(walk(f.rpm, 60, 600, 1800)) }; });
-        if (sim.gpus[0]) {
-          sim.gpus[0].usage = walk(sim.gpus[0].usage, 8, 0, 99);
-          sim.gpus[0].temp = walk(sim.gpus[0].temp, 1.5, 40, 82);
-        }
+        sim.gpus.forEach(function (g) {
+          if (g.usage != null) g.usage = walk(g.usage, 8, 0, 99);
+          if (g.temp != null) g.temp = walk(g.temp, 1.5, 40, 82);
+        });
         sim.uptime += 2;                      // 与 2s 轮询同步
         return sim;
       },
