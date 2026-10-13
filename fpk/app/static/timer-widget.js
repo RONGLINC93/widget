@@ -113,6 +113,7 @@
       }
 
       function setPreset(sec) {
+        stopAlarm();
         presetSec = sec; remainingMs = sec * 1000;
         running = false; endAt = 0; done = false;
         presetInput.value = presetInputText(presetSec);
@@ -139,7 +140,10 @@
       }
       var timer = setInterval(tick, 200);
 
-      startBtn.onclick = function () { running ? pause() : start(); };
+      startBtn.onclick = function () {
+        if (done) { stopAlarm(); setPreset(presetSec); return; }   // 到点后点开始：停铃并复位
+        running ? pause() : start();
+      };
       resetBtn.onclick = function () { setPreset(presetSec); };
       presetInput.addEventListener("change", function () {
         var sec = parseDuration(presetInput.value);
@@ -153,17 +157,29 @@
           var AC = window.AudioContext || window.webkitAudioContext;
           if (!AC) return;
           var ac = new AC();
-          [0, 0.26].forEach(function (off) {
+          if (ac.state === "suspended" && ac.resume) ac.resume();
+          [0, 0.2, 0.4].forEach(function (off) {   // 三声短鸣，近似闹钟
             var o = ac.createOscillator(), g = ac.createGain();
             o.connect(g); g.connect(ac.destination);
-            o.type = "sine"; o.frequency.value = 880;
+            o.type = "sine"; o.frequency.value = 988;
             var t = ac.currentTime + off;
             g.gain.setValueAtTime(0.0001, t);
-            g.gain.exponentialRampToValueAtTime(0.3, t + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
-            o.start(t); o.stop(t + 0.2);
+            g.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+            o.start(t); o.stop(t + 0.18);
           });
         } catch (e) {}
+      }
+
+      // 到点持续闹铃：循环播放，直到用户点开始 / 重置 / 改时长或关闭组件
+      var alarmTimer = null;
+      function startAlarm() {
+        if (alarmTimer) return;
+        beep();
+        alarmTimer = setInterval(beep, 900);
+      }
+      function stopAlarm() {
+        if (alarmTimer) { clearInterval(alarmTimer); alarmTimer = null; }
       }
 
       // 恢复本地运行状态；无本地状态时再拉后端 preset 兜底
@@ -201,7 +217,7 @@
 
       renderDone(); render();
 
-      return { onDestroy: function () { if (timer) clearInterval(timer); } };
+      return { onDestroy: function () { if (timer) clearInterval(timer); stopAlarm(); } };
     }
   });
 
