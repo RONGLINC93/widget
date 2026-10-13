@@ -169,7 +169,7 @@
 }
 /* 列宽：只给需要稳定的列写死，名称列（第一列，未指定宽度）占满剩余空间 */
 .dw-table th:nth-child(2) { width: 68px; }    /* 大小 */
-.dw-table th:nth-child(3) { width: 66px; }    /* 类型 */
+.dw-table th:nth-child(3) { width: 78px; }    /* 类型（最长的是"上级目录"那种 4 字胶囊） */
 .dw-table th:nth-child(4) { width: 132px; }   /* 修改时间（日期 + 时间） */
 /* 搜索结果表：多一列"所在目录" */
 .dw-table.dw-result th:nth-child(2) { width: 30%; }    /* 所在目录 */
@@ -193,7 +193,7 @@
   #dw-root .dw-table.dw-list th:nth-child(3),
   #dw-root .dw-table.dw-list td:nth-child(3) { display: none; }
 }
-@container (max-width: 430px) {
+@container (max-width: 380px) {
   #dw-root .dw-table.dw-result th:nth-child(2),
   #dw-root .dw-table.dw-result td:nth-child(2) { display: none; }
 }
