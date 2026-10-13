@@ -6,7 +6,7 @@
 
 ### 新增
 
-- **计时器小组件**（`static/timer-widget.js` / `widget-shell.css` / `server.py` / `ui/index.html` / `static/inject.js`）：新增纯前端倒计时浮层，与世界时钟 / 便签等共用通用外壳 `RLShell`（拖拽 / 缩放 / 最小化 / 固定 / 关闭一致）。支持输入分钟数 + 1/3/5/10/25 分钟快捷、开始 / 暂停 / 重置，到点数字变红闪烁并播放提示音；默认时长存后端（`/api/timer_settings` 的 `timer_preset`），运行中的剩余时间 / 是否在跑存本地 `localStorage`，刷新桌面后按结束时间戳恢复继续倒计时。管理页新增对应配置块与桌面预览，`inject.js` 已注册挂载。
+- **计时器小组件**（`static/timer-widget.js` / `static/timer-widget.html` / `widget-shell.css` / `server.py` / `ui/index.html` / `static/inject.js`）：新增纯前端倒计时浮层，与世界时钟 / 便签等共用通用外壳 `RLShell`（拖拽 / 缩放 / 最小化 / 固定 / 关闭一致）。支持输入分钟数或「分:秒」（如 01:30，统一 00:00 补零格式）+ 秒级快捷档（10″/30″/1′/3′/5′/10′/25′）、开始 / 暂停 / 重置，到点数字变红闪烁并播放提示音；默认时长存后端（`/api/timer_settings` 的 `timer_preset`），运行中的剩余时间 / 是否在跑存本地 `localStorage`，刷新桌面后按结束时间戳恢复继续倒计时。管理页新增对应配置块与桌面预览，`inject.js` 已注册挂载。中间用 SVG 环形进度条展示剩余比例（满环→归零），到点圆环与数字一并变红闪烁。
 
 ### 修复 / 优化
 

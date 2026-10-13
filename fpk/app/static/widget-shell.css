@@ -123,14 +123,22 @@
 .wc-empty { color: var(--rl-muted); font-size: 12px; }
 
 /* ---------- 计时器 ---------- */
-.tm-display { font-size: 40px; font-weight: 700; text-align: center; padding: 8px 0 2px;
+.tm-ring { position: relative; width: 168px; height: 168px; margin: 2px auto 8px; }
+.tm-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.tm-ring-bg { fill: none; stroke: var(--rl-surface-2); stroke-width: 7; }
+.tm-ring-fg { fill: none; stroke: var(--rl-link); stroke-width: 7; stroke-linecap: round;
+  transition: stroke-dashoffset .2s linear, stroke .25s; }
+.tm-ring-fg.tm-ring-done { stroke: var(--rl-danger); }
+.tm-ring-center { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px; }
+.tm-display { font-size: 34px; font-weight: 700; text-align: center; line-height: 1.1;
   font-variant-numeric: tabular-nums; color: var(--rl-fg); letter-spacing: 1px; }
 .tm-display.tm-done-flash { color: var(--rl-danger); animation: tm-flash .7s infinite alternate; }
 @keyframes tm-flash { from { opacity: 1; } to { opacity: .3; } }
-.tm-done { display: none; text-align: center; color: var(--rl-danger); font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.tm-done { display: none; text-align: center; color: var(--rl-danger); font-weight: 600; font-size: 12px; }
 .tm-preset { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 6px 0 4px;
   font-size: 12px; color: var(--rl-muted); }
-.tm-preset input { width: 56px; background: var(--rl-input-bg); border: 1px solid var(--rl-input-border);
+.tm-preset input { width: 64px; background: var(--rl-input-bg); border: 1px solid var(--rl-input-border);
   color: var(--rl-fg); border-radius: 6px; padding: 5px 6px; font-size: 13px; text-align: center; font-family: inherit; }
 .tm-preset input:focus { outline: none; border-color: #388bfd; }
 .tm-quick { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 8px; }

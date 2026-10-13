@@ -9,7 +9,7 @@
 
   var LS_KEY = "rl93_timer_state";
   var PRESET_DEFAULT = 300;        // 秒，默认 5 分钟
-  var QUICK = [1, 3, 5, 10, 25];   // 分钟快捷
+  var QUICK = [10, 30, 60, 180, 300, 600, 1500];   // 秒级快捷（10″/30″/1′/3′/5′/10′/25′）
 
   function fmt(ms) {
     var s = Math.max(0, Math.ceil(ms / 1000));
@@ -28,12 +28,19 @@
       var remainingMs = presetSec * 1000, running = false, endAt = 0, done = false;
 
       body.innerHTML =
-        '<div class="tm-display" id="tmDisplay">' + fmt(remainingMs) + '</div>' +
-        '<div class="tm-done" id="tmDone">⏰ 时间到</div>' +
+        '<div class="tm-ring">' +
+          '<svg viewBox="0 0 120 120" aria-hidden="true">' +
+            '<circle class="tm-ring-bg" cx="60" cy="60" r="52"></circle>' +
+            '<circle class="tm-ring-fg" id="tmRing" cx="60" cy="60" r="52"></circle>' +
+          '</svg>' +
+          '<div class="tm-ring-center">' +
+            '<div class="tm-display" id="tmDisplay">' + fmt(remainingMs) + '</div>' +
+            '<div class="tm-done" id="tmDone">⏰ 时间到</div>' +
+          '</div>' +
+        '</div>' +
         '<div class="tm-preset">' +
           '<span>时长</span>' +
-          '<input id="tmPreset" type="number" min="1" max="1440" value="' + Math.round(presetSec / 60) + '" />' +
-          '<span>分钟</span>' +
+          '<input id="tmPreset" type="text" inputmode="decimal" placeholder="00:00" value="' + presetInputText(presetSec) + '" />' +
         '</div>' +
         '<div class="tm-quick" id="tmQuick"></div>' +
         '<div class="tm-btns">' +
@@ -43,21 +50,48 @@
 
       var display = body.querySelector("#tmDisplay");
       var doneEl = body.querySelector("#tmDone");
+      var ring = body.querySelector("#tmRing");
       var presetInput = body.querySelector("#tmPreset");
       var quickEl = body.querySelector("#tmQuick");
       var startBtn = body.querySelector("#tmStart");
       var resetBtn = body.querySelector("#tmReset");
 
-      QUICK.forEach(function (min) {
+      // 时长输入解析：支持「分:秒」（如 1:30）或纯数字（按分钟，兼容旧习惯）
+      function parseDuration(v) {
+        v = String(v == null ? "" : v).trim();
+        if (v.indexOf(":") >= 0) {
+          var p = v.split(":");
+          var m = parseInt(p[0], 10) || 0, s = parseInt(p[1], 10) || 0;
+          return m * 60 + s;
+        }
+        var n = parseInt(v, 10);
+        return isNaN(n) ? 0 : n * 60;
+      }
+      // 输入框回显：与倒计时显示一致，统一 MM:SS（超过 1 小时 hh:mm:ss），分秒均补零
+      function presetInputText(sec) {
+        var t = Math.max(0, Math.round(sec));
+        var h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), ss = t % 60;
+        var p2 = function (n) { return (n < 10 ? "0" : "") + n; };
+        return h > 0 ? (h + ":" + p2(m) + ":" + p2(ss)) : (p2(m) + ":" + p2(ss));
+      }
+      function quickLabel(sec) { return sec < 60 ? sec + "″" : (sec / 60) + "′"; }
+
+      QUICK.forEach(function (sec) {
         var b = document.createElement("button");
         b.className = "tm-chip";
-        b.textContent = min + "′";
-        b.onclick = function () { presetInput.value = min; setPreset(min * 60); };
+        b.textContent = quickLabel(sec);
+        b.onclick = function () { setPreset(sec); };
         quickEl.appendChild(b);
       });
 
+      var RING_C = 2 * Math.PI * 52;   // r=52 的周长，用于 dash 进度
       function render() {
         display.textContent = fmt(remainingMs);
+        var total = presetSec * 1000;
+        var p = total > 0 ? Math.max(0, Math.min(1, remainingMs / total)) : 0;
+        ring.style.strokeDasharray = RING_C;
+        ring.style.strokeDashoffset = RING_C * (1 - p);   // 满环→0，归零→整周
+        ring.classList.toggle("tm-ring-done", done);
         startBtn.textContent = running ? "暂停" : "开始";
       }
       function renderDone() {
@@ -81,6 +115,7 @@
       function setPreset(sec) {
         presetSec = sec; remainingMs = sec * 1000;
         running = false; endAt = 0; done = false;
+        presetInput.value = presetInputText(presetSec);
         renderDone(); render(); savePreset(); saveState();
       }
       function start() {
@@ -107,11 +142,10 @@
       startBtn.onclick = function () { running ? pause() : start(); };
       resetBtn.onclick = function () { setPreset(presetSec); };
       presetInput.addEventListener("change", function () {
-        var min = parseInt(presetInput.value, 10);
-        if (isNaN(min) || min < 1) min = Math.round(presetSec / 60) || 5;
-        if (min > 1440) min = 1440;
-        presetInput.value = min;
-        setPreset(min * 60);
+        var sec = parseDuration(presetInput.value);
+        if (sec < 1) sec = presetSec;
+        if (sec > 86400) sec = 86400;
+        setPreset(sec);
       });
 
       function beep() {
@@ -140,7 +174,7 @@
           if (s) {
             restored = true;
             presetSec = parseInt(s.preset, 10) > 0 ? parseInt(s.preset, 10) : presetSec;
-            presetInput.value = Math.round(presetSec / 60);
+            presetInput.value = presetInputText(presetSec);
             if (s.running && s.endAt) {
               remainingMs = s.endAt - Date.now();
               if (remainingMs > 0) { running = true; endAt = s.endAt; done = false; }
@@ -157,7 +191,7 @@
               var st = j && j.settings ? j.settings : {};
               var p = parseInt(st.preset, 10);
               if (p > 0) {
-                presetSec = p; presetInput.value = Math.round(p / 60);
+                presetSec = p; presetInput.value = presetInputText(p);
                 remainingMs = p * 1000; running = false; done = false;
                 renderDone(); render();
               }

@@ -734,8 +734,8 @@
           <div class="wstatus" id="tmStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
           <div class="wconfig">
             <div class="field">
-              <label for="tmPresetInput">默认时长（分钟），例如 <code>5</code></label>
-              <input id="tmPresetInput" type="number" min="1" max="1440" placeholder="5" />
+              <label for="tmPresetInput">默认时长（分:秒），例如 <code>00:30</code></label>
+              <input id="tmPresetInput" type="text" placeholder="00:00" />
             </div>
             <div class="row"><span id="tmMsg" class="msg"></span></div>
           </div>
@@ -1124,11 +1124,16 @@
     }
     if (tmPresetInput) {
       tmPresetInput.addEventListener("change", function () {
-        var min = parseInt(tmPresetInput.value, 10);
-        if (isNaN(min) || min < 1) min = 5;
-        if (min > 1440) min = 1440;
-        tmPresetInput.value = min;
-        saveSettings({ timer_preset: min * 60 }, $("tmMsg"), "✅ 默认时长已保存", "timer_preset");
+        var v = String(tmPresetInput.value || "").trim(), sec;
+        if (v.indexOf(":") >= 0) {
+          var p = v.split(":");
+          sec = (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+        } else {
+          sec = (parseInt(v, 10) || 0) * 60;   // 纯数字按分钟
+        }
+        if (sec < 1) sec = 300;
+        if (sec > 86400) sec = 86400;
+        saveSettings({ timer_preset: sec }, $("tmMsg"), "✅ 默认时长已保存", "timer_preset");
       });
     }
     // 便签
@@ -1179,7 +1184,7 @@
           if (weatherVisibleChk) { weatherVisibleChk.checked = st.weather_visible !== false; setStatus($("weatherStatus"), weatherVisibleChk.checked); }
           if (wcVisibleChk) { wcVisibleChk.checked = st.worldclock_visible !== false; setStatus($("wcStatus"), wcVisibleChk.checked); }
           if (tmVisibleChk) { tmVisibleChk.checked = st.timer_visible !== false; setStatus($("tmStatus"), tmVisibleChk.checked); }
-          if (tmPresetInput) tmPresetInput.value = Math.round((parseInt(st.timer_preset, 10) || 300) / 60);
+          if (tmPresetInput) { var _tp = Math.max(0, parseInt(st.timer_preset, 10) || 300); var _h = Math.floor(_tp / 3600), _m = Math.floor((_tp % 3600) / 60), _s = _tp % 60; var _p = function (n) { return (n < 10 ? "0" : "") + n; }; tmPresetInput.value = _h > 0 ? (_h + ":" + _p(_m) + ":" + _p(_s)) : (_p(_m) + ":" + _p(_s)); }
           if (ntVisibleChk) { ntVisibleChk.checked = st.notes_visible !== false; setStatus($("ntStatus"), ntVisibleChk.checked); }
           if (tdVisibleChk) { tdVisibleChk.checked = st.todo_visible !== false; setStatus($("tdStatus"), tdVisibleChk.checked); }
           if (mnVisibleChk) { mnVisibleChk.checked = st.monitor_visible !== false; setStatus($("mnStatus"), mnVisibleChk.checked); }
