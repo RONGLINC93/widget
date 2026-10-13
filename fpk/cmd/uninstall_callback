@@ -1,9 +1,55 @@
 #!/bin/bash
 # ============================================================================
-# 卸载后兜底：清残留进程，并确保运行期 conf 不残留。
+# 卸载后兜底：清残留进程 + conf.d，并按「卸载向导」的选择兜底处理用户数据。
+#
+# 数据去留按以下顺序判定：
+#   1) 环境变量 wizard_remove_data（fnOS 把向导值以同名环境变量传给脚本）；
+#   2) uninstall_init 写在 /tmp 的标记文件（此时应用目录已删、TRIM_PKGVAR 可能已空）；
+#   3) 都没有 → 保留（默认绝不删用户数据）。
+# 正常情况下 uninstall_init 已经处理完，这里只是幂等的最后一关。
 # 注意：zip 里的加密条目只能在 uninstall_init 阶段（应用文件还在）撤销；
 # 此处仅做最后保险——去掉运行期 conf.d 文件，避免本轮未重启 nginx 时继续生效。
 # ============================================================================
+MARKER="/tmp/.ronglinc93widget-uninstall-mode"
+
+RAW_MODE="$(printf '%s' "${wizard_remove_data:-}" | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
+if [ -z "${RAW_MODE}" ] && [ -f "${MARKER}" ]; then
+    RAW_MODE="$(sed -n 's/^mode=//p' "${MARKER}" 2>/dev/null | head -n 1)"
+fi
+case "${RAW_MODE}" in
+    purge|delete|remove|true|1|yes|on) MODE="purge" ;;
+    *) MODE="keep" ;;
+esac
+
+PKGVAR_DIR="${TRIM_PKGVAR:-}"
+PKGETC_DIR="${TRIM_PKGETC:-}"
+PKGHOME_DIR="${TRIM_PKGHOME:-}"
+if [ -f "${MARKER}" ]; then
+    [ -z "${PKGVAR_DIR}" ] && PKGVAR_DIR="$(sed -n 's/^pkgvar=//p' "${MARKER}" 2>/dev/null | head -n 1)"
+    [ -z "${PKGETC_DIR}" ] && PKGETC_DIR="$(sed -n 's/^pkgetc=//p' "${MARKER}" 2>/dev/null | head -n 1)"
+    [ -z "${PKGHOME_DIR}" ] && PKGHOME_DIR="$(sed -n 's/^pkghome=//p' "${MARKER}" 2>/dev/null | head -n 1)"
+fi
+
+wipe_app_dir() {
+    case "$1" in
+        */@appdata/*|*/@appconf/*|*/@apphome/*)
+            rm -rf "$1" 2>/dev/null
+            echo "已删除数据目录：$1" >&2
+            ;;
+    esac
+}
+
 pkill -f "ronglinc93widget/server.py" 2>/dev/null
 rm -f /usr/trim/nginx/conf/conf.d/ronglinc93widget.conf 2>/dev/null
+
+if [ "${MODE}" = "purge" ]; then
+    echo "卸载后兜底：删除全部用户数据" >&2
+    wipe_app_dir "${PKGVAR_DIR}"
+    [ -n "${PKGETC_DIR}" ] && wipe_app_dir "${PKGETC_DIR}"
+    [ -n "${PKGHOME_DIR}" ] && wipe_app_dir "${PKGHOME_DIR}"
+else
+    echo "卸载后兜底：保留用户数据" >&2
+fi
+
+rm -f "${MARKER}" 2>/dev/null
 exit 0

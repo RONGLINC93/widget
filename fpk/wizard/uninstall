@@ -1,0 +1,32 @@
+[
+  {
+    "stepTitle": "卸载 RONGLINC93小组件",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "<b>卸载时会一并撤销桌面注入</b>（conf.d 配置 + ng.conf.zip 加密条目），不会留下孤儿注入。<br/><br/>请选择卸载后如何处理本组件的数据。"
+      },
+      {
+        "type": "radio",
+        "field": "wizard_remove_data",
+        "label": "数据处理",
+        "initValue": "keep",
+        "options": [
+          {
+            "label": "保留数据",
+            "value": "keep"
+          },
+          {
+            "label": "删除所有数据",
+            "value": "purge"
+          }
+        ],
+        "helpText": "保留（默认）：各组件的设置、便签、待办清单仍留在设备上，重新安装后自动恢复。<br/>删除：连同设置、便签、待办清单一起清空，<b>不可恢复</b>。"
+      },
+      {
+        "type": "tips",
+        "helpText": "需要删除数据时选「删除所有数据」，否则保持默认的「保留数据」。"
+      }
+    ]
+  }
+]

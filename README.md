@@ -121,6 +121,24 @@ nginx 拒绝加载 → **飞牛 Web 完全宕机**（5666/5667/80/443 全部无�
 
 ---
 
+## 卸载
+
+在应用中心点「卸载」时，会先弹出**卸载向导**让你选择数据怎么处理：
+
+| 选项 | 行为 |
+|---|---|
+| **保留数据**（默认） | 只卸载程序，各组件的设置、便签、待办清单仍留在 `@appdata/ronglinc93widget/`，**重新安装后自动恢复** |
+| **删除所有数据** | 连同设置、便签、待办清单一起清空（`TRIM_PKGVAR` / `TRIM_PKGETC` / `TRIM_PKGHOME`），**不可恢复** |
+
+两种选择都会先撤销桌面注入（`conf.d` 配置 + `ng.conf.zip` 加密条目 + 注入页），
+不会留下孤儿注入导致 nginx `duplicate location "/"` 崩溃。
+
+实现上：选择由 `wizard/uninstall` 的 `wizard_remove_data` 字段收集，fnOS 以同名环境变量
+传给生命周期脚本；`cmd/uninstall_init` 在「撤注入 → 停服务」之后执行，
+`cmd/uninstall_callback` 再幂等兜底一次。**拿不到选择时一律保留，绝不隐式删除**。
+
+---
+
 ## 使用
 
 设置窗口内（原生应用为卡片式「小组件管理面板」）：
@@ -227,11 +245,12 @@ fpk/
 ├── cmd/                  # 生命周期脚本
 │   ├── main              # start/stop/status
 │   ├── install_init / install_callback
-│   ├── uninstall_init    # ★ 卸载前先撤注入，再停服务
-│   ├── uninstall_callback
+│   ├── uninstall_init    # ★ 卸载前先撤注入，再停服务，最后按向导选择处理数据
+│   ├── uninstall_callback # 卸载后兜底清残留进程 / conf.d + 数据去留
 │   ├── stop / upgrade_*
 ├── config/               # privilege / resource
-├── wizard/install
+├── wizard/install        # 安装向导
+├── wizard/uninstall      # ★ 卸载向导：保留数据 / 删除所有数据
 └── app/                  # 应用本体（打成 app.tgz）
     ├── server.py         # 后端：HTTP 服务 + 注入器 + 设置持久化
     ├── injector.py       # fnOS 注入模块（nginx conf + ng.conf.zip 加解密）
@@ -307,7 +326,7 @@ README.md / CHANGELOG.md  # 文档
 | Web 打不开（5666/5667 无监听） | 几乎一定是 `duplicate location "/"`，见上文"注入只能有一个" |
 | 验证注入却总失败 | **桌面在 5666(HTTP)/5667(HTTPS)，不是 80/443**；用这两个端口 curl |
 | 浏览器连不上后端 | 后端已做双栈监听（`::` + `IPV6_V6ONLY=0`），IPv4/IPv6 都可连 |
-| 卸载后配置还在 | 旧版卸载不清注入；用「清理残留注入」或新版 `uninstall_init` 自动清理 |
+| 卸载后配置还在 | ① **注入残留**：旧版卸载不清注入，用「清理残留注入」或新版 `uninstall_init` 自动清理；② **数据残留**：卸载向导默认「保留数据」，要清空请在卸载时选「删除所有数据」（或手动删 `@appdata/ronglinc93widget/`） |
 | 改了代码没生效 | 需重新 `python build_fpk.py` 并在应用中心重装 fpk |
 
 ---

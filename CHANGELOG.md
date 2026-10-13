@@ -8,6 +8,8 @@
 
 - **计时器小组件**（`static/timer-widget.js` / `static/timer-widget.html` / `widget-shell.css` / `server.py` / `ui/index.html` / `static/inject.js`）：新增纯前端倒计时浮层，与世界时钟 / 便签等共用通用外壳 `RLShell`（拖拽 / 缩放 / 最小化 / 固定 / 关闭一致）。支持输入分钟数或「分:秒」（如 01:30，统一 00:00 补零格式）+ 秒级快捷档（10″/30″/1′/3′/5′/10′/25′）、开始 / 暂停 / 重置，到点弹出「⏰ 时间到」提示层并持续闹铃，点「知道了」即停铃、关提示并复位；默认时长存后端（`/api/timer_settings` 的 `timer_preset`），运行中的剩余时间 / 是否在跑存本地 `localStorage`，刷新桌面后按结束时间戳恢复继续倒计时。管理页新增对应配置块与桌面预览，`inject.js` 已注册挂载。中间用 SVG 环形进度条展示剩余比例（满环→归零），到点圆环与数字一并变红闪烁。
 
+- **卸载时可选择「保留数据 / 删除所有数据」**（`wizard/uninstall` / `cmd/uninstall_init` / `cmd/uninstall_callback`）：按飞牛官方文档（卸载流程：「卸载逻辑应尊重用户数据……可在 `wizard/uninstall` 中收集选择，并在卸载脚本中执行」）新增卸载向导——在应用中心点「卸载」时会先弹出向导页，由 `radio` 字段 `wizard_remove_data` 二选一，**默认「保留数据」**（设置 / 便签 / 待办清单留在设备上，重装后自动恢复），选「删除所有数据」才会清空。fnOS 把向导值以同名环境变量传给生命周期脚本，脚本据此执行：`uninstall_init` 在「撤注入 → 停服务」之后按选择处理数据（顺序不能反，否则还在跑的服务会把 `settings.json` 写回磁盘），并把选择与解析出的目录写进 `/tmp/.ronglinc93widget-uninstall-mode`；`uninstall_callback` 再按「环境变量 → 标记文件 → 默认保留」的顺序兜底一次（幂等，覆盖应用目录已被删除的情况）。删除只作用于形如 `/vol*/@appdata|@appconf|@apphome/<app>` 的应用目录，其它路径一律不动；未拿到选择时**绝不隐式删除**。
+
 ### 修复 / 优化
 
 - **管理页补齐各小组件设置**（`ui/index.html` / `server.py` / 各组件脚本 / `inject.js`）：把原先只有显示开关的组件主要设置搬到管理页——世界时钟（城市 / 时区增删，读写 `worldclock_cities`）、系统监控（刷新间隔 1~60s + 显示分组 CPU/内存/磁盘/温度/风扇/显卡，`monitor_refresh`/`monitor_groups`）、日历（每周起始周一/周日 + 显示农历/节假日开关，`calendar_week_start`/`calendar_show_lunar`/`calendar_show_holiday`；每日备忘做成日期列表，点选某日在编辑区显示并编辑（日期选择器适配深色并默认今天），存 `calendar_notes`）；便签 / 待办也能在管理页直接管理内容（便签新建 / 编辑 / 换色 / 置顶 / 删除，待办添加 / 编辑 / 勾选 / 删除，走 `/api/notes`、`/api/todos` 持久化，刷新后仍在）。各设置即改即存、刷新桌面生效，桌面预览同步。过程中修复了日历设置 GET 分支一度被误缩进到 POST 的 `return` 之后、导致 GET 无响应的问题。

@@ -1,6 +1,13 @@
 #!/bin/bash
 # ============================================================================
-# 卸载前：撤销桌面注入，再停服务。
+# 卸载前：撤销桌面注入 → 停服务 → 按「卸载向导」的选择处理用户数据。
+#
+# 数据去留由 wizard/uninstall 的 wizard_remove_data 字段决定：fnOS 会把向导
+# 收集到的值以同名环境变量传给生命周期脚本（官方文档「卸载流程」：
+# "卸载逻辑应尊重用户数据……可在 wizard/uninstall 中收集选择，并在卸载脚本中执行"）。
+#   keep / 没选 / 值无法识别 → 保留用户数据（默认，绝不隐式删除）
+#   purge                    → 删除全部用户数据
+# 用户数据 = TRIM_PKGVAR 下的 settings.json / notes.json / todos.json。
 #
 # 关键点（踩坑记录）：
 #   1) 注入 = conf.d/ronglinc93widget.conf + ng.conf.zip 加密条目 + desktop 注入页。
@@ -9,13 +16,41 @@
 #   2) **绝不能在此同步重启 nginx**：应用中心的卸载请求本身走 nginx(5666/5667)，
 #      同步重启会把请求掐断，前端报 "Failed to fetch"，卸载失败。
 #      因此改为：先清理（不重启）→ 后台延迟重启 nginx，让卸载请求先返回。
-#   3) 最后才停服务。
+#   3) 顺序必须是「撤注入 → 停服务 → 处理数据」：反过来先删数据的话，
+#      仍在运行的服务会在我们删完 settings.json 后又把内存里的设置写回磁盘。
 # ============================================================================
 APP_DIR="${TRIM_APPDEST:-/var/apps/${TRIM_APPNAME}/target}"
 PORT="${TRIM_SERVICE_PORT:-8099}"
 ZIP="/usr/trim/share/.restore/ng.conf.zip"
 CONF="/usr/trim/nginx/conf/conf.d/ronglinc93widget.conf"
 ARC="conf.d/ronglinc93widget.conf"
+APPNAME="${TRIM_APPNAME:-ronglinc93widget}"
+PKGVAR_DIR="${TRIM_PKGVAR:-/vol1/@appdata/${APPNAME}}"
+PKGETC_DIR="${TRIM_PKGETC:-}"
+PKGHOME_DIR="${TRIM_PKGHOME:-}"
+# 卸载回调（uninstall_callback）执行时应用目录可能已不存在、TRIM_PKGVAR 也可能
+# 已被清空，故把选择落到 /tmp，供回调兜底读取。
+MARKER="/tmp/.ronglinc93widget-uninstall-mode"
+
+# ---- 0) 解析卸载向导的选择（向导值 -> 环境变量 wizard_remove_data）----
+RAW_MODE="$(printf '%s' "${wizard_remove_data:-}" | tr -d '[:space:]' | tr 'A-Z' 'a-z')"
+case "${RAW_MODE}" in
+    purge|delete|remove|true|1|yes|on) MODE="purge" ;;
+    *) MODE="keep" ;;
+esac
+printf 'mode=%s\npkgvar=%s\npkgetc=%s\npkghome=%s\n' \
+    "${MODE}" "${PKGVAR_DIR}" "${PKGETC_DIR}" "${PKGHOME_DIR}" > "${MARKER}" 2>/dev/null
+echo "卸载数据处理方式：${MODE}（wizard_remove_data=${wizard_remove_data:-未设置}）" >&2
+
+# 只清形如 /vol*/@appdata|@appconf|@apphome/<app> 的应用目录，绝不碰其它路径
+wipe_app_dir() {
+    case "$1" in
+        */@appdata/*|*/@appconf/*|*/@apphome/*)
+            rm -rf "$1" 2>/dev/null
+            echo "已删除数据目录：$1" >&2
+            ;;
+    esac
+}
 
 # ---- 1) 撤注入（不在这里重启 nginx）----
 if curl -sf -m 15 -X POST "http://127.0.0.1:${PORT}/api/uninstall" >/dev/null 2>&1; then
@@ -40,8 +75,18 @@ PYEOF
     ( sleep 5; systemctl restart trim_nginx ) >/dev/null 2>&1 &
 fi
 
-# ---- 2) 最后停服务 ----
+# ---- 2) 停服务 ----
 if [ -x "/var/apps/${TRIM_APPNAME}/cmd/main" ]; then
     "/var/apps/${TRIM_APPNAME}/cmd/main" stop 2>/dev/null
+fi
+
+# ---- 3) 按用户选择处理数据（服务已停，不会再写回 settings.json）----
+if [ "${MODE}" = "purge" ]; then
+    echo "按用户选择：删除全部用户数据" >&2
+    wipe_app_dir "${PKGVAR_DIR}"
+    [ -n "${PKGETC_DIR}" ] && wipe_app_dir "${PKGETC_DIR}"
+    [ -n "${PKGHOME_DIR}" ] && wipe_app_dir "${PKGHOME_DIR}"
+else
+    echo "按用户选择：保留用户数据（${PKGVAR_DIR} 下的 settings.json / notes.json / todos.json）" >&2
 fi
 exit 0
