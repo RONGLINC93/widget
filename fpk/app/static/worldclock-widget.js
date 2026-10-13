@@ -145,7 +145,9 @@
       if (window.__wc_mounted) return;
       window.__wc_mounted = true;
       W.mount({ settingsApi: null, pos: null, size: null,
-                cities: [{ name: "本地", tz: "" }] });
+                cities: [{ name: "本地", tz: "" }, { name: "东京", tz: "Asia/Tokyo" },
+                  { name: "纽约", tz: "America/New_York" }, { name: "伦敦", tz: "Europe/London" },
+                  { name: "洛杉矶", tz: "America/Los_Angeles" }] });
     });
   }
 })();

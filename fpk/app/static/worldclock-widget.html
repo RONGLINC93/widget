@@ -22,7 +22,7 @@
 <body>
   <div class="hint">
     <h2>🌐 世界时钟悬浮窗</h2>
-    <p>页面右侧即为组件：可添加多个城市，实时显示当地时间与日期（基于 Intl 时区，无需后端/外网）。</p>
+    <p>页面左侧即为组件：可添加多个城市，实时显示当地时间与日期（基于 Intl 时区，无需后端/外网）。</p>
     <p>支持拖拽标题栏移动、拖边缘/右下角把手缩放、最小化、固定、关闭。</p>
     <p>经 <code>/rl93w/</code> 访问时，城市列表由服务端 <code>/api/worldclock_settings</code> 持久化；
        直接打开本文件则为纯前端演示（仅本地时钟，不持久化）。</p>
@@ -42,8 +42,10 @@
     var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
     WorldClockWidget.mount({
       settingsApi: BASE ? BASE + "/api/worldclock_settings" : null,
-      // 纯本地演示无后端时先给一个「本地」时钟，避免空面板
-      cities: BASE ? null : [{ name: "本地", tz: "" }]
+      // 纯本地演示无后端时给几个常用时区，避免空面板
+      cities: BASE ? null : [{ name: "本地", tz: "" }, { name: "东京", tz: "Asia/Tokyo" },
+        { name: "纽约", tz: "America/New_York" }, { name: "伦敦", tz: "Europe/London" },
+        { name: "洛杉矶", tz: "America/Los_Angeles" }]
     });
 
     var injectBtn = document.getElementById("injectBtn");

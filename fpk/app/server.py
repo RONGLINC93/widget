@@ -363,7 +363,12 @@ def load_settings() -> dict:
             "todo_min": False, "todo_pinned": False,
             "worldclock_visible": True, "worldclock_pos": None, "worldclock_size": None,
             "worldclock_min": False, "worldclock_pinned": False,
-            "worldclock_cities": [{"name": "本地", "tz": ""}],
+            "worldclock_cities": [
+                {"name": "本地", "tz": ""},
+                {"name": "东京", "tz": "Asia/Tokyo"},
+                {"name": "纽约", "tz": "America/New_York"},
+                {"name": "伦敦", "tz": "Europe/London"},
+                {"name": "洛杉矶", "tz": "America/Los_Angeles"}],
             "monitor_visible": True, "monitor_pos": None, "monitor_size": None,
             "monitor_min": False, "monitor_pinned": False}
     try:
@@ -1631,7 +1636,8 @@ class DirHandler(BaseHTTPRequestHandler):
                                            "tz": str(c.get("tz") or "")[:60]})
                     cur["worldclock_cities"] = cities
             def _wc_response(resp, st):
-                resp["cities"] = st.get("worldclock_cities") or [{"name": "本地", "tz": ""}]
+                # 用户删空后存的是 []，用 or [] 兜底，避免下次又把默认列表恢复回来
+                resp["cities"] = st.get("worldclock_cities") or []
             handle_widget_settings(self, parsed, "worldclock",
                                   extra_payload=_wc_payload, extra_response=_wc_response)
             return

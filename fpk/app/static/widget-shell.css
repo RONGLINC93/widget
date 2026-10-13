@@ -108,11 +108,11 @@
 
 /* ---------- 世界时钟 ---------- */
 .wc-list { display: flex; flex-direction: column; gap: 8px; }
-.wc-row { display: flex; align-items: baseline; gap: 10px; padding: 6px 8px; border-radius: 8px; background: var(--rl-surface); }
-.wc-row .wc-name { font-weight: 600; min-width: 72px; color: var(--rl-fg); }
-.wc-row .wc-time { font-size: 18px; font-variant-numeric: tabular-nums; color: var(--rl-accent); }
-.wc-row .wc-date { margin-left: auto; font-size: 11px; color: var(--rl-muted); }
-.wc-row .wc-del { margin-left: 6px; border: none; background: var(--rl-surface-2); color: var(--rl-subtle); border-radius: 5px; cursor: pointer; padding: 2px 7px; font-size: 13px; }
+.wc-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; background: var(--rl-surface); flex-wrap: nowrap; }
+.wc-row .wc-name { font-weight: 600; flex: 1 1 auto; min-width: 0; color: var(--rl-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-row .wc-time { font-size: 18px; font-variant-numeric: tabular-nums; color: var(--rl-accent); white-space: nowrap; flex: none; }
+.wc-row .wc-date { font-size: 11px; color: var(--rl-muted); white-space: nowrap; flex: none; }
+.wc-row .wc-del { margin-left: 2px; flex: none; line-height: 1; border: none; background: var(--rl-surface-2); color: var(--rl-subtle); border-radius: 5px; cursor: pointer; padding: 4px 8px; font-size: 13px; }
 .wc-row .wc-del:hover { background: var(--rl-danger-bg); color: var(--rl-danger); }
 .wc-add { display: flex; gap: 6px; margin-top: 8px; }
 .wc-add input { flex: 1; min-width: 0; background: var(--rl-input-bg); border: 1px solid var(--rl-input-border); color: var(--rl-fg);

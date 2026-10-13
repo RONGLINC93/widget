@@ -1018,7 +1018,10 @@
       if (stageWc) stageWc.destroy();
       stageWc = WorldClockWidget.mount({
         settingsApi: BASE + "/api/worldclock_settings",
-        cities: (settings.worldclock_cities) || [{ name: "本地", tz: "" }],
+        cities: (settings.worldclock_cities) || [
+          { name: "本地", tz: "" }, { name: "东京", tz: "Asia/Tokyo" },
+          { name: "纽约", tz: "America/New_York" }, { name: "伦敦", tz: "Europe/London" },
+          { name: "洛杉矶", tz: "America/Los_Angeles" }],
         container: stage, preview: true, draggable: false
       });
 
