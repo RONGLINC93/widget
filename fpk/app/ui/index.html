@@ -145,7 +145,7 @@
     /* 管理页：日历每日备忘（列表选择 + 编辑区） */
     .cal-notes-admin { margin-top: 10px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 10px; }
     .cal-note-add { display: flex; gap: 6px; margin-bottom: 8px; }
-    .cal-note-add input[type=date] { flex: 1; min-width: 0; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit; }
+    .cal-note-add input[type=date] { flex: 1; min-width: 0; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit; color-scheme: dark; }
     .cal-note-list { display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow: auto; margin-bottom: 8px; }
     .cal-note-item { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,.04); cursor: pointer; font-size: 12px; }
     .cal-note-item:hover { background: rgba(255,255,255,.08); }
@@ -157,6 +157,23 @@
     .cal-note-editor textarea { width: 100%; box-sizing: border-box; min-height: 64px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit; resize: vertical; outline: none; }
     .btn-mini.btn-danger { background: #da3633; }
     .btn-mini.btn-danger:hover { background: #f85149; }
+    /* 补充控件的日间模式适配（中性色跟随主题；便签黄纸/绿红按钮等语义色不变） */
+    [data-theme="light"] .wc-admin-chip { background: rgba(0,0,0,.04); border-color: rgba(0,0,0,.12); color: #1f2328; }
+    [data-theme="light"] .wc-admin-empty,
+    [data-theme="light"] .admin-empty { color: #57606a; }
+    [data-theme="light"] .admin-todo .t { color: #1f2328; }
+    [data-theme="light"] .admin-todo.done .t { color: #8b949e; }
+    [data-theme="light"] .admin-todo-add input,
+    [data-theme="light"] .cal-note-add input[type=date],
+    [data-theme="light"] .cal-note-editor textarea { background: #ffffff; border-color: #d0d7de; color: #1f2328; }
+    [data-theme="light"] .cal-note-add input[type=date] { color-scheme: light; }
+    [data-theme="light"] .cal-notes-admin { border-top-color: rgba(0,0,0,.08); }
+    [data-theme="light"] .cal-note-item { background: rgba(0,0,0,.03); }
+    [data-theme="light"] .cal-note-item:hover { background: rgba(0,0,0,.06); }
+    [data-theme="light"] .cal-note-item b { color: #0969da; }
+    [data-theme="light"] .cal-note-item span { color: #1f2328; }
+    [data-theme="light"] .cal-note-editor { border-color: rgba(0,0,0,.12); }
+    [data-theme="light"] .cal-note-date { color: #1f2328; }
     [data-theme="light"] .stage-zoom #zoomVal { color: #0969da; }
 
     .stage {
@@ -1559,6 +1576,8 @@
           if (tmPresetInput) { var _tp = Math.max(0, parseInt(st.timer_preset, 10) || 300); var _h = Math.floor(_tp / 3600), _m = Math.floor((_tp % 3600) / 60), _s = _tp % 60; var _p = function (n) { return (n < 10 ? "0" : "") + n; }; tmPresetInput.value = _h > 0 ? (_h + ":" + _p(_m) + ":" + _p(_s)) : (_p(_m) + ":" + _p(_s)); }
           if (ntVisibleChk) { ntVisibleChk.checked = st.notes_visible !== false; setStatus($("ntStatus"), ntVisibleChk.checked); }
           loadAdminNotes(); loadAdminTodos(); loadCalNotes();
+          var _cnd = $("calNoteNewDate");
+          if (_cnd && !_cnd.value) { var _n = new Date(); _cnd.value = _n.getFullYear() + "-" + (_n.getMonth() + 1 < 10 ? "0" : "") + (_n.getMonth() + 1) + "-" + (_n.getDate() < 10 ? "0" : "") + _n.getDate(); }
           if (tdVisibleChk) { tdVisibleChk.checked = st.todo_visible !== false; setStatus($("tdStatus"), tdVisibleChk.checked); }
           if (mnVisibleChk) { mnVisibleChk.checked = st.monitor_visible !== false; setStatus($("mnStatus"), mnVisibleChk.checked); }
           if (mnRefreshInput) mnRefreshInput.value = st.monitor_refresh || 2;
