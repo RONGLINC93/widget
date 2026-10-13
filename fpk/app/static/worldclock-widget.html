@@ -9,7 +9,7 @@
     body { margin: 0; min-height: 100vh;
       background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
       color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
-    .hint { max-width: 640px; margin: 48px auto; padding: 0 16px; }
+    .hint { max-width: 600px; margin: 48px auto; padding: 0 16px; }
     .hint code { background: #161b22; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
     .btn-primary { background: #238636; color: #fff; border: 1px solid #2ea04366;
       padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;
@@ -21,20 +21,31 @@
 </head>
 <body>
   <div class="hint">
-    <h2>🕐 世界时钟悬浮窗组件</h2>
-    <p>右上角浮层即为组件：多城市、每秒自动走时、可增删城市（支持城市名或 IANA 时区，如 <code>Asia/Tokyo</code>）。</p>
-    <p>可拖拽标题栏移动、拖右下角把手缩放（双击恢复默认）、最小化、关闭。</p>
-    <p>本演示页没有后端，城市列表暂存内存；在 fnOS 上则由服务端持久化（跨设备一致）。</p>
+    <h2>🌐 世界时钟悬浮窗</h2>
+    <p>页面右侧即为组件：可添加多个城市，实时显示当地时间与日期（基于 Intl 时区，无需后端/外网）。</p>
+    <p>支持拖拽标题栏移动、拖边缘/右下角把手缩放、最小化、固定、关闭。</p>
+    <p>经 <code>/rl93w/</code> 访问时，城市列表由服务端 <code>/api/worldclock_settings</code> 持久化；
+       直接打开本文件则为纯前端演示（仅本地时钟，不持久化）。</p>
     <p>
       <button id="injectBtn" class="btn-primary">应用到桌面（注入显示）</button>
       <span id="injectMsg" class="inject-msg"></span>
     </p>
   </div>
 
+  <!-- 阻止组件自带的自动挂载，改由本页按需挂载 -->
+  <script>window.__wc_noauto = true;</script>
   <script src="widget-shell.js"></script>
   <script src="worldclock-widget.js"></script>
   <script>
+    // 本页可能从根路径(/static/worldclock-widget.html)或经 nginx 反代
+    // (/rl93w/static/worldclock-widget.html)加载，两种场景下 API 前缀不同，需自适应。
     var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
+    WorldClockWidget.mount({
+      settingsApi: BASE ? BASE + "/api/worldclock_settings" : null,
+      // 纯本地演示无后端时先给一个「本地」时钟，避免空面板
+      cities: BASE ? null : [{ name: "本地", tz: "" }]
+    });
+
     var injectBtn = document.getElementById("injectBtn");
     var injectMsg = document.getElementById("injectMsg");
     if (!BASE) {

@@ -84,7 +84,7 @@
 }
 .rl-bar button:hover, .rl-minbar button:hover { background: var(--rl-surface-2); color: var(--rl-fg); }
 .rl-pin.rl-active { color: #f0c674; }
-.rl-body { padding: 10px; overflow: auto; position: relative; }
+.rl-body { padding: 10px; overflow: auto; position: relative; min-height: 0; flex: 1 1 auto; }
 /* 深色/浅色都走变量化滚动条：内容超长（如监控的温度列表）时不露浏览器默认亮灰条 */
 .rl-body { scrollbar-width: thin; scrollbar-color: var(--rl-scroll) transparent; }
 .rl-body::-webkit-scrollbar { width: 10px; height: 10px; }

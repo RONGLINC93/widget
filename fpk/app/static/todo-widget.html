@@ -9,7 +9,7 @@
     body { margin: 0; min-height: 100vh;
       background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
       color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
-    .hint { max-width: 640px; margin: 48px auto; padding: 0 16px; }
+    .hint { max-width: 600px; margin: 48px auto; padding: 0 16px; }
     .hint code { background: #161b22; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
     .btn-primary { background: #238636; color: #fff; border: 1px solid #2ea04366;
       padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;
@@ -21,20 +21,30 @@
 </head>
 <body>
   <div class="hint">
-    <h2>✅ 待办清单悬浮窗组件</h2>
-    <p>右上角浮层即为组件：勾选完成、删除、回车新增一项待办。</p>
-    <p>可拖拽标题栏移动、拖右下角把手缩放（双击恢复默认）、最小化、关闭。</p>
-    <p>本演示页没有后端，数据暂存内存；在 fnOS 上则由服务端持久化到 <code>todos.json</code>。</p>
+    <h2>✅ 待办清单悬浮窗</h2>
+    <p>页面右侧即为组件：输入框回车或点 ＋ 添加待办，勾选完成、点垃圾桶删除。</p>
+    <p>支持拖拽标题栏移动、拖边缘/右下角把手缩放、最小化、固定、关闭。</p>
+    <p>经 <code>/rl93w/</code> 访问时，待办内容由服务端 <code>/api/todos</code> 持久化；
+       直接打开本文件则为纯前端演示（增改仅在内存，刷新即丢）。</p>
     <p>
       <button id="injectBtn" class="btn-primary">应用到桌面（注入显示）</button>
       <span id="injectMsg" class="inject-msg"></span>
     </p>
   </div>
 
+  <!-- 阻止组件自带的自动挂载，改由本页按需挂载 -->
+  <script>window.__td_noauto = true;</script>
   <script src="widget-shell.js"></script>
   <script src="todo-widget.js"></script>
   <script>
+    // 本页可能从根路径(/static/todo-widget.html)或经 nginx 反代
+    // (/rl93w/static/todo-widget.html)加载，两种场景下 API 前缀不同，需自适应。
     var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
+    TodoWidget.mount({
+      settingsApi: BASE ? BASE + "/api/todo_settings" : null,
+      todosApi: BASE ? BASE + "/api/todos" : null
+    });
+
     var injectBtn = document.getElementById("injectBtn");
     var injectMsg = document.getElementById("injectMsg");
     if (!BASE) {

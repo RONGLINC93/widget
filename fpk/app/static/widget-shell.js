@@ -109,6 +109,35 @@
       ROOT.style.height = h ? h + "px" : "auto";
     }
 
+    // ---- 视口钳制：保证浮层永远完整落在屏幕内 ----
+    // 场景1：pos/size 是在另一台更大分辨率的设备上保存的，回到小屏就连组件
+    //         一起超出屏幕（用户看不见也点不中，必须在这里拉回来）。
+    // 场景2：高度为 auto 时内容变高，CSS 的 max-height:90vh 加上 top 偏移，
+    //         底部会越过视口下沿——这里按当前 top 动态收紧 maxHeight。
+    var onWinResize = function () { enforceViewport(); };
+    function enforceViewport() {
+      if (!ROOT) return;
+      if (OPTS && (OPTS.preview || OPTS.embed)) return;   // 预览/嵌入容器，不按视口钳制
+      var vw = window.innerWidth || 1024, vh = window.innerHeight || 768, M = 8;
+      var rect = ROOT.getBoundingClientRect();
+      var left = parseFloat(ROOT.style.left); if (isNaN(left)) left = rect.left;
+      var top = parseFloat(ROOT.style.top); if (isNaN(top)) top = rect.top;
+      // 宽度不超出视口
+      var maxW = Math.max(MINW, vw - 2 * M);
+      if (rect.width > maxW) ROOT.style.width = maxW + "px";
+      // 高度不越过视口底部（auto 高度 + 高内容时的关键）
+      ROOT.style.maxHeight = Math.max(MINH, vh - top - M) + "px";
+      // 位置钳制：整个浮层回到视口内
+      var r2 = ROOT.getBoundingClientRect();
+      var nx = Math.max(M, Math.min(left, vw - r2.width - M));
+      var ny = Math.max(M, Math.min(top, vh - r2.height - M));
+      if (nx !== left) ROOT.style.left = Math.round(nx) + "px";
+      if (ny !== top) {
+        ROOT.style.top = Math.round(ny) + "px";
+        ROOT.style.maxHeight = Math.max(MINH, vh - ny - M) + "px";
+      }
+    }
+
     function syncPin() {
       if (!ROOT) return;
       ROOT.classList.toggle("rl-pinned", PINNED);
@@ -150,6 +179,9 @@
               ROOT.style.top = sn.top + "px";
               rr = ROOT.getBoundingClientRect();
             }
+            // 松手后再钳回视口，避免把浮层拖到屏幕外还被保存下来
+            enforceViewport();
+            rr = ROOT.getBoundingClientRect();
             saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) }, OPTS.size);
           }
           handle.addEventListener("pointermove", move);
@@ -191,6 +223,8 @@
           ROOT.removeEventListener("pointermove", move);
           ROOT.removeEventListener("pointerup", up);
           ROOT.removeEventListener("pointercancel", up);
+          // 缩放后再钳回视口，避免保存出屏幕外的尺寸/位置
+          enforceViewport();
           var rr = ROOT.getBoundingClientRect();
           saveBox({ left: Math.round(rr.left), top: Math.round(rr.top) },
                   { width: Math.round(rr.width), height: Math.round(rr.height) });
@@ -205,6 +239,7 @@
         if (!edgeAt(e)) return;
         ROOT.style.width = ""; ROOT.style.height = "";
         OPTS.size = null; send({ size: null });
+        enforceViewport();   // 恢复默认后按内容重新钳制视口
       });
       ROOT.addEventListener("mousemove", function (e) {
         if (PINNED) { ROOT.style.cursor = ""; return; }
@@ -223,6 +258,7 @@
         if (HOOKS && HOOKS.onClose) HOOKS.onClose();
         if (ROOT && ROOT.parentNode) ROOT.parentNode.removeChild(ROOT);
         saveVisible(false);
+        window.removeEventListener("resize", onWinResize);
         ROOT = null;
       }
       var minBtn = el(ID + "-min"); if (minBtn) minBtn.onclick = function () { if (MIN) doRestore(); else doMin(); };
@@ -279,10 +315,14 @@
           saveBox: saveBox, applyBox: applyBox, esc: esc
         }) || {};
       }
+      // 内容渲染完再钳一次视口（build 可能把 auto 高度的浮层撑高），并跟随窗口缩放
+      enforceViewport();
+      window.addEventListener("resize", onWinResize);
       return {
         root: function () { return ROOT; },
         refresh: function () { if (HOOKS && HOOKS.refresh) HOOKS.refresh(); },
         destroy: function () {
+          window.removeEventListener("resize", onWinResize);
           if (HOOKS && HOOKS.onDestroy) { try { HOOKS.onDestroy(); } catch (e) {} }
           if (ROOT && ROOT.parentNode) ROOT.parentNode.removeChild(ROOT);
           ROOT = null;
@@ -291,6 +331,7 @@
     }
 
     function unmount() {
+      window.removeEventListener("resize", onWinResize);
       if (HOOKS && HOOKS.onDestroy) { try { HOOKS.onDestroy(); } catch (e) {} }
       if (ROOT && ROOT.parentNode) ROOT.parentNode.removeChild(ROOT);
       ROOT = null;
@@ -299,6 +340,7 @@
     return {
       mount: mount, unmount: unmount, esc: esc,
       _destroy: function () {
+        window.removeEventListener("resize", onWinResize);
         if (HOOKS && HOOKS.onDestroy) { try { HOOKS.onDestroy(); } catch (e) {} }
         if (ROOT && ROOT.parentNode) ROOT.parentNode.removeChild(ROOT);
         ROOT = null;

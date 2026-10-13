@@ -9,7 +9,7 @@
     body { margin: 0; min-height: 100vh;
       background: radial-gradient(1200px 600px at 70% -10%, #1f6feb33, transparent), #0d1117;
       color: #8b949e; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
-    .hint { max-width: 640px; margin: 48px auto; padding: 0 16px; }
+    .hint { max-width: 600px; margin: 48px auto; padding: 0 16px; }
     .hint code { background: #161b22; padding: 2px 6px; border-radius: 4px; color: #e6edf3; }
     .btn-primary { background: #238636; color: #fff; border: 1px solid #2ea04366;
       padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;
@@ -21,66 +21,55 @@
 </head>
 <body>
   <div class="hint">
-    <h2>📊 系统监控悬浮窗组件</h2>
-    <p>右上角浮层即为组件：CPU / 内存 / 磁盘进度条 + 已运行时间。</p>
-    <p>可拖拽标题栏移动、拖右下角把手缩放（双击恢复默认）、最小化、关闭。</p>
-    <p>数据来自 <code>GET /api/monitor</code>（Linux <code>/proc</code>，异常降级）。
-       本演示页无后端，用<b>模拟数据</b>供数展示效果；注入到 fnOS 桌面后即为真实监控。</p>
+    <h2>📊 系统监控悬浮窗</h2>
+    <p>页面右侧即为组件：CPU / 内存 / 各存储卷 / 温度（分组）/ 风扇 / 显卡，每 2 秒刷新。</p>
+    <p>支持拖拽标题栏移动、拖边缘/右下角把手缩放、最小化、固定、关闭。</p>
+    <p>经 <code>/rl93w/</code> 访问时，数据来自服务端 <code>/api/monitor</code>（读 Linux <code>/proc</code>）；
+       直接打开本文件则用内置模拟数据演示（无后端也能看效果）。</p>
     <p>
       <button id="injectBtn" class="btn-primary">应用到桌面（注入显示）</button>
       <span id="injectMsg" class="inject-msg"></span>
     </p>
   </div>
 
+  <!-- 阻止组件自带的自动挂载，改由本页按需挂载 -->
   <script>window.__mn_noauto = true;</script>
   <script src="widget-shell.js"></script>
   <script src="monitor-widget.js"></script>
   <script>
-    // 演示：无后端时用模拟数据（随机漫步）供数，让浮窗有实时变化的内容；
-    // 注入到 fnOS 桌面后由 inject.js 换成真实的 GET /api/monitor。
-    var sim = {
-      ok: true, cpu: 23, cpu_model: "Intel Core i7-12700K",
-      mem: { percent: 61, used: 9.2e9, total: 16e9 },
-      disks: [
-        { path: "C:", percent: 74, used: 376e9, total: 512e9 },
-        { path: "D:", percent: 41, used: 410e9, total: 1000e9 },
-        { path: "E:", percent: 88, used: 880e9, total: 1000e9 }
-      ],
-      uptime: 3 * 86400 + 5 * 3600 + 42 * 60,
-      temps: [ { name: "CPU", temp: 52 }, { name: "主板", temp: 41 }, { name: "NVMe", temp: 48 } ],
-      fans: [ { name: "系统风扇1", rpm: 1200 }, { name: "系统风扇2", rpm: 1050 } ],
-      gpus: [
-        { name: "NVIDIA GeForce RTX 4060", usage: 34, temp: 58 },
-        { name: "Intel Arc A380", usage: 12, temp: 46 }
-      ]
-    };
-    function walk(v, step, lo, hi) {
-      return Math.max(lo, Math.min(hi, v + (Math.random() * 2 - 1) * step));
-    }
-    MonitorWidget.mount({
-      settingsApi: null,
-      monitorApi: function () {
-        sim.cpu = walk(sim.cpu, 6, 3, 97);
-        sim.mem.percent = walk(sim.mem.percent, 1.5, 30, 92);
-        sim.mem.used = sim.mem.total * sim.mem.percent / 100;
-        sim.disks.forEach(function (d) {
-          d.percent = walk(d.percent, 0.05, 60, 90);
-          d.used = d.total * d.percent / 100;
-        });
-        sim.temps = sim.temps.map(function (t) { return { name: t.name, temp: walk(t.temp, 1.5, 30, 85) }; });
-        sim.fans = sim.fans.map(function (f) { return { name: f.name, rpm: Math.round(walk(f.rpm, 60, 600, 1800)) }; });
-        sim.gpus.forEach(function (g) {
-          if (g.usage != null) g.usage = walk(g.usage, 8, 0, 99);
-          if (g.temp != null) g.temp = walk(g.temp, 1.5, 40, 82);
-        });
-        sim.uptime += 2;                      // 与 2s 轮询同步
-        return sim;
-      },
-      pos: null, size: null
-    });
-  </script>
-  <script>
+    // 本页可能从根路径(/static/monitor-widget.html)或经 nginx 反代
+    // (/rl93w/static/monitor-widget.html)加载，两种场景下 API 前缀不同，需自适应。
     var BASE = location.pathname.indexOf("/rl93w/") === 0 ? "/rl93w" : "";
+
+    // 无后端演示：monitorApi 支持直接传函数供数，每次调用返回带随机波动的模拟 stats
+    function mockStats() {
+      var r = function (a, b) { return a + Math.random() * (b - a); };
+      return {
+        ok: true,
+        cpu: r(5, 45),
+        cpu_model: "演示 CPU（模拟数据）",
+        mem: { percent: r(40, 85), used: r(4e9, 8e9), total: 11.6e9 },
+        disks: [
+          { path: "/vol1", percent: r(30, 70), used: r(3e10, 6e10), total: 6.68e10 },
+          { path: "/", percent: r(20, 50), used: r(1e10, 3e10), total: 6.1e10 }
+        ],
+        temps: [
+          { group: "CPU", name: "核心 1", temp: r(35, 65) },
+          { group: "CPU", name: "核心 2", temp: r(35, 65) },
+          { group: "主板", name: "主板", temp: r(30, 45) },
+          { group: "硬盘", name: "KINGTON SSD", temp: r(30, 45) }
+        ],
+        fans: [{ name: "CPU 风扇", rpm: Math.round(r(800, 1800)) }],
+        gpus: [{ name: "Intel 核显", usage: r(0, 15), temp: r(40, 55) }],
+        uptime: 12 * 86400 + 5 * 3600 + 1234
+      };
+    }
+
+    MonitorWidget.mount({
+      settingsApi: BASE ? BASE + "/api/monitor_settings" : null,
+      monitorApi: BASE ? BASE + "/api/monitor" : mockStats
+    });
+
     var injectBtn = document.getElementById("injectBtn");
     var injectMsg = document.getElementById("injectMsg");
     if (!BASE) {
