@@ -351,8 +351,8 @@ def load_settings() -> dict:
     """读取持久化设置（应用窗与桌面浮层共用同一份）。
     visible 记录用户在桌面上是否关过浮层，避免刷新后又自动弹出来。
     pos / size 记录浮层上次的位置与大小（None 表示用默认）。"""
-    data = {"path": "", "root": "", "visible": True, "pos": None, "size": None,
-            "dir_min": False,
+    data = {"path": "", "root": "", "stage_zoom": 50, "visible": True, "pos": None, "size": None,
+            "dir_min": False, "timer_preset": 300,
             "calendar_visible": True, "calendar_pos": None, "calendar_size": None,
             "calendar_notes": {}, "calendar_min": False,
             "weather_visible": True, "weather_pos": None, "weather_size": None,
@@ -1404,6 +1404,11 @@ class DirHandler(BaseHTTPRequestHandler):
                     cur["path"] = str(payload.get("path") or "")
                 if "root" in payload:
                     cur["root"] = str(payload.get("root") or "")
+                if "stage_zoom" in payload:
+                    try:
+                        cur["stage_zoom"] = max(10, min(200, int(payload.get("stage_zoom"))))
+                    except (TypeError, ValueError):
+                        pass
                 if "visible" in payload:
                     cur["visible"] = bool(payload.get("visible"))
                 if "pinned" in payload:
@@ -1634,6 +1639,20 @@ class DirHandler(BaseHTTPRequestHandler):
         # ===== 系统监控组件设置 =====
         if parsed.path == "/api/monitor_settings":
             handle_widget_settings(self, parsed, "monitor")
+            return
+
+        # ===== 计时器组件设置（含默认预设时长 timer_preset，单位秒）=====
+        if parsed.path == "/api/timer_settings":
+            def _tm_payload(cur, payload):
+                if "preset" in payload:
+                    try:
+                        cur["timer_preset"] = max(1, min(86400, int(payload.get("preset"))))
+                    except (TypeError, ValueError):
+                        pass
+            def _tm_response(resp, st):
+                resp["preset"] = st.get("timer_preset") or 300
+            handle_widget_settings(self, parsed, "timer",
+                                  extra_payload=_tm_payload, extra_response=_tm_response)
             return
 
         # ===== 便签内容 CRUD（notes.json 持久化）=====

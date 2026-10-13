@@ -122,6 +122,28 @@
 .wc-hint { font-size: 11px; color: var(--rl-muted); margin-top: 6px; }
 .wc-empty { color: var(--rl-muted); font-size: 12px; }
 
+/* ---------- 计时器 ---------- */
+.tm-display { font-size: 40px; font-weight: 700; text-align: center; padding: 8px 0 2px;
+  font-variant-numeric: tabular-nums; color: var(--rl-fg); letter-spacing: 1px; }
+.tm-display.tm-done-flash { color: var(--rl-danger); animation: tm-flash .7s infinite alternate; }
+@keyframes tm-flash { from { opacity: 1; } to { opacity: .3; } }
+.tm-done { display: none; text-align: center; color: var(--rl-danger); font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.tm-preset { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 6px 0 4px;
+  font-size: 12px; color: var(--rl-muted); }
+.tm-preset input { width: 56px; background: var(--rl-input-bg); border: 1px solid var(--rl-input-border);
+  color: var(--rl-fg); border-radius: 6px; padding: 5px 6px; font-size: 13px; text-align: center; font-family: inherit; }
+.tm-preset input:focus { outline: none; border-color: #388bfd; }
+.tm-quick { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 8px; }
+.tm-chip { border: 1px solid var(--rl-border-2); background: var(--rl-surface); color: var(--rl-subtle);
+  border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.tm-chip:hover { background: var(--rl-surface-hover); color: var(--rl-fg); }
+.tm-btns { display: flex; gap: 8px; }
+.tm-btn { flex: 1; border: 1px solid var(--rl-border-2); background: var(--rl-surface); color: var(--rl-fg);
+  border-radius: 8px; padding: 8px 0; font-size: 13px; font-weight: 600; cursor: pointer; }
+.tm-btn:hover { background: var(--rl-surface-hover); }
+.tm-btn.tm-primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.tm-btn.tm-primary:hover { background: #388bfd; }
+
 /* ---------- 便签（彩色便利贴，自带配色，不走主题变量） ---------- */
 .nt-list { display: flex; flex-direction: column; gap: 8px; }
 .nt-note { border-radius: 8px; padding: 8px; box-shadow: 0 2px 6px rgba(0,0,0,.3); position: relative; }

@@ -86,6 +86,12 @@
             monitorApi: BASE + "/api/monitor", pos: st.monitor_pos, size: st.monitor_size,
             min: !!st.monitor_min, pinned: !!st.monitor_pinned };
         });
+      mountNewWidget("TimerWidget", BASE + "/static/timer-widget.js", "timer_visible",
+        function (st) {
+          return { __root: "tm-root", settingsApi: BASE + "/api/timer_settings",
+            preset: st.timer_preset || 300, pos: st.timer_pos, size: st.timer_size,
+            min: !!st.timer_min, pinned: !!st.timer_pinned };
+        });
 
       // 主题：全局生效于所有组件外壳与内容（dark / light / system 跟随系统配色）
       function applyTheme(t) {

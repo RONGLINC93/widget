@@ -655,10 +655,7 @@
             <div class="field">
               <label for="pathInput">要显示的目录，例如 <code>/vol1/share</code></label>
               <input id="pathInput" type="text" placeholder="/vol1/share" />
-            </div>
-            <div class="field">
-              <label for="rootInput">主目录边界 <span class="hint">（向上不可越过，留空 = 不限制）例如 <code>/vol1</code></span></label>
-              <input id="rootInput" type="text" placeholder="/vol1（留空表示不限制）" />
+              <span class="hint">主目录边界自动等于此目录（打开在哪就锁在哪，不能再向上返回）</span>
             </div>
             <div class="row"><span id="dirMsg" class="msg"></span></div>
           </div>
@@ -719,6 +716,29 @@
           <div class="wdesc">多时区时钟，添加任意城市 / IANA 时区</div>
           <div class="wstatus" id="wcStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
           <div class="row"><span id="wcVisibleMsg" class="msg"></span></div>
+        </div>
+      </div>
+
+      <!-- 计时器 -->
+      <div class="widget">
+        <div class="wicon" style="background:linear-gradient(135deg,#bf8700,#e3b341)">⏳</div>
+        <div class="wbody">
+          <div class="wtop">
+            <span class="wtitle">计时器</span>
+            <label class="switch" style="margin-left:auto">
+              <input id="tmVisibleChk" type="checkbox" checked />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="wdesc">倒计时，到点提醒；运行中刷新桌面会继续走</div>
+          <div class="wstatus" id="tmStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="wconfig">
+            <div class="field">
+              <label for="tmPresetInput">默认时长（分钟），例如 <code>5</code></label>
+              <input id="tmPresetInput" type="number" min="1" max="1440" placeholder="5" />
+            </div>
+            <div class="row"><span id="tmMsg" class="msg"></span></div>
+          </div>
         </div>
       </div>
 
@@ -798,11 +818,12 @@
 
   <script>
     var $ = function (id) { return document.getElementById(id); };
-    var pathInput = $("pathInput"), rootInput = $("rootInput");
+    var pathInput = $("pathInput");
     var visibleChk = $("visibleChk");
     var calVisibleChk = $("calVisibleChk");
     var weatherLocInput = $("weatherLocInput"), weatherVisibleChk = $("weatherVisibleChk");
     var wcVisibleChk = $("wcVisibleChk"), ntVisibleChk = $("ntVisibleChk");
+    var tmVisibleChk = $("tmVisibleChk"), tmPresetInput = $("tmPresetInput");
     var tdVisibleChk = $("tdVisibleChk"), mnVisibleChk = $("mnVisibleChk");
     var injectBtn = $("injectBtn"), cleanupBtn = $("cleanupBtn");
     var rescueToggle = $("rescueToggle"), rescuePanel = $("rescuePanel");
@@ -856,8 +877,10 @@
         .catch(function (e) { msgEl.textContent = "❌ " + e.message; });
     }
 
+    // 主目录边界就是「要显示的目录」：打开在哪就锁在哪，无需再填第二个框
     function saveDir(msgEl) {
-      saveSettings({ path: pathInput.value.trim(), root: rootInput.value.trim() }, msgEl, "✅ 目录已保存");
+      var path = pathInput.value.trim();
+      saveSettings({ path: path, root: path }, msgEl, "✅ 目录已保存", "root");
     }
 
     function setStatus(el, on) {
@@ -870,7 +893,7 @@
     // ===== 桌面预览舞台：把真实悬浮窗挂进 #stage 并排显示 =====
     var stage = $("stage");
     var stageDir = null, stageCal = null, stageWx = null;
-    var stageWc = null, stageNt = null, stageTd = null, stageMn = null;
+    var stageWc = null, stageNt = null, stageTd = null, stageMn = null, stageTimer = null;
 
     // ---- 预览排版 + 自适应：浮窗按「一行能放几个由宽度决定、放不下就换行」摆放（互不重叠） ----
     var deskBox = document.querySelector(".desktop");
@@ -947,6 +970,12 @@
         queueStageFit();
       }
       range.addEventListener("input", applyZoom);
+      range.addEventListener("change", function () {
+        var v = Math.min(200, Math.max(10, parseInt(range.value, 10) || 50));
+        fetch("api/settings", { method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stage_zoom: v }) });  // 松手再存，避免拖动中频繁写盘
+      });
       applyZoom();
     })();
 
@@ -1011,6 +1040,13 @@
         container: stage, preview: true, draggable: false
       });
 
+      if (stageTimer) stageTimer.destroy();
+      stageTimer = TimerWidget.mount({
+        settingsApi: BASE + "/api/timer_settings",
+        preset: parseInt(settings.timer_preset, 10) > 0 ? parseInt(settings.timer_preset, 10) : 300,
+        container: stage, preview: true, draggable: false
+      });
+
       watchStage();
     }
 
@@ -1018,7 +1054,7 @@
     function refreshDir() {
       if (stageDir) stageDir.destroy();
       stageDir = DirWidget.mount({
-        path: pathInput.value.trim(), root: rootInput.value.trim(),
+        path: pathInput.value.trim(), root: pathInput.value.trim(),
         api: BASE + "/api/list", fileApi: BASE + "/api/file", searchApi: BASE + "/api/search",
         settingsApi: null, container: stage, preview: true
       });
@@ -1035,7 +1071,6 @@
 
     // 目录
     pathInput.addEventListener("change", function () { saveDir($("dirMsg")); refreshDir(); });
-    rootInput.addEventListener("change", function () { saveDir($("dirMsg")); refreshDir(); });
     visibleChk.addEventListener("change", function () {
       var v = visibleChk.checked;
       setStatus($("dirStatus"), v);
@@ -1078,6 +1113,24 @@
           v ? "✅ 已开启，刷新桌面即可看到世界时钟" : "✅ 已隐藏，世界时钟不再显示");
       });
     }
+    // 计时器
+    if (tmVisibleChk) {
+      tmVisibleChk.addEventListener("change", function () {
+        var v = tmVisibleChk.checked;
+        setStatus($("tmStatus"), v);
+        saveSettings({ timer_visible: v }, $("tmMsg"),
+          v ? "✅ 已开启，刷新桌面即可看到计时器" : "✅ 已隐藏，计时器不再显示");
+      });
+    }
+    if (tmPresetInput) {
+      tmPresetInput.addEventListener("change", function () {
+        var min = parseInt(tmPresetInput.value, 10);
+        if (isNaN(min) || min < 1) min = 5;
+        if (min > 1440) min = 1440;
+        tmPresetInput.value = min;
+        saveSettings({ timer_preset: min * 60 }, $("tmMsg"), "✅ 默认时长已保存", "timer_preset");
+      });
+    }
     // 便签
     if (ntVisibleChk) {
       ntVisibleChk.addEventListener("change", function () {
@@ -1113,13 +1166,20 @@
         .then(function (j) {
           var st = j.settings || {};
           pathInput.value = st.path || "";
-          rootInput.value = st.root || "";
+          var zoomRange = document.getElementById("zoomRange");
+          if (zoomRange) {
+            var zv = Math.min(200, Math.max(10, parseInt(st.stage_zoom, 10) || 50));
+            zoomRange.value = zv;
+            zoomRange.dispatchEvent(new Event("input"));  // 还原上次缩放并重新布局
+          }
           visibleChk.checked = st.visible !== false;
           setStatus($("dirStatus"), visibleChk.checked);
           if (calVisibleChk) { calVisibleChk.checked = st.calendar_visible !== false; setStatus($("calStatus"), calVisibleChk.checked); }
           if (weatherLocInput) weatherLocInput.value = st.weather_location || "";
           if (weatherVisibleChk) { weatherVisibleChk.checked = st.weather_visible !== false; setStatus($("weatherStatus"), weatherVisibleChk.checked); }
           if (wcVisibleChk) { wcVisibleChk.checked = st.worldclock_visible !== false; setStatus($("wcStatus"), wcVisibleChk.checked); }
+          if (tmVisibleChk) { tmVisibleChk.checked = st.timer_visible !== false; setStatus($("tmStatus"), tmVisibleChk.checked); }
+          if (tmPresetInput) tmPresetInput.value = Math.round((parseInt(st.timer_preset, 10) || 300) / 60);
           if (ntVisibleChk) { ntVisibleChk.checked = st.notes_visible !== false; setStatus($("ntStatus"), ntVisibleChk.checked); }
           if (tdVisibleChk) { tdVisibleChk.checked = st.todo_visible !== false; setStatus($("tdStatus"), tdVisibleChk.checked); }
           if (mnVisibleChk) { mnVisibleChk.checked = st.monitor_visible !== false; setStatus($("mnStatus"), mnVisibleChk.checked); }
@@ -1139,7 +1199,7 @@
       var ready = function () {
         return window.DirWidget && window.CalendarWidget && window.WeatherWidget &&
           window.RLShell && window.WorldClockWidget && window.NotesWidget &&
-          window.TodoWidget && window.MonitorWidget;
+          window.TodoWidget && window.MonitorWidget && window.TimerWidget;
       };
       if (ready()) return fn();
       var waited = 0;
@@ -1269,11 +1329,12 @@
   <script src="static/weather-widget.js"></script>
 
   <!-- 新增 4 个组件：设 __*_noauto 阻止其自带自动挂载，改由上方舞台手动挂载预览 -->
-  <script>window.__wc_noauto = true; window.__nt_noauto = true; window.__td_noauto = true; window.__mn_noauto = true;</script>
+  <script>window.__wc_noauto = true; window.__nt_noauto = true; window.__td_noauto = true; window.__mn_noauto = true; window.__tm_noauto = true;</script>
   <script src="static/worldclock-widget.js"></script>
   <script src="static/notes-widget.js"></script>
   <script src="static/todo-widget.js"></script>
   <script src="static/monitor-widget.js"></script>
+  <script src="static/timer-widget.js"></script>
 </body>
 
 </html>
