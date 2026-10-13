@@ -4,7 +4,7 @@
 纯 Python 标准库实现（零第三方依赖），后端自带 HTTP 服务。
 
 - 包名：`ronglinc93widget`
-- 版本：`0.1.13`（开发中）｜已发布：`v0.1.12`
+- 版本：`0.1.14`（开发中）｜已发布：`v0.1.13`
 - 产物：`ronglinc93widget-<版本>-all.fpk`
 - 仓库：<https://github.com/RONGLINC93/widget>
 
