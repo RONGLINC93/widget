@@ -40,6 +40,17 @@
     });
   }
 
+  // 修改时间 "YYYY-MM-DD HH:MM" 拆成两个 span：卡片变窄时 CSS 容器查询只隐藏时间部分，
+  // 让出宽度给文件名（否则整列表格会被时间戳顶宽、冒出横向滚动条）。
+  function mtimeHtml(s) {
+    var t = String(s || "");
+    var i = t.indexOf(" ");
+    if (i < 0) return esc(t);
+    return '<span class="dw-mt-d">' + esc(t.slice(0, i)) + '</span>' +
+           '<span class="dw-mt-t">' + esc(t.slice(i)) + '</span>';
+  }
+
+
   // ---- 文件类型识别（用于图标与预览方式）----
   function extOf(name) {
     var i = String(name || "").lastIndexOf(".");
@@ -537,7 +548,7 @@
         '<td class="name">' + nameCell + '</td>' +
         '<td class="size">' + esc(sizeCell) + '</td>' +
         '<td><span class="dw-type-pill">' + esc(typeLabel) + '</span></td>' +
-        '<td class="mtime">' + esc(e.mtime_str) + '</td>' +
+        '<td class="mtime" title="' + esc(e.mtime_str) + '">' + mtimeHtml(e.mtime_str) + '</td>' +
       '</tr>';
     }).join("");
 
@@ -561,7 +572,7 @@
     }
 
     var html =
-      '<table class="dw-table">' +
+      '<table class="dw-table dw-list">' +
         '<thead><tr>' + th("name", "名称") + th("size", "大小") +
           th("type", "类型") + th("mtime", "修改时间") + '</tr></thead>' +
         '<tbody>' + upRow +
@@ -720,7 +731,7 @@
         '<td class="name">' + nameCell + '</td>' +
         '<td class="dir-path" title="' + esc(e.dir) + '">' + esc(e.dir) + '</td>' +
         '<td class="size">' + esc(e.is_dir ? "—" : humanSize(e.size)) + '</td>' +
-        '<td class="mtime">' + esc(e.mtime_str) + '</td>' +
+        '<td class="mtime" title="' + esc(e.mtime_str) + '">' + mtimeHtml(e.mtime_str) + '</td>' +
       '</tr>';
     }).join("");
 

@@ -7,6 +7,7 @@
   overflow: hidden;
   user-select: none;
   font: 13px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+  container-type: inline-size;   /* 容器查询：列宽/列显隐按卡片自身宽度自适应，绝不撑出横向滚动条 */
 }
 
 .dw-spacer { flex: 1 1 auto; }
@@ -110,7 +111,6 @@
 
 /* 搜索结果表：多一列"所在目录" */
 .dw-table.dw-result td.dir-path {
-  max-width: 160px;
   color: var(--rl-muted);
   font-size: 12px;
 }
@@ -140,18 +140,24 @@
 .dw-filter:focus { outline: none; border-color: #4493f8; }
 
 /* 列表区：外壳 .rl-body 负责滚动，这里不再单独滚动（避免双滚动条）；
- * 表格头用 position:sticky 相对 .rl-body 滚动容器吸顶。 */
+ * 表格头用 position:sticky 相对 .rl-body 滚动容器吸顶。
+ * 表格用 table-layout: fixed：默认的 auto 布局下 nowrap 单元格（尤其"修改时间"
+ * 这种 16 字符的时间戳）会把表格最小内容宽度顶到容器之外，.rl-body 于是冒出横向
+ * 滚动条；固定布局让列宽由容器决定、超出部分走省略号，永远不横向溢出。 */
 .dw-body {
   flex: 1 1 auto;
   min-height: 0;
 }
-.dw-table { width: 100%; border-collapse: collapse; }
+/* 兜底：只允许纵向滚动，任何情况下都不给横向滚动条（列宽已由固定布局+容器查询控住） */
+#dw-root .rl-body { overflow-x: hidden; }
+.dw-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
 .dw-table th, .dw-table td {
   text-align: left;
   padding: 6px 10px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-sizing: border-box;   /* 下面写的列宽即含内边距的最终列宽，便于按卡片宽度推算 */
 }
 .dw-table th {
   position: sticky;
@@ -161,12 +167,44 @@
   font-weight: 500;
   border-bottom: 1px solid var(--rl-border);
 }
+/* 列宽：只给需要稳定的列写死，名称列（第一列，未指定宽度）占满剩余空间 */
+.dw-table th:nth-child(2) { width: 68px; }    /* 大小 */
+.dw-table th:nth-child(3) { width: 66px; }    /* 类型 */
+.dw-table th:nth-child(4) { width: 132px; }   /* 修改时间（日期 + 时间） */
+/* 搜索结果表：多一列"所在目录" */
+.dw-table.dw-result th:nth-child(2) { width: 30%; }    /* 所在目录 */
+.dw-table.dw-result th:nth-child(3) { width: 68px; }   /* 大小 */
+.dw-table.dw-result th:nth-child(4) { width: 132px; }  /* 修改时间 */
 /* 可排序表头 */
 .dw-table th.dw-sortable { cursor: pointer; user-select: none; }
 .dw-table th.dw-sortable:hover { color: var(--rl-fg); }
 .dw-table th.dw-sorted { color: var(--rl-link); }
 .dw-arrow { font-size: 10px; }
-.dw-table td.name { max-width: 180px; }
+/* 修改时间拆成"日期 + 时间"两个 span，窄卡片里只留日期（见下方容器查询） */
+
+/* ============ 响应式：按卡片宽度逐级收缩，绝不出现横向滚动条 ============ */
+/* 窄卡片只留日期，把宽度让给文件名 */
+@container (max-width: 470px) {
+  #dw-root .dw-mt-t { display: none; }
+  #dw-root .dw-table th:nth-child(4) { width: 88px; }
+}
+/* 再窄就依次隐去"类型"、"大小"（搜索表：先隐"所在目录"，再隐"大小"） */
+@container (max-width: 360px) {
+  #dw-root .dw-table.dw-list th:nth-child(3),
+  #dw-root .dw-table.dw-list td:nth-child(3) { display: none; }
+}
+@container (max-width: 430px) {
+  #dw-root .dw-table.dw-result th:nth-child(2),
+  #dw-root .dw-table.dw-result td:nth-child(2) { display: none; }
+}
+@container (max-width: 300px) {
+  #dw-root .dw-table.dw-list th:nth-child(2),
+  #dw-root .dw-table.dw-list td:nth-child(2) { display: none; }
+}
+@container (max-width: 340px) {
+  #dw-root .dw-table.dw-result th:nth-child(3),
+  #dw-root .dw-table.dw-result td:nth-child(3) { display: none; }
+}
 .dw-table tr { border-bottom: 1px solid var(--rl-surface); }
 .dw-table tbody tr:hover { background: var(--rl-surface-2); }
 .dw-table tbody tr.dw-sel { background: rgba(88, 166, 255, 0.22); }
