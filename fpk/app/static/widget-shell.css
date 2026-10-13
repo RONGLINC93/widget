@@ -151,6 +151,15 @@
 .tm-btn:hover { background: var(--rl-surface-hover); }
 .tm-btn.tm-primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
 .tm-btn.tm-primary:hover { background: #388bfd; }
+/* 到点提示层：覆盖内容区，显示"时间到"与"知道了" */
+.tm-alert { position: absolute; inset: 0; z-index: 6; display: none;
+  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: var(--rl-sticky-bg); border-radius: 8px; }
+.tm-alert.show { display: flex; }
+.tm-alert-txt { font-size: 22px; font-weight: 700; color: var(--rl-danger); }
+.tm-alert-btn { background: #1f6feb; color: #fff; border: none; border-radius: 8px;
+  padding: 8px 24px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.tm-alert-btn:hover { background: #388bfd; }
 
 /* ---------- 便签（彩色便利贴，自带配色，不走主题变量） ---------- */
 .nt-list { display: flex; flex-direction: column; gap: 8px; }

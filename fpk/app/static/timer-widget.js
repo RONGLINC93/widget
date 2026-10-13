@@ -46,6 +46,10 @@
         '<div class="tm-btns">' +
           '<button id="tmStart" class="tm-btn tm-primary">开始</button>' +
           '<button id="tmReset" class="tm-btn">重置</button>' +
+        '</div>' +
+        '<div class="tm-alert" id="tmAlert">' +
+          '<div class="tm-alert-txt">⏰ 时间到</div>' +
+          '<button id="tmAck" class="tm-alert-btn">知道了</button>' +
         '</div>';
 
       var display = body.querySelector("#tmDisplay");
@@ -55,6 +59,8 @@
       var quickEl = body.querySelector("#tmQuick");
       var startBtn = body.querySelector("#tmStart");
       var resetBtn = body.querySelector("#tmReset");
+      var alertEl = body.querySelector("#tmAlert");
+      var ackBtn = body.querySelector("#tmAck");
 
       // 时长输入解析：支持「分:秒」（如 1:30）或纯数字（按分钟，兼容旧习惯）
       function parseDuration(v) {
@@ -98,6 +104,8 @@
         doneEl.style.display = done ? "" : "none";
         display.classList.toggle("tm-done-flash", done);
       }
+      function showAlert() { if (alertEl) alertEl.classList.add("show"); }
+      function hideAlert() { if (alertEl) alertEl.classList.remove("show"); }
 
       function savePreset() {
         if (!API || preview) return;
@@ -113,7 +121,7 @@
       }
 
       function setPreset(sec) {
-        stopAlarm();
+        stopAlarm(); hideAlert();
         presetSec = sec; remainingMs = sec * 1000;
         running = false; endAt = 0; done = false;
         presetInput.value = presetInputText(presetSec);
@@ -130,7 +138,7 @@
       }
       function onDone() {
         remainingMs = 0; running = false; done = true;
-        renderDone(); render(); saveState(); beep();
+        renderDone(); render(); saveState(); startAlarm(); showAlert();
       }
       function tick() {
         if (!running) return;
@@ -144,6 +152,7 @@
         if (done) { stopAlarm(); setPreset(presetSec); return; }   // 到点后点开始：停铃并复位
         running ? pause() : start();
       };
+      ackBtn.onclick = function () { setPreset(presetSec); };   // 知道了：停铃、关提示并复位
       resetBtn.onclick = function () { setPreset(presetSec); };
       presetInput.addEventListener("change", function () {
         var sec = parseDuration(presetInput.value);
@@ -152,23 +161,32 @@
         setPreset(sec);
       });
 
-      function beep() {
+      var _ac = null;   // 复用一个 AudioContext，避免每次闹铃频繁创建
+      function audioCtx() {
         try {
           var AC = window.AudioContext || window.webkitAudioContext;
-          if (!AC) return;
-          var ac = new AC();
-          if (ac.state === "suspended" && ac.resume) ac.resume();
-          [0, 0.2, 0.4].forEach(function (off) {   // 三声短鸣，近似闹钟
+          if (!AC) return null;
+          if (!_ac) _ac = new AC();
+          if (_ac.state === "suspended" && _ac.resume) _ac.resume();
+          return _ac;
+        } catch (e) { return null; }
+      }
+      function beep() {
+        var ac = audioCtx();
+        if (!ac) return;
+        [0, 0.24, 0.48].forEach(function (off) {   // 三声短鸣，近似闹钟
+          try {
             var o = ac.createOscillator(), g = ac.createGain();
             o.connect(g); g.connect(ac.destination);
-            o.type = "sine"; o.frequency.value = 988;
+            o.type = "triangle"; o.frequency.value = 988;
             var t = ac.currentTime + off;
             g.gain.setValueAtTime(0.0001, t);
-            g.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-            o.start(t); o.stop(t + 0.18);
-          });
-        } catch (e) {}
+            g.gain.exponentialRampToValueAtTime(0.9, t + 0.02);   // 音量提到接近满格
+            g.gain.setValueAtTime(0.9, t + 0.2);                  // 保持段，声音更实
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+            o.start(t); o.stop(t + 0.26);
+          } catch (e) {}
+        });
       }
 
       // 到点持续闹铃：循环播放，直到用户点开始 / 重置 / 改时长或关闭组件
@@ -176,7 +194,7 @@
       function startAlarm() {
         if (alarmTimer) return;
         beep();
-        alarmTimer = setInterval(beep, 900);
+        alarmTimer = setInterval(beep, 800);
       }
       function stopAlarm() {
         if (alarmTimer) { clearInterval(alarmTimer); alarmTimer = null; }
@@ -215,9 +233,10 @@
         }
       }
 
+      if (done) showAlert();   // 刷新后若已是到点状态，仍显示提示（但不响铃）
       renderDone(); render();
 
-      return { onDestroy: function () { if (timer) clearInterval(timer); stopAlarm(); } };
+      return { onDestroy: function () { if (timer) clearInterval(timer); stopAlarm(); if (_ac && _ac.close) { try { _ac.close(); } catch (e) {} } } };
     }
   });
 
