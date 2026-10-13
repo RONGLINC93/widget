@@ -13,6 +13,28 @@
 
   var BASE = "/rl93w";
 
+  // ---- 「刷新桌面」：管理页点「刷新桌面」后，本页自动重载 ----
+  // Why: 桌面页(5666/5667) 与管理页(8099) 不同源，浏览器不允许跨窗口互发消息，
+  // 改完设置后用户还得手动 Ctrl+Shift+R。故由服务端当中转：管理页 POST
+  // /api/desktop_reload 递增令牌，本页轮询发现令牌变大就 location.reload()。
+  // 首轮只记基线（否则一打开就自己刷新），服务不可用（应用没在跑）时静默跳过。
+  (function () {
+    var RELOAD_POLL_MS = 5000;
+    var base = -1;
+    function poll() {
+      fetch(BASE + "/api/desktop_reload", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var t = (j && typeof j.token === "number") ? j.token : 0;
+          if (base < 0) { base = t; return; }
+          if (t > base) location.reload();
+        })
+        .catch(function () { /* 后端未运行 → 下一轮再试 */ });
+    }
+    poll();
+    setInterval(poll, RELOAD_POLL_MS);
+  })();
+
   function ready(cb) {
     // 只在「登录后的桌面」挂载。
     // 为什么不能放宽到 document.body：conf.d 把 location = /login 也 rewrite 到了

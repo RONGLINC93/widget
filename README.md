@@ -153,6 +153,8 @@ nginx 拒绝加载 → **飞牛 Web 完全宕机**（5666/5667/80/443 全部无�
 | 在桌面显示浮层 | 目录浏览器开关；在桌面点 × 关闭后可在此勾回来 |
 | 清理残留注入 | 清除其它应用卸载后残留的孤儿注入 |
 | 注入桌面 | 执行桌面注入（会重启 nginx，Web 短暂中断数秒） |
+| 🔄 刷新 | 重新读取服务端设置并重建整页预览（不清空当前输入） |
+| 🖥 刷新桌面 | 让**已打开的飞牛桌面页**在几秒内自动重载，无需手动 `Ctrl+Shift+R` |
 
 之后刷新飞牛桌面（`Ctrl+Shift+R`）即可看到浮层。
 
@@ -230,6 +232,8 @@ http://<飞牛地址>:8099/
 | POST | `/api/rescue` | **一键急救**：修复 duplicate location 崩溃 |
 | GET | `/api/inject_status` | 注入状态 |
 | POST | `/api/uninstall` | 撤销本组件的注入 |
+| GET | `/api/desktop_reload` | 读「刷新桌面」令牌（桌面页 `inject.js` 每 5 秒轮询） |
+| POST | `/api/desktop_reload` | 递增令牌 → 已打开的桌面页自动 `location.reload()` |
 
 设置持久化在 `@appdata/ronglinc93widget/settings.json`。
 

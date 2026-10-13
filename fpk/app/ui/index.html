@@ -284,12 +284,13 @@
       display: none !important;
     }
 
-    /* 组件卡：两列网格，宽屏并排、窄屏单列，缩短页面避免反复滚动 */
+    /* 组件卡：瀑布流排列（类似相片墙）——各列独立堆叠、紧凑相接，矮卡下方不留大空白。
+       原先是 3 列网格：整行等高，矮卡（目录/天气/世界时钟…）下方一片空白。
+       现用 CSS 多列布局：列数随宽度自动增减（宽屏 3 列，窄屏自动 2 列 / 1 列），
+       break-inside: avoid 保证卡片不被拦腰截断；卡片高度变化时自动回流，无需 JS。 */
     .widgets {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      align-items: start;
+      columns: 320px 3;
+      column-gap: 14px;
       margin-bottom: 18px;
     }
 
@@ -301,11 +302,16 @@
       border: 1px solid #30363d;
       border-radius: 12px;
       padding: 16px;
+      break-inside: avoid;
+      margin-bottom: 14px;
     }
 
     @media (max-width: 720px) {
       .widgets {
-        grid-template-columns: 1fr;
+        columns: 1;
+      }
+      .widget {
+        margin-bottom: 14px;
       }
     }
 
@@ -532,6 +538,16 @@
       background: #bb8009;
     }
 
+    .btn-deskreload {
+      background: #8957e5;
+      color: #fff;
+      border-color: #a371f766;
+    }
+
+    .btn-deskreload:hover:not(:disabled) {
+      background: #a371f7;
+    }
+
     .btn-rescue {
       background: #da3633;
       color: #fff;
@@ -679,6 +695,8 @@
           <option value="light">日间</option>
         </select>
       </div>
+      <button id="refreshBtn" class="btn-save" title="重新读取服务端设置并重建预览">🔄 刷新</button>
+      <button id="deskReloadBtn" class="btn-deskreload" title="让已打开的飞牛桌面页重新加载（几秒内生效），无需手动 Ctrl+Shift+R">🖥 刷新桌面</button>
       <button id="injectBtn" class="btn-inject">注入桌面</button>
       <button id="cleanupBtn" class="btn-clean">清理残留</button>
       <span id="globalMsg" class="msg"></span>
@@ -962,6 +980,7 @@
     var calWeekStart = $("calWeekStart"), calLunarChk = $("calLunarChk"), calHolidayChk = $("calHolidayChk");
     var tdVisibleChk = $("tdVisibleChk"), mnVisibleChk = $("mnVisibleChk");
     var injectBtn = $("injectBtn"), cleanupBtn = $("cleanupBtn");
+    var refreshBtn = $("refreshBtn"), deskReloadBtn = $("deskReloadBtn");
     var rescueToggle = $("rescueToggle"), rescuePanel = $("rescuePanel");
     var rescueBtn = $("rescueBtn"), diagBtn = $("diagBtn");
     var diagOut = $("diagOut");
@@ -1031,7 +1050,7 @@
     var stageDir = null, stageCal = null, stageWx = null;
     var stageWc = null, stageNt = null, stageTd = null, stageMn = null, stageTimer = null;
 
-    // ---- 预览排版 + 自适应：浮窗按「一行能放几个由宽度决定、放不下就换行」摆放（互不重叠） ----
+    // ---- 预览排版 + 自适应：浮窗按瀑布流（最短列优先）摆放，紧凑相接、互不重叠 ----
     var deskBox = document.querySelector(".desktop");
     var STAGE_GAP_X = 20, STAGE_GAP_Y = 26;   // 卡片之间的横向 / 纵向间距
     var stageScale = .5;                       // 预览整体缩放，由滑动条控制（10%~200% → .1~2.0，默认 50%）
@@ -1047,26 +1066,47 @@
       return out;
     }
 
-    // 从左到右、由上到下依次摆放：当前行放不下（rowW 由框宽推出）就换行，
-    // 卡片高度一变后面的顺势下移，绝不重叠
+    // 瀑布流（相片墙）摆放：每张卡放进「当前最矮」的那一列，紧贴上一张，
+    // 不再按整行等高留白——矮卡（目录 / 天气）下面不会再空出一片。
+    //
+    // 列数由「最宽那张卡」定：保证每列都放得下最宽的卡，这样后面任意分配都不会横向重叠
+    // （n·maxW + (n-1)·gap ≤ rowW 恒成立）。列宽取该列实际最宽卡，横向也紧贴。
     function layoutStage(rowW) {
-      var kids = stageCards();
-      var x = 0, y = 0, rowH = 0, w = 0;
-      for (var i = 0; i < kids.length; i++) {
-        var el = kids[i], ew = el.offsetWidth, eh = el.offsetHeight;
-        if (x > 0 && x + ew > rowW) {   // 当前行放不下 → 另起一行
-          y += rowH + STAGE_GAP_Y;
-          x = 0;
-          rowH = 0;
-        }
-        el.style.left = x + "px";
-        el.style.top = y + "px";
-        x += ew + STAGE_GAP_X;
-        if (x - STAGE_GAP_X > w) w = x - STAGE_GAP_X;
-        if (eh > rowH) rowH = eh;
+      var kids = stageCards(), i, c;
+      if (!kids.length) return;
+
+      // 先一次性读尺寸，再统一写位置，避免读写交替触发反复回流
+      var sizes = [], maxW = 0;
+      for (i = 0; i < kids.length; i++) {
+        var w0 = kids[i].offsetWidth, h0 = kids[i].offsetHeight;
+        sizes.push({ el: kids[i], w: w0, h: h0 });
+        if (w0 > maxW) maxW = w0;
       }
-      if (w > 0) { stageW = w; stage.style.width = w + "px"; }
-      if (rowH > 0) stageH = y + rowH;
+
+      var n = Math.floor((rowW + STAGE_GAP_X) / (maxW + STAGE_GAP_X));
+      if (n < 1) n = 1;
+      if (n > sizes.length) n = sizes.length;
+
+      var colH = [], colW = [], colItems = [];
+      for (c = 0; c < n; c++) { colH.push(0); colW.push(0); colItems.push([]); }
+      for (i = 0; i < sizes.length; i++) {
+        var best = 0;
+        for (c = 1; c < n; c++) if (colH[c] < colH[best]) best = c;   // 最矮的一列
+        var it = sizes[i];
+        it.el.style.top = colH[best] + "px";
+        colH[best] += it.h + STAGE_GAP_Y;
+        if (it.w > colW[best]) colW[best] = it.w;
+        colItems[best].push(it);
+      }
+
+      var x = 0, h = 0;
+      for (c = 0; c < n; c++) {
+        for (i = 0; i < colItems[c].length; i++) colItems[c][i].el.style.left = x + "px";
+        x += colW[c] + STAGE_GAP_X;
+        if (colH[c] > h) h = colH[c];
+      }
+      if (x - STAGE_GAP_X > 0) { stageW = x - STAGE_GAP_X; stage.style.width = stageW + "px"; }
+      if (h > 0) stageH = h - STAGE_GAP_Y;   // 末尾不留多余间距
     }
 
     function applyStageFit() {
@@ -1548,8 +1588,9 @@
       });
     }
 
-    // 载入已保存设置，填充输入框并挂载预览窗
-    function boot() {
+    // 载入已保存设置，填充输入框并挂载预览窗（cb 可选：全部做完后的回调，「刷新」按钮用）
+    function boot(cb) {
+      var done = function () { if (cb) cb(); };
       fetch("api/settings", { cache: "no-store" })
         .then(function (r) { return r.json(); })
         .then(function (j) {
@@ -1592,8 +1633,9 @@
           if (themeSel) themeSel.value = savedTheme;
           applyTheme(savedTheme);
           mountStage(st);
+          done();
         })
-        .catch(function () { mountStage({}); });
+        .catch(function () { mountStage({}); done(); });
     }
 
     // 三段组件脚本在本页「底部」加载（dir/calendar/weather-widget.js），而本段内联脚本
@@ -1616,6 +1658,35 @@
       }, 50);
     }
     whenWidgetsReady(boot);
+
+    // 全局：刷新本页（重读服务端设置 + 重建预览）/ 刷新桌面（让已打开的桌面页重载）
+    refreshBtn.addEventListener("click", function () {
+      refreshBtn.disabled = true;
+      $("globalMsg").textContent = "刷新中…";
+      // 组件脚本可能在首次 boot 时尚未就绪，这里同样等就绪再重建预览
+      whenWidgetsReady(function () {
+        boot(function () {
+          $("globalMsg").textContent = "✅ 已刷新（设置与预览已按服务端最新值重建）";
+          refreshBtn.disabled = false;
+        });
+      });
+    });
+
+    deskReloadBtn.addEventListener("click", function () {
+      deskReloadBtn.disabled = true;
+      $("globalMsg").textContent = "已通知桌面刷新…";
+      fetch("api/desktop_reload", { method: "POST" })
+        .then(function (r) {
+          return r.json().catch(function () { return { status: "error", message: "HTTP " + r.status }; });
+        })
+        .then(function (j) {
+          $("globalMsg").textContent = j.status === "success"
+            ? "✅ 已通知桌面刷新（已打开的桌面页会在几秒内自动重载）"
+            : "⚠ 刷新桌面失败：" + (j.message || j.status);
+        })
+        .catch(function (e) { $("globalMsg").textContent = "❌ " + e.message; })
+        .then(function () { deskReloadBtn.disabled = false; });
+    });
 
     // 全局：注入 / 清理
     injectBtn.addEventListener("click", function () {

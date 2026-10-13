@@ -95,6 +95,8 @@ SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
 # 便签 / 待办清单 的持久化数据文件（与 settings.json 同级，独立存放避免单文件过大）
 NOTES_FILE = os.path.join(APP_DATA_DIR, "notes.json")
 TODOS_FILE = os.path.join(APP_DATA_DIR, "todos.json")
+# 「刷新桌面」令牌：管理页 POST 递增，桌面页轮询发现变大就自动重载
+DESKTOP_RELOAD_FILE = os.path.join(APP_DATA_DIR, "desktop_reload.json")
 # 注意：fnOS 解 app.tgz 时会去掉 app/ 前缀，静态资源实际在 <APP_DEST>/static/ 下
 INJECT_JS_DIRECT = os.path.join(APP_DEST_DIR, "static", "inject.js")
 KEYS_FILE = os.path.join(HERE, "conf", "ng_keys.json")
@@ -391,6 +393,32 @@ def within_root(path: str, root: str) -> bool:
         return True
     p, r = _norm(path), _norm(root)
     return p == r or p.startswith(r + os.sep)
+
+
+def load_desktop_token() -> int:
+    """读取「刷新桌面」令牌。
+
+    Why: 桌面页（5666/5667）与管理页（8099）不同源，浏览器不允许互发消息，
+    只能由服务端当中转——管理页递增令牌，桌面页轮询到令牌变大就自己 reload()。"""
+    try:
+        with open(DESKTOP_RELOAD_FILE, "r", encoding="utf-8") as f:
+            d = json.loads(f.read() or "{}")
+        t = d.get("token") if isinstance(d, dict) else None
+        return int(t) if isinstance(t, (int, float)) else 0
+    except Exception:
+        return 0
+
+
+def bump_desktop_token() -> int:
+    """递增「刷新桌面」令牌（管理页点「刷新桌面」时调用），返回新值。"""
+    token = load_desktop_token() + 1
+    try:
+        os.makedirs(os.path.dirname(DESKTOP_RELOAD_FILE), exist_ok=True)
+        with open(DESKTOP_RELOAD_FILE, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"token": token}, ensure_ascii=False))
+    except Exception:
+        pass
+    return token
 
 
 def save_settings(data: dict) -> bool:
@@ -1818,6 +1846,14 @@ class DirHandler(BaseHTTPRequestHandler):
                 "message": ("已清理冲突注入: %s" % removed) if removed
                            else "没有冲突注入，无需清理",
             })
+            return
+
+        # ===== 「刷新桌面」令牌 =====
+        # GET  读当前令牌（桌面页 inject.js 轮询用）
+        # POST 递增令牌（管理页点「刷新桌面」用），已打开的桌面页随后自动 reload()
+        if parsed.path == "/api/desktop_reload":
+            token = bump_desktop_token() if self.command == "POST" else load_desktop_token()
+            self._send_json({"status": "success", "token": token})
             return
 
         # ===== 桌面注入状态 / 安装 / 卸载 =====
