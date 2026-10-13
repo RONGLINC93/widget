@@ -31,6 +31,10 @@
       var esc = ctx.esc;
       var API = ctx.opts.monitorApi || null;
       var timer = null;
+      var refreshSec = Math.max(1, Math.min(60, parseInt(ctx.opts.refresh, 10) || 2));
+      var GROUPS_ALL = ["cpu", "mem", "disk", "temp", "fan", "gpu"];
+      var groups = (Array.isArray(ctx.opts.groups) && ctx.opts.groups.length) ? ctx.opts.groups : GROUPS_ALL;
+      function has(g) { return groups.indexOf(g) >= 0; }
 
       function meter(label, pct, sub) {
         pct = Math.max(0, Math.min(100, pct || 0));
@@ -50,13 +54,14 @@
           body.innerHTML = '<div class="mn-unavail">系统监控不可用<br>（当前环境非 Linux 或 /proc 不可读）</div>';
           return;
         }
-        var html = meter("CPU", stats.cpu, stats.cpu_model) +
-          meter("内存", stats.mem.percent, fmtBytes(stats.mem.used) + " / " + fmtBytes(stats.mem.total) + "（共 " + fmtBytes(stats.mem.total) + "）");
+        var html = "";
+        if (has("cpu")) html += meter("CPU", stats.cpu, stats.cpu_model);
+        if (has("mem")) html += meter("内存", stats.mem.percent, fmtBytes(stats.mem.used) + " / " + fmtBytes(stats.mem.total) + "（共 " + fmtBytes(stats.mem.total) + "）");
 
         // 磁盘：优先多盘列表，回退到旧的单盘字段
         var diskList = (stats.disks && stats.disks.length) ? stats.disks
           : (stats.disk ? [stats.disk] : []);
-        for (var di = 0; di < diskList.length; di++) {
+        if (has("disk")) for (var di = 0; di < diskList.length; di++) {
           var d = diskList[di];
           // 存储卷 /volN 显示为「存储空间 N」，其余挂载点（/、/boot/efi 等）保留「硬盘 + 路径」
           var mpath = d.path || "";
@@ -70,7 +75,7 @@
                         fmtBytes(d.used) + " / " + fmtBytes(d.total));
         }
 
-        if (stats.temps && stats.temps.length) {
+        if (has("temp") && stats.temps && stats.temps.length) {
           // 按 group 一级分组（CPU/主板/显卡/硬盘/…），组内按原顺序，分组按固定优先级排序
           var groupOrder = ["CPU", "主板", "显卡", "硬盘", "内存", "网卡", "电池", "其它"];
           var gmap = {}, gorder = [];
@@ -98,7 +103,7 @@
           html += th;
         }
 
-        if (stats.fans && stats.fans.length) {
+        if (has("fan") && stats.fans && stats.fans.length) {
           html += '<div class="mn-sec">风扇</div>' + stats.fans.map(function (f) {
             return '<div class="mn-row"><div class="mn-top">' +
               '<span class="mn-label">' + esc(f.name) + '</span>' +
@@ -106,7 +111,7 @@
           }).join("");
         }
 
-        if (stats.gpus && stats.gpus.length) {
+        if (has("gpu") && stats.gpus && stats.gpus.length) {
           html += '<div class="mn-sec">显卡</div>' + stats.gpus.map(function (g) {
             var u = Math.max(0, Math.min(100, (g.usage == null) ? 0 : g.usage));
             var row = '<div class="mn-row">';
@@ -140,7 +145,7 @@
       }
 
       poll();
-      timer = setInterval(poll, 2000);
+      timer = setInterval(poll, refreshSec * 1000);
 
       return { onDestroy: function () { if (timer) clearInterval(timer); } };
     }

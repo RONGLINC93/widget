@@ -83,7 +83,8 @@
       mountNewWidget("MonitorWidget", BASE + "/static/monitor-widget.js", "monitor_visible",
         function (st) {
           return { __root: "mn-root", settingsApi: BASE + "/api/monitor_settings",
-            monitorApi: BASE + "/api/monitor", pos: st.monitor_pos, size: st.monitor_size,
+            monitorApi: BASE + "/api/monitor", refresh: st.monitor_refresh, groups: st.monitor_groups,
+            pos: st.monitor_pos, size: st.monitor_size,
             min: !!st.monitor_min, pinned: !!st.monitor_pinned };
         });
       mountNewWidget("TimerWidget", BASE + "/static/timer-widget.js", "timer_visible",
@@ -378,13 +379,16 @@
     cs.src = BASE + "/static/calendar-widget.js";
     cs.onload = function () {
       if (!window.CalendarWidget) return;
-      var mountCal = function (pos, size, notes, min, pinned) {
+      var mountCal = function (pos, size, notes, min, pinned, weekStart, showLunar, showHoliday) {
         window.CalendarWidget.mount({
           settingsApi: BASE + "/api/calendar_settings",
           pos: pos || null,
           size: size || null,
           min: !!min,
           pinned: !!pinned,
+          weekStart: (weekStart === 0) ? 0 : 1,
+          showLunar: showLunar !== false,
+          showHoliday: showHoliday !== false,
           notes: (notes && typeof notes === "object") ? notes : {}
         });
         var cel = document.getElementById("cw-root");
@@ -396,9 +400,10 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭日历 → 不再自动挂载，直到在应用窗口重新开启
           if (st.calendar_visible === false) return;
-          mountCal(st.calendar_pos, st.calendar_size, st.calendar_notes, st.calendar_min, st.calendar_pinned);
+          mountCal(st.calendar_pos, st.calendar_size, st.calendar_notes, st.calendar_min, st.calendar_pinned,
+                   st.calendar_week_start, st.calendar_show_lunar, st.calendar_show_holiday);
         })
-        .catch(function () { mountCal(null, null, {}, false, false); });
+        .catch(function () { mountCal(null, null, {}, false, false, 1, true, true); });
     };
     document.head.appendChild(cs);
 

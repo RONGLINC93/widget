@@ -112,6 +112,36 @@
     }
     .stage-zoom input[type="range"] { flex: 1; accent-color: #58a6ff; cursor: pointer; }
     [data-theme="light"] .stage-zoom { color: #1f2328; }
+    /* 管理页组件设置补充控件 */
+    .wc-admin-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .wc-admin-chip { display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 3px 6px 3px 10px; font-size: 12px; color: #e6edf3; }
+    .wc-admin-chip button { border: none; background: transparent; color: #f85149; cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+    .wc-admin-empty { font-size: 12px; color: #8b949e; }
+    .mn-groups { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+    .mn-groups label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
+    .cal-toggles { display: flex; gap: 18px; }
+    .cal-toggles label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+    /* 管理页：便签 / 待办内容管理 */
+    .admin-notes { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto; padding-right: 2px; }
+    .admin-note { border-radius: 8px; padding: 6px 8px; }
+    .admin-note textarea { width: 100%; box-sizing: border-box; border: none; background: transparent; resize: vertical; min-height: 42px; color: #1c1c1c; font: 13px/1.5 inherit; font-family: inherit; outline: none; }
+    .admin-note-bar { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+    .admin-note-bar .dot { width: 14px; height: 14px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+    .admin-note-bar .dot.sel { border-color: #1c1c1c; }
+    .admin-note-bar .sp { flex: 1; }
+    .admin-note-bar button { border: none; background: rgba(0,0,0,.15); color: #1c1c1c; border-radius: 5px; cursor: pointer; font-size: 12px; padding: 2px 7px; }
+    .admin-empty { font-size: 12px; color: #8b949e; }
+    .admin-todos { display: flex; flex-direction: column; gap: 6px; }
+    .admin-todo { display: flex; align-items: center; gap: 8px; }
+    .admin-todo input[type=checkbox] { width: 16px; height: 16px; flex: none; accent-color: #3fb950; cursor: pointer; }
+    .admin-todo .t { flex: 1; min-width: 0; background: transparent; border: none; color: #e6edf3; font-size: 13px; font-family: inherit; outline: none; }
+    .admin-todo.done .t { text-decoration: line-through; color: #8b949e; }
+    .admin-todo .del { border: none; background: transparent; color: #f85149; cursor: pointer; font-size: 14px; }
+    .admin-todo-add { display: flex; gap: 6px; margin-top: 8px; }
+    .admin-todo-add input { flex: 1; min-width: 0; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit; }
+    .admin-todo-add button { flex: none; background: #238636; color: #fff; border: none; border-radius: 6px; padding: 0 12px; cursor: pointer; }
+    .btn-mini { background: #238636; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-mini:hover { background: #2ea043; }
     [data-theme="light"] .stage-zoom #zoomVal { color: #0969da; }
 
     .stage {
@@ -675,6 +705,20 @@
           </div>
           <div class="wdesc">月历 + 实时时钟（星期 / 第几周）+ 每日备忘</div>
           <div class="wstatus" id="calStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="wconfig">
+            <div class="field">
+              <label for="calWeekStart">每周起始</label>
+              <select id="calWeekStart">
+                <option value="1">周一</option>
+                <option value="0">周日</option>
+              </select>
+            </div>
+            <div class="field cal-toggles">
+              <label><input id="calLunarChk" type="checkbox" checked /> 显示农历</label>
+              <label><input id="calHolidayChk" type="checkbox" checked /> 显示节假日</label>
+            </div>
+            <div class="row"><span id="calCfgMsg" class="msg"></span></div>
+          </div>
           <div class="row"><span id="calVisibleMsg" class="msg"></span></div>
         </div>
       </div>
@@ -715,6 +759,14 @@
           </div>
           <div class="wdesc">多时区时钟，添加任意城市 / IANA 时区</div>
           <div class="wstatus" id="wcStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="wconfig">
+            <div class="field">
+              <label for="wcCityInput">添加城市 / 时区 <span class="hint">（如 上海 / Asia/Tokyo，回车添加）</span></label>
+              <input id="wcCityInput" type="text" placeholder="上海 或 Asia/Tokyo" />
+            </div>
+            <div class="wc-admin-list" id="wcAdminList"></div>
+            <div class="row"><span id="wcMsg" class="msg"></span></div>
+          </div>
           <div class="row"><span id="wcVisibleMsg" class="msg"></span></div>
         </div>
       </div>
@@ -755,6 +807,13 @@
           </div>
           <div class="wdesc">桌面便签，支持多张、换色、置顶</div>
           <div class="wstatus" id="ntStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="wconfig">
+            <div class="admin-notes" id="adminNotes"></div>
+            <div class="row">
+              <button id="adminNoteAdd" class="btn-mini">＋ 新建便签</button>
+              <span id="ntMsg" class="msg"></span>
+            </div>
+          </div>
           <div class="row"><span id="ntVisibleMsg" class="msg"></span></div>
         </div>
       </div>
@@ -772,6 +831,14 @@
           </div>
           <div class="wdesc">可勾选的待办，增删改自动保存</div>
           <div class="wstatus" id="tdStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="wconfig">
+            <div class="admin-todos" id="adminTodos"></div>
+            <div class="admin-todo-add">
+              <input id="adminTodoInput" type="text" placeholder="添加一项待办，回车提交" />
+              <button id="adminTodoAdd">＋</button>
+            </div>
+            <div class="row"><span id="tdMsg" class="msg"></span></div>
+          </div>
           <div class="row"><span id="tdVisibleMsg" class="msg"></span></div>
         </div>
       </div>
@@ -789,6 +856,24 @@
           </div>
           <div class="wdesc">CPU / 内存 / 磁盘占用（fnOS 本机）</div>
           <div class="wstatus" id="mnStatus"><span class="dot"></span><span class="txt">已隐藏</span></div>
+          <div class="wconfig">
+            <div class="field">
+              <label for="mnRefreshInput">刷新间隔（秒） <span class="hint">（1~60）</span></label>
+              <input id="mnRefreshInput" type="number" min="1" max="60" placeholder="2" />
+            </div>
+            <div class="field">
+              <label>显示分组</label>
+              <div class="mn-groups" id="mnGroups">
+                <label><input type="checkbox" value="cpu" checked /> CPU</label>
+                <label><input type="checkbox" value="mem" checked /> 内存</label>
+                <label><input type="checkbox" value="disk" checked /> 磁盘</label>
+                <label><input type="checkbox" value="temp" checked /> 温度</label>
+                <label><input type="checkbox" value="fan" checked /> 风扇</label>
+                <label><input type="checkbox" value="gpu" checked /> 显卡</label>
+              </div>
+            </div>
+            <div class="row"><span id="mnMsg" class="msg"></span></div>
+          </div>
           <div class="row"><span id="mnVisibleMsg" class="msg"></span></div>
         </div>
       </div>
@@ -824,6 +909,9 @@
     var weatherLocInput = $("weatherLocInput"), weatherVisibleChk = $("weatherVisibleChk");
     var wcVisibleChk = $("wcVisibleChk"), ntVisibleChk = $("ntVisibleChk");
     var tmVisibleChk = $("tmVisibleChk"), tmPresetInput = $("tmPresetInput");
+    var wcCityInput = $("wcCityInput"), wcAdminList = $("wcAdminList");
+    var mnRefreshInput = $("mnRefreshInput"), mnGroups = $("mnGroups");
+    var calWeekStart = $("calWeekStart"), calLunarChk = $("calLunarChk"), calHolidayChk = $("calHolidayChk");
     var tdVisibleChk = $("tdVisibleChk"), mnVisibleChk = $("mnVisibleChk");
     var injectBtn = $("injectBtn"), cleanupBtn = $("cleanupBtn");
     var rescueToggle = $("rescueToggle"), rescuePanel = $("rescuePanel");
@@ -1004,6 +1092,9 @@
       if (stageCal) stageCal.destroy();
       stageCal = CalendarWidget.mount({
         notes: (settings.notes) || {}, settingsApi: BASE + "/api/settings",
+        weekStart: (settings.calendar_week_start === 0) ? 0 : 1,
+        showLunar: settings.calendar_show_lunar !== false,
+        showHoliday: settings.calendar_show_holiday !== false,
         container: stage, preview: true
       });
 
@@ -1040,6 +1131,8 @@
       if (stageMn) stageMn.destroy();
       stageMn = MonitorWidget.mount({
         settingsApi: BASE + "/api/monitor_settings", monitorApi: BASE + "/api/monitor",
+        refresh: settings.monitor_refresh || 2,
+        groups: (settings.monitor_groups && settings.monitor_groups.length) ? settings.monitor_groups : ["cpu", "mem", "disk", "temp", "fan", "gpu"],
         container: stage, preview: true, draggable: false
       });
 
@@ -1081,6 +1174,20 @@
         v ? "✅ 已开启，刷新桌面即可看到目录浮层" : "✅ 已隐藏，目录浮层不再显示");
     });
 
+    function saveCalCfg() {
+      fetch(BASE + "/api/calendar_settings", { method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weekStart: calWeekStart ? parseInt(calWeekStart.value, 10) : 1,
+          showLunar: calLunarChk ? calLunarChk.checked : true,
+          showHoliday: calHolidayChk ? calHolidayChk.checked : true
+        }) })
+        .then(function () { if ($("calCfgMsg")) $("calCfgMsg").textContent = "✅ 已保存，刷新桌面生效"; })
+        .catch(function () { if ($("calCfgMsg")) $("calCfgMsg").textContent = "❌ 保存失败"; });
+    }
+    if (calWeekStart) calWeekStart.addEventListener("change", saveCalCfg);
+    if (calLunarChk) calLunarChk.addEventListener("change", saveCalCfg);
+    if (calHolidayChk) calHolidayChk.addEventListener("change", saveCalCfg);
     // 日历
     if (calVisibleChk) {
       calVisibleChk.addEventListener("change", function () {
@@ -1104,6 +1211,52 @@
         setStatus($("weatherStatus"), v);
         saveSettings({ weather_visible: v }, $("weatherMsg"),
           v ? "✅ 已开启，刷新桌面即可看到天气" : "✅ 已隐藏，天气不再显示");
+      });
+    }
+
+    // ===== 世界时钟：管理页城市管理 =====
+    function escHtml(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+    function resolveTz(v) {
+      if (!v) return "";
+      if (v.indexOf("/") >= 0) return v;
+      var P = { "北京": "Asia/Shanghai", "上海": "Asia/Shanghai", "东京": "Asia/Tokyo",
+        "纽约": "America/New_York", "洛杉矶": "America/Los_Angeles", "伦敦": "Europe/London",
+        "巴黎": "Europe/Paris", "香港": "Asia/Hong_Kong", "台北": "Asia/Taipei",
+        "新加坡": "Asia/Singapore", "悉尼": "Australia/Sydney", "莫斯科": "Europe/Moscow",
+        "迪拜": "Asia/Dubai", "首尔": "Asia/Seoul" };
+      for (var k in P) if (k.indexOf(v) >= 0 || v.indexOf(k) >= 0) return P[k];
+      try { new Intl.DateTimeFormat("en", { timeZone: v }); return v; } catch (e) { return ""; }
+    }
+    var wcCities = [];
+    function renderWcCities() {
+      if (!wcAdminList) return;
+      if (!wcCities.length) { wcAdminList.innerHTML = '<div class="wc-admin-empty">还没有城市</div>'; return; }
+      wcAdminList.innerHTML = wcCities.map(function (c, i) {
+        return '<span class="wc-admin-chip">' + escHtml(c.name) +
+          '<button data-i="' + i + '" title="删除">×</button></span>';
+      }).join("");
+      Array.prototype.forEach.call(wcAdminList.querySelectorAll("button"), function (b) {
+        b.onclick = function () { wcCities.splice(+b.dataset.i, 1); saveWcCities(); };
+      });
+    }
+    function saveWcCities() {
+      renderWcCities();
+      fetch(BASE + "/api/worldclock_settings", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cities: wcCities }) })
+        .then(function () { if ($("wcMsg")) $("wcMsg").textContent = "✅ 城市已保存，刷新桌面生效"; })
+        .catch(function () { if ($("wcMsg")) $("wcMsg").textContent = "❌ 保存失败"; });
+    }
+    if (wcCityInput) {
+      wcCityInput.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter") return;
+        var v = wcCityInput.value.trim(); if (!v) return;
+        wcCities.push({ name: v, tz: resolveTz(v) });
+        wcCityInput.value = "";
+        saveWcCities();
       });
     }
 
@@ -1140,6 +1293,62 @@
       });
     }
     // 便签
+    // ===== 便签内容管理（/api/notes）=====
+    var NOTES_API = BASE + "/api/notes";
+    var NOTE_COLORS = ["#fff3a3", "#c8f7c5", "#a3d8ff", "#ffc9de", "#e3c8ff", "#ffe0b3"];
+    var adminNotes = [];
+    function ntApi(body, cb) {
+      fetch(NOTES_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { adminNotes = j.notes || []; renderAdminNotes(); if (cb) cb(); })
+        .catch(function () { if ($("ntMsg")) $("ntMsg").textContent = "❌ 操作失败"; });
+    }
+    function ntSaveText(id, text) {   // 文本防抖保存，不重绘（避免输入框失焦）
+      fetch(NOTES_API, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", id: id, text: text }) }).catch(function () {});
+    }
+    function renderAdminNotes() {
+      var box = $("adminNotes"); if (!box) return;
+      if (!adminNotes.length) { box.innerHTML = '<div class="admin-empty">还没有便签，点下方「新建便签」添加</div>'; return; }
+      var ordered = adminNotes.slice().sort(function (a, b) {
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+        return (a.created || 0) - (b.created || 0);
+      });
+      box.innerHTML = ordered.map(function (n) {
+        var dots = NOTE_COLORS.map(function (c) {
+          return '<span class="dot' + (c === n.color ? " sel" : "") + '" data-id="' + escHtml(n.id) + '" data-c="' + c + '" style="background:' + c + '"></span>';
+        }).join("");
+        return '<div class="admin-note" style="background:' + escHtml(n.color || NOTE_COLORS[0]) + '">' +
+          '<textarea placeholder="写点什么…" data-id="' + escHtml(n.id) + '"></textarea>' +
+          '<div class="admin-note-bar">' + dots + '<span class="sp"></span>' +
+          '<button data-act="pin" data-id="' + escHtml(n.id) + '">' + (n.pinned ? "📌 取消置顶" : "📌 置顶") + '</button>' +
+          '<button data-act="del" data-id="' + escHtml(n.id) + '">🗑 删除</button>' +
+          '</div></div>';
+      }).join("");
+      Array.prototype.forEach.call(box.querySelectorAll("textarea"), function (ta) {
+        var n = null; for (var i = 0; i < adminNotes.length; i++) if (adminNotes[i].id === ta.dataset.id) n = adminNotes[i];
+        if (n) ta.value = n.text || "";
+        var t2 = null;
+        ta.addEventListener("input", function () {
+          if (t2) clearTimeout(t2);
+          var v = ta.value;
+          t2 = setTimeout(function () { ntSaveText(ta.dataset.id, v); }, 500);
+        });
+      });
+      Array.prototype.forEach.call(box.querySelectorAll(".dot"), function (d) {
+        d.onclick = function () { ntApi({ action: "update", id: d.dataset.id, color: d.dataset.c }); };
+      });
+      Array.prototype.forEach.call(box.querySelectorAll("button[data-act]"), function (b) {
+        b.onclick = function () {
+          if (b.dataset.act === "del") ntApi({ action: "delete", id: b.dataset.id });
+          else ntApi({ action: "update", id: b.dataset.id, pinned: !ntPinned(b.dataset.id) });
+        };
+      });
+    }
+    function ntPinned(id) { for (var i = 0; i < adminNotes.length; i++) if (adminNotes[i].id === id) return !!adminNotes[i].pinned; return false; }
+    var _noteAdd = $("adminNoteAdd"); if (_noteAdd) _noteAdd.addEventListener("click", function () { ntApi({ action: "add", text: "" }, function () { if ($("ntMsg")) $("ntMsg").textContent = "✅ 已新建，可直接输入内容"; }); });
+    function loadAdminNotes() { fetch(NOTES_API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) { adminNotes = j.notes || []; renderAdminNotes(); }).catch(function () {}); }
+
     if (ntVisibleChk) {
       ntVisibleChk.addEventListener("change", function () {
         var v = ntVisibleChk.checked;
@@ -1149,12 +1358,82 @@
       });
     }
     // 待办清单
+    // ===== 待办内容管理（/api/todos）=====
+    var TODOS_API = BASE + "/api/todos";
+    var adminTodos = [];
+    function tdApi(body, cb) {
+      fetch(TODOS_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { adminTodos = j.todos || []; renderAdminTodos(); if (cb) cb(); })
+        .catch(function () { if ($("tdMsg")) $("tdMsg").textContent = "❌ 操作失败"; });
+    }
+    function tdSaveText(id, text) {   // 文本防抖保存，不重绘
+      fetch(TODOS_API, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", id: id, text: text }) }).catch(function () {});
+    }
+    function renderAdminTodos() {
+      var box = $("adminTodos"); if (!box) return;
+      if (!adminTodos.length) { box.innerHTML = '<div class="admin-empty">还没有待办，下面添加一个</div>'; return; }
+      box.innerHTML = adminTodos.map(function (t) {
+        return '<div class="admin-todo' + (t.done ? " done" : "") + '">' +
+          '<input type="checkbox" data-id="' + escHtml(t.id) + '"' + (t.done ? " checked" : "") + ' />' +
+          '<input class="t" type="text" data-id="' + escHtml(t.id) + '" value="' + escHtml(t.text) + '" />' +
+          '<button class="del" data-id="' + escHtml(t.id) + '" title="删除">🗑</button>' +
+          '</div>';
+      }).join("");
+      Array.prototype.forEach.call(box.querySelectorAll("input[type=checkbox]"), function (c) {
+        c.onchange = function () { tdApi({ action: "update", id: c.dataset.id, done: c.checked }); };
+      });
+      Array.prototype.forEach.call(box.querySelectorAll("input.t"), function (inp) {
+        var t2 = null;
+        inp.addEventListener("input", function () {
+          if (t2) clearTimeout(t2);
+          var v = inp.value;
+          t2 = setTimeout(function () { tdSaveText(inp.dataset.id, v); }, 600);
+        });
+      });
+      Array.prototype.forEach.call(box.querySelectorAll(".del"), function (b) {
+        b.onclick = function () { tdApi({ action: "delete", id: b.dataset.id }); };
+      });
+    }
+    function adminTodoAdd() {
+      var inp = $("adminTodoInput"); if (!inp) return;
+      var v = inp.value.trim(); if (!v) return;
+      inp.value = "";
+      tdApi({ action: "add", text: v }, function () { if ($("tdMsg")) $("tdMsg").textContent = "✅ 已添加"; });
+    }
+    var _tdAdd = $("adminTodoAdd"); if (_tdAdd) _tdAdd.addEventListener("click", adminTodoAdd);
+    var _tdIn = $("adminTodoInput"); if (_tdIn) _tdIn.addEventListener("keydown", function (e) { if (e.key === "Enter") adminTodoAdd(); });
+    function loadAdminTodos() { fetch(TODOS_API, { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) { adminTodos = j.todos || []; renderAdminTodos(); }).catch(function () {}); }
+
     if (tdVisibleChk) {
       tdVisibleChk.addEventListener("change", function () {
         var v = tdVisibleChk.checked;
         setStatus($("tdStatus"), v);
         saveSettings({ todo_visible: v }, $("tdVisibleMsg"),
           v ? "✅ 已开启，刷新桌面即可看到待办" : "✅ 已隐藏，待办不再显示");
+      });
+    }
+    if (mnRefreshInput) {
+      mnRefreshInput.addEventListener("change", function () {
+        var s = Math.max(1, Math.min(60, parseInt(mnRefreshInput.value, 10) || 2));
+        mnRefreshInput.value = s;
+        fetch(BASE + "/api/monitor_settings", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refresh: s }) })
+          .then(function () { if ($("mnMsg")) $("mnMsg").textContent = "✅ 刷新间隔已保存"; })
+          .catch(function () { if ($("mnMsg")) $("mnMsg").textContent = "❌ 保存失败"; });
+      });
+    }
+    if (mnGroups) {
+      mnGroups.addEventListener("change", function () {
+        var g = [];
+        Array.prototype.forEach.call(mnGroups.querySelectorAll("input[type=checkbox]"), function (c) {
+          if (c.checked) g.push(c.value);
+        });
+        fetch(BASE + "/api/monitor_settings", { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groups: g }) })
+          .then(function () { if ($("mnMsg")) $("mnMsg").textContent = "✅ 显示分组已保存"; })
+          .catch(function () { if ($("mnMsg")) $("mnMsg").textContent = "❌ 保存失败"; });
       });
     }
     // 系统监控
@@ -1183,14 +1462,27 @@
           visibleChk.checked = st.visible !== false;
           setStatus($("dirStatus"), visibleChk.checked);
           if (calVisibleChk) { calVisibleChk.checked = st.calendar_visible !== false; setStatus($("calStatus"), calVisibleChk.checked); }
+          if (calWeekStart) calWeekStart.value = (st.calendar_week_start === 0) ? "0" : "1";
+          if (calLunarChk) calLunarChk.checked = st.calendar_show_lunar !== false;
+          if (calHolidayChk) calHolidayChk.checked = st.calendar_show_holiday !== false;
           if (weatherLocInput) weatherLocInput.value = st.weather_location || "";
           if (weatherVisibleChk) { weatherVisibleChk.checked = st.weather_visible !== false; setStatus($("weatherStatus"), weatherVisibleChk.checked); }
           if (wcVisibleChk) { wcVisibleChk.checked = st.worldclock_visible !== false; setStatus($("wcStatus"), wcVisibleChk.checked); }
+          wcCities = (st.worldclock_cities || []).map(function (c) { return { name: c.name, tz: c.tz || "" }; });
+          renderWcCities();
           if (tmVisibleChk) { tmVisibleChk.checked = st.timer_visible !== false; setStatus($("tmStatus"), tmVisibleChk.checked); }
           if (tmPresetInput) { var _tp = Math.max(0, parseInt(st.timer_preset, 10) || 300); var _h = Math.floor(_tp / 3600), _m = Math.floor((_tp % 3600) / 60), _s = _tp % 60; var _p = function (n) { return (n < 10 ? "0" : "") + n; }; tmPresetInput.value = _h > 0 ? (_h + ":" + _p(_m) + ":" + _p(_s)) : (_p(_m) + ":" + _p(_s)); }
           if (ntVisibleChk) { ntVisibleChk.checked = st.notes_visible !== false; setStatus($("ntStatus"), ntVisibleChk.checked); }
+          loadAdminNotes(); loadAdminTodos();
           if (tdVisibleChk) { tdVisibleChk.checked = st.todo_visible !== false; setStatus($("tdStatus"), tdVisibleChk.checked); }
           if (mnVisibleChk) { mnVisibleChk.checked = st.monitor_visible !== false; setStatus($("mnStatus"), mnVisibleChk.checked); }
+          if (mnRefreshInput) mnRefreshInput.value = st.monitor_refresh || 2;
+          if (mnGroups) {
+            var _mg = st.monitor_groups || ["cpu", "mem", "disk", "temp", "fan", "gpu"];
+            Array.prototype.forEach.call(mnGroups.querySelectorAll("input[type=checkbox]"), function (c) {
+              c.checked = _mg.indexOf(c.value) >= 0;
+            });
+          }
           // 主题：用已保存值初始化下拉并套用到预览浮窗
           var savedTheme = st.theme || "system";
           if (themeSel) themeSel.value = savedTheme;

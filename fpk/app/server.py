@@ -355,6 +355,7 @@ def load_settings() -> dict:
             "dir_min": False, "timer_preset": 300,
             "calendar_visible": True, "calendar_pos": None, "calendar_size": None,
             "calendar_notes": {}, "calendar_min": False,
+            "calendar_week_start": 1, "calendar_show_lunar": True, "calendar_show_holiday": True,
             "weather_visible": True, "weather_pos": None, "weather_size": None,
             "weather_location": "", "weather_min": False,
             "notes_visible": True, "notes_pos": None, "notes_size": None,
@@ -370,7 +371,8 @@ def load_settings() -> dict:
                 {"name": "伦敦", "tz": "Europe/London"},
                 {"name": "洛杉矶", "tz": "America/Los_Angeles"}],
             "monitor_visible": True, "monitor_pos": None, "monitor_size": None,
-            "monitor_min": False, "monitor_pinned": False}
+            "monitor_min": False, "monitor_pinned": False,
+            "monitor_refresh": 2, "monitor_groups": ["cpu", "mem", "disk", "temp", "fan", "gpu"]}
     try:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             data.update(json.loads(f.read() or "{}"))
@@ -1533,6 +1535,15 @@ class DirHandler(BaseHTTPRequestHandler):
                         cur["calendar_size"] = None
                 if "notes" in payload and isinstance(payload.get("notes"), dict):
                     cur["calendar_notes"] = payload.get("notes")
+                if "weekStart" in payload:
+                    try:
+                        cur["calendar_week_start"] = 0 if int(payload.get("weekStart")) == 0 else 1
+                    except (TypeError, ValueError):
+                        pass
+                if "showLunar" in payload:
+                    cur["calendar_show_lunar"] = bool(payload.get("showLunar"))
+                if "showHoliday" in payload:
+                    cur["calendar_show_holiday"] = bool(payload.get("showHoliday"))
                 if "min" in payload:
                     cur["calendar_min"] = bool(payload.get("min"))
                 if "pinned" in payload:
@@ -1544,6 +1555,9 @@ class DirHandler(BaseHTTPRequestHandler):
                                      "pos": cur.get("calendar_pos"),
                                      "size": cur.get("calendar_size"),
                                      "min": cur.get("calendar_min", False),
+                                     "weekStart": cur.get("calendar_week_start", 1),
+                                     "showLunar": cur.get("calendar_show_lunar", True),
+                                     "showHoliday": cur.get("calendar_show_holiday", True),
                                      "notes": cur.get("calendar_notes") or {},
                                  }}, 200 if ok else 500)
                 return
@@ -1554,6 +1568,9 @@ class DirHandler(BaseHTTPRequestHandler):
                 "size": st.get("calendar_size"),
                 "min": st.get("calendar_min", False),
                 "pinned": st.get("calendar_pinned", False),
+                "weekStart": st.get("calendar_week_start", 1),
+                "showLunar": st.get("calendar_show_lunar", True),
+                "showHoliday": st.get("calendar_show_holiday", True),
                 "notes": st.get("calendar_notes") or {},
             }})
             return
@@ -1642,9 +1659,23 @@ class DirHandler(BaseHTTPRequestHandler):
                                   extra_payload=_wc_payload, extra_response=_wc_response)
             return
 
-        # ===== 系统监控组件设置 =====
+        # ===== 系统监控组件设置（含刷新率 monitor_refresh、显示分组 monitor_groups）=====
         if parsed.path == "/api/monitor_settings":
-            handle_widget_settings(self, parsed, "monitor")
+            def _mn_payload(cur, payload):
+                if "refresh" in payload:
+                    try:
+                        cur["monitor_refresh"] = max(1, min(60, int(payload.get("refresh"))))
+                    except (TypeError, ValueError):
+                        pass
+                if "groups" in payload and isinstance(payload.get("groups"), list):
+                    allowed = ["cpu", "mem", "disk", "temp", "fan", "gpu"]
+                    g = [str(x) for x in payload["groups"] if str(x) in allowed]
+                    cur["monitor_groups"] = g if g else allowed
+            def _mn_response(resp, st):
+                resp["refresh"] = st.get("monitor_refresh", 2)
+                resp["groups"] = st.get("monitor_groups") or ["cpu", "mem", "disk", "temp", "fan", "gpu"]
+            handle_widget_settings(self, parsed, "monitor",
+                                  extra_payload=_mn_payload, extra_response=_mn_response)
             return
 
         # ===== 计时器组件设置（含默认预设时长 timer_preset，单位秒）=====

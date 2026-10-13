@@ -49,6 +49,9 @@
     this.opts = opts || {};
     this.settingsApi = this.opts.settingsApi || null;
     this.notes = (this.opts.notes && typeof this.opts.notes === "object") ? this.opts.notes : {};
+    this.weekStart = (this.opts.weekStart === 0) ? 0 : 1;   // 0=周日开头，1=周一开头
+    this.showLunar = this.opts.showLunar !== false;          // 默认显示农历
+    this.showHoliday = this.opts.showHoliday !== false;      // 默认显示节假日
     this.viewYear = 0;
     this.viewMonth = 0;     // 0-11
     this.selectedKey = null;
@@ -106,8 +109,12 @@
     this.memoMsg = root.querySelector(".cw-memo-msg");
 
     // 星期表头（周末着色）
-    this.weekdaysEl.innerHTML = WEEK_LABELS.map(function (w, i) {
-      return '<span class="' + (i >= 5 ? "cw-we" : "") + '">' + w + "</span>";
+    var weekLabels = (self.weekStart === 0)
+      ? ["日", "一", "二", "三", "四", "五", "六"]
+      : ["一", "二", "三", "四", "五", "六", "日"];
+    this.weekdaysEl.innerHTML = weekLabels.map(function (w, i) {
+      var we = (self.weekStart === 0) ? (i === 0 || i === 6) : (i >= 5);
+      return '<span class="' + (we ? "cw-we" : "") + '">' + w + "</span>";
     }).join("");
 
     root.querySelector(".cw-prev-month").addEventListener("click", function () { self._stepMonth(-1); });
@@ -151,7 +158,7 @@
     this.titleEl.textContent = this.viewYear + "年 " + MONTH_LABELS[this.viewMonth];
 
     var first = new Date(this.viewYear, this.viewMonth, 1);
-    var startDow = mondayIndex(first.getDay());      // 本月1号在一周中的偏移
+    var startDow = (first.getDay() - this.weekStart + 7) % 7;   // 按起始周算本月1号偏移
     var gridStart = new Date(this.viewYear, this.viewMonth, 1 - startDow);
     var todayKey = isoDate(new Date());
 
@@ -170,11 +177,11 @@
       if (this.notes && this.notes[key]) cls += " cw-has-note";
       var sm = d.getMonth() + 1, sd = d.getDate();
       var lunText = "";
-      if (window.Lunar) {
+      if (this.showLunar && window.Lunar) {
         var lun = Lunar.solarToLunar(d.getFullYear(), sm, sd);
         lunText = Lunar.cellText(lun, sm, sd);
       }
-      var hol = (window.HolidayCN) ? HolidayCN.get(d.getFullYear(), sm, sd) : null;
+      var hol = (this.showHoliday && window.HolidayCN) ? HolidayCN.get(d.getFullYear(), sm, sd) : null;
       if (hol) cls += (hol.off ? " cw-holiday" : " cw-work");
       var title = "";
       if (hol) {
@@ -209,12 +216,12 @@
     var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     var y = Number(parts[0]), m = Number(parts[1]), day = Number(parts[2]);
     var lunStr = "";
-    if (window.Lunar) {
+    if (this.showLunar && window.Lunar) {
       var lun = Lunar.solarToLunar(y, m, day);
       lunStr = Lunar.fullLabel(lun);
     }
     var holStr = "";
-    if (window.HolidayCN) {
+    if (this.showHoliday && window.HolidayCN) {
       var hol = HolidayCN.get(y, m, day);
       if (hol) holStr = hol.name + (hol.off ? "（休）" : "（班）");
     }
@@ -235,12 +242,12 @@
         ":" + pad2(n.getSeconds());
       var isToday = isoDate(n) === self.selectedKey;
       var lunStr = "";
-      if (window.Lunar) {
+      if (this.showLunar && window.Lunar) {
         var lun = Lunar.solarToLunar(n.getFullYear(), n.getMonth() + 1, n.getDate());
         lunStr = Lunar.fullLabel(lun);
       }
       var holStr = "";
-      if (window.HolidayCN) {
+      if (this.showHoliday && window.HolidayCN) {
         var hol = HolidayCN.get(n.getFullYear(), n.getMonth() + 1, n.getDate());
         if (hol) holStr = hol.name + (hol.off ? "（休）" : "（班）");
       }
