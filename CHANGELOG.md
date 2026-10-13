@@ -10,7 +10,7 @@
 
 ### 修复 / 优化
 
-- **管理页补齐各小组件设置**（`ui/index.html` / `server.py` / 各组件脚本 / `inject.js`）：把原先只有显示开关的组件主要设置搬到管理页——世界时钟（城市 / 时区增删，读写 `worldclock_cities`）、系统监控（刷新间隔 1~60s + 显示分组 CPU/内存/磁盘/温度/风扇/显卡，`monitor_refresh`/`monitor_groups`）、日历（每周起始周一/周日 + 显示农历/节假日开关，`calendar_week_start`/`calendar_show_lunar`/`calendar_show_holiday`）；便签 / 待办也能在管理页直接管理内容（便签新建 / 编辑 / 换色 / 置顶 / 删除，待办添加 / 编辑 / 勾选 / 删除，走 `/api/notes`、`/api/todos` 持久化，刷新后仍在）。各设置即改即存、刷新桌面生效，桌面预览同步。过程中修复了日历设置 GET 分支一度被误缩进到 POST 的 `return` 之后、导致 GET 无响应的问题。
+- **管理页补齐各小组件设置**（`ui/index.html` / `server.py` / 各组件脚本 / `inject.js`）：把原先只有显示开关的组件主要设置搬到管理页——世界时钟（城市 / 时区增删，读写 `worldclock_cities`）、系统监控（刷新间隔 1~60s + 显示分组 CPU/内存/磁盘/温度/风扇/显卡，`monitor_refresh`/`monitor_groups`）、日历（每周起始周一/周日 + 显示农历/节假日开关，`calendar_week_start`/`calendar_show_lunar`/`calendar_show_holiday`；每日备忘做成日期列表，点选某日在编辑区显示并编辑，存 `calendar_notes`）；便签 / 待办也能在管理页直接管理内容（便签新建 / 编辑 / 换色 / 置顶 / 删除，待办添加 / 编辑 / 勾选 / 删除，走 `/api/notes`、`/api/todos` 持久化，刷新后仍在）。各设置即改即存、刷新桌面生效，桌面预览同步。过程中修复了日历设置 GET 分支一度被误缩进到 POST 的 `return` 之后、导致 GET 无响应的问题。
 
 - **世界时钟删除按钮掉到第二行**（`widget-shell.css`）：`.wc-row` 原先用 `align-items: baseline` + `.wc-date { margin-left:auto }`，日期「10/13周二」在窄卡片里换行，删除按钮 × 就被挤到下一行、和时间/日期不在同一行。现改为 `align-items: center`、名称列 `flex:1` 占据左侧，时间 / 日期 / 删除按钮 `flex:none` 且 `nowrap`，× 固定在该行最右端。
 - **世界时钟默认预置常用时区**（`server.py` / 演示页 / 管理页预览）：首次打开默认给出 本地 / 东京 / 纽约 / 伦敦 / 洛杉矶 5 个常用时钟，可逐行删除；并修复原先删空后 `_wc_response` 的 `or [本地]` 兜底会把默认列表又恢复回来、导致「删了又出现」的问题（改为 `or []`，用户删空后保持空）。

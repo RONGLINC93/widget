@@ -142,6 +142,21 @@
     .admin-todo-add button { flex: none; background: #238636; color: #fff; border: none; border-radius: 6px; padding: 0 12px; cursor: pointer; }
     .btn-mini { background: #238636; color: #fff; border: none; border-radius: 6px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
     .btn-mini:hover { background: #2ea043; }
+    /* 管理页：日历每日备忘（列表选择 + 编辑区） */
+    .cal-notes-admin { margin-top: 10px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 10px; }
+    .cal-note-add { display: flex; gap: 6px; margin-bottom: 8px; }
+    .cal-note-add input[type=date] { flex: 1; min-width: 0; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit; }
+    .cal-note-list { display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow: auto; margin-bottom: 8px; }
+    .cal-note-item { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,.04); cursor: pointer; font-size: 12px; }
+    .cal-note-item:hover { background: rgba(255,255,255,.08); }
+    .cal-note-item.sel { background: rgba(88,166,255,.18); outline: 1px solid #388bfd; }
+    .cal-note-item b { color: #58a6ff; font-weight: 600; flex: none; }
+    .cal-note-item span { color: #c9d1d9; white-space: pre-wrap; word-break: break-word; flex: 1; min-width: 0; }
+    .cal-note-editor { border: 1px solid rgba(255,255,255,.1); border-radius: 8px; padding: 8px; }
+    .cal-note-date { font-size: 13px; font-weight: 600; color: #e6edf3; margin-bottom: 6px; }
+    .cal-note-editor textarea { width: 100%; box-sizing: border-box; min-height: 64px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 6px 8px; font-size: 13px; font-family: inherit; resize: vertical; outline: none; }
+    .btn-mini.btn-danger { background: #da3633; }
+    .btn-mini.btn-danger:hover { background: #f85149; }
     [data-theme="light"] .stage-zoom #zoomVal { color: #0969da; }
 
     .stage {
@@ -717,6 +732,22 @@
               <label><input id="calLunarChk" type="checkbox" checked /> 显示农历</label>
               <label><input id="calHolidayChk" type="checkbox" checked /> 显示节假日</label>
             </div>
+            <div class="cal-notes-admin">
+              <div class="cal-note-add">
+                <input type="date" id="calNoteNewDate" />
+                <button id="calNoteAdd" class="btn-mini">＋ 新建该日备忘</button>
+              </div>
+              <div class="cal-note-list" id="calNoteList"></div>
+              <div class="cal-note-editor">
+                <div class="cal-note-date" id="calNoteDate">选择上方日期进行编辑</div>
+                <textarea id="calNoteText" placeholder="这一天的备忘…"></textarea>
+                <div class="row">
+                  <button id="calNoteSave" class="btn-mini">保存</button>
+                  <button id="calNoteDel" class="btn-mini btn-danger">删除这天</button>
+                  <span id="calNoteMsg" class="msg"></span>
+                </div>
+              </div>
+            </div>
             <div class="row"><span id="calCfgMsg" class="msg"></span></div>
           </div>
           <div class="row"><span id="calVisibleMsg" class="msg"></span></div>
@@ -1186,6 +1217,60 @@
         .catch(function () { if ($("calCfgMsg")) $("calCfgMsg").textContent = "❌ 保存失败"; });
     }
     if (calWeekStart) calWeekStart.addEventListener("change", saveCalCfg);
+    // ===== 日历：管理页每日备忘（列表选择 + 编辑区）=====
+    var calNotes = {}, calSelKey = null;
+    function calNotesApi(body, cb) {
+      fetch(BASE + "/api/calendar_settings", { method: "POST",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then(function (r) { return r.json(); })
+        .then(function () { if (cb) cb(); })
+        .catch(function () { if ($("calNoteMsg")) $("calNoteMsg").textContent = "❌ 保存失败"; });
+    }
+    function renderCalNoteList() {
+      var box = $("calNoteList"); if (!box) return;
+      var keys = Object.keys(calNotes).filter(function (k) { return (calNotes[k] || "").trim(); }).sort().reverse();
+      if (!keys.length) { box.innerHTML = '<div class="admin-empty">还没有备忘，先在上面选日期新建</div>'; return; }
+      box.innerHTML = keys.map(function (k) {
+        var disp = (calNotes[k] || "").trim() ? calNotes[k] : "（未填写）";
+        return '<div class="cal-note-item' + (k === calSelKey ? " sel" : "") + '" data-k="' + k + '"><b>' + k + '</b><span>' + escHtml(disp) + '</span></div>';
+      }).join("");
+      Array.prototype.forEach.call(box.querySelectorAll(".cal-note-item"), function (it) {
+        it.onclick = function () { calSelKey = it.getAttribute("data-k"); renderCalNoteList(); renderCalNoteEditor(); };
+      });
+    }
+    function renderCalNoteEditor() {
+      var d = $("calNoteDate"), t = $("calNoteText");
+      if (!calSelKey) { if (d) d.textContent = "选择上方日期进行编辑"; if (t) t.value = ""; return; }
+      if (d) d.textContent = calSelKey;
+      if (t) t.value = calNotes[calSelKey] || "";
+    }
+    function saveCalNote() {
+      if (!calSelKey) { if ($("calNoteMsg")) $("calNoteMsg").textContent = "请先选择或新建一个日期"; return; }
+      calNotes[calSelKey] = $("calNoteText").value;
+      calNotesApi({ notes: calNotes }, function () {
+        if ($("calNoteMsg")) $("calNoteMsg").textContent = "✅ 已保存";
+        renderCalNoteList();
+      });
+    }
+    function delCalNote() {
+      if (!calSelKey) return;
+      delete calNotes[calSelKey]; calSelKey = null;
+      calNotesApi({ notes: calNotes }, function () { renderCalNoteList(); renderCalNoteEditor(); if ($("calNoteMsg")) $("calNoteMsg").textContent = "✅ 已删除"; });
+    }
+    var _calSave = $("calNoteSave"); if (_calSave) _calSave.addEventListener("click", saveCalNote);
+    var _calDel = $("calNoteDel"); if (_calDel) _calDel.addEventListener("click", delCalNote);
+    var _calAdd = $("calNoteAdd"); if (_calAdd) _calAdd.addEventListener("click", function () {
+      var di = $("calNoteNewDate"); var k = di && di.value;
+      if (!k) { var n = new Date(); k = n.getFullYear() + "-" + (n.getMonth() + 1 < 10 ? "0" : "") + (n.getMonth() + 1) + "-" + (n.getDate() < 10 ? "0" : "") + n.getDate(); }
+      if (!(k in calNotes)) calNotes[k] = "";
+      calSelKey = k; renderCalNoteList(); renderCalNoteEditor();
+      if ($("calNoteMsg")) $("calNoteMsg").textContent = "已选中 " + k + "，在下方编辑后保存";
+    });
+    function loadCalNotes() {
+      fetch(BASE + "/api/calendar_settings", { cache: "no-store" }).then(function (r) { return r.json(); })
+        .then(function (j) { calNotes = (j.settings && j.settings.notes && typeof j.settings.notes === "object") ? j.settings.notes : {}; renderCalNoteList(); renderCalNoteEditor(); })
+        .catch(function () {});
+    }
     if (calLunarChk) calLunarChk.addEventListener("change", saveCalCfg);
     if (calHolidayChk) calHolidayChk.addEventListener("change", saveCalCfg);
     // 日历
@@ -1473,7 +1558,7 @@
           if (tmVisibleChk) { tmVisibleChk.checked = st.timer_visible !== false; setStatus($("tmStatus"), tmVisibleChk.checked); }
           if (tmPresetInput) { var _tp = Math.max(0, parseInt(st.timer_preset, 10) || 300); var _h = Math.floor(_tp / 3600), _m = Math.floor((_tp % 3600) / 60), _s = _tp % 60; var _p = function (n) { return (n < 10 ? "0" : "") + n; }; tmPresetInput.value = _h > 0 ? (_h + ":" + _p(_m) + ":" + _p(_s)) : (_p(_m) + ":" + _p(_s)); }
           if (ntVisibleChk) { ntVisibleChk.checked = st.notes_visible !== false; setStatus($("ntStatus"), ntVisibleChk.checked); }
-          loadAdminNotes(); loadAdminTodos();
+          loadAdminNotes(); loadAdminTodos(); loadCalNotes();
           if (tdVisibleChk) { tdVisibleChk.checked = st.todo_visible !== false; setStatus($("tdStatus"), tdVisibleChk.checked); }
           if (mnVisibleChk) { mnVisibleChk.checked = st.monitor_visible !== false; setStatus($("mnStatus"), mnVisibleChk.checked); }
           if (mnRefreshInput) mnRefreshInput.value = st.monitor_refresh || 2;
