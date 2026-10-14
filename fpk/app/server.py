@@ -374,7 +374,11 @@ def load_settings() -> dict:
                 {"name": "洛杉矶", "tz": "America/Los_Angeles"}],
             "monitor_visible": True, "monitor_pos": None, "monitor_size": None,
             "monitor_min": False, "monitor_pinned": False,
-            "monitor_refresh": 2, "monitor_groups": ["cpu", "mem", "disk", "temp", "fan", "gpu"]}
+            "monitor_refresh": 2, "monitor_groups": ["cpu", "mem", "disk", "temp", "fan", "gpu"],
+            # 合并显示（整合面板）：merged_visible 同时控制「是否启用整合模式」与
+            # 「面板当前是否在桌面显示」；关闭面板即退回单独浮层，与各组价开关语义一致
+            "merged_visible": False, "merged_pos": None, "merged_size": None,
+            "merged_min": False, "merged_pinned": False}
     try:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             data.update(json.loads(f.read() or "{}"))
@@ -1718,6 +1722,11 @@ class DirHandler(BaseHTTPRequestHandler):
                 resp["preset"] = st.get("timer_preset") or 300
             handle_widget_settings(self, parsed, "timer",
                                   extra_payload=_tm_payload, extra_response=_tm_response)
+            return
+
+        # ===== 合并显示面板（整合所有开启组件为一个浮层）=====
+        if parsed.path == "/api/merged_settings":
+            handle_widget_settings(self, parsed, "merged")
             return
 
         # ===== 便签内容 CRUD（notes.json 持久化）=====

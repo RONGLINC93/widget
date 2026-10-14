@@ -1,0 +1,58 @@
+/* ============================================================================
+ * 整合面板（合并显示）样式
+ * 一个玻璃浮层（.rl-merged）收纳所有已开启组件：内部是可滚动的纵向列表，
+ * 每个组件作为一张子卡片（仍是 .rl-root，但被重排为相对定位、跟随面板宽度）。
+ * 颜色沿用 widget-shell.css 的 --rl-* 变量，跟随日间/夜间/系统主题。
+ * ========================================================================== */
+
+/* 面板内容区：纵向堆叠子卡片，整体滚动 */
+.rl-merged .rl-merged-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  /* 子卡片过多时面板滚动，而不是单个组件各自出滚动条 */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--rl-scroll) transparent;
+}
+.rl-merged .rl-merged-body::-webkit-scrollbar { width: 10px; }
+.rl-merged .rl-merged-body::-webkit-scrollbar-thumb {
+  background: var(--rl-scroll); background-clip: content-box;
+  border: 2px solid transparent; border-radius: 6px;
+}
+
+/* 内嵌的子组件卡片：去掉固定定位与独立尺寸，跟随面板流式排布 */
+.rl-merged .rl-root {
+  position: relative !important;
+  left: auto !important; top: auto !important;
+  width: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  z-index: auto !important;
+  box-shadow: none;
+  /* 子卡片之间仍保留毛玻璃质感，但不再用大投影，避免叠加过重 */
+  border: 1px solid var(--rl-border-3);
+}
+/* 子卡片内容区不再各自滚动，交给面板统一滚动 */
+.rl-merged .rl-root .rl-body {
+  overflow: visible !important;
+  max-height: none !important;
+}
+/* 子卡片标题栏收窄一点，视觉更紧凑 */
+.rl-merged .rl-root .rl-bar,
+.rl-merged .rl-root .rl-minbar {
+  padding: 6px 8px;
+}
+.rl-merged .rl-root .rl-title { font-size: 12px; }
+
+/* 空面板提示 */
+.rl-merged-empty {
+  color: var(--rl-muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 18px 8px;
+  line-height: 1.6;
+}

@@ -13,6 +13,12 @@
 
   var BASE = "/rl93w";
 
+  // 共享一次设置拉取，供合并模式判定与各挂载点复用（避免重复请求与竞态）
+  var SETTINGS_PROMISE = fetch(BASE + "/api/settings", { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { return (j && j.settings) ? j.settings : {}; })
+    .catch(function () { return {}; });
+
   // ---- 「刷新桌面」：管理页点「刷新桌面」后，本页自动重载 ----
   // Why: 桌面页(5666/5667) 与管理页(8099) 不同源，浏览器不允许跨窗口互发消息，
   // 改完设置后用户还得手动 Ctrl+Shift+R。故由服务端当中转：管理页 POST
@@ -73,6 +79,7 @@
             .then(function (j) {
               var st = j && j.settings ? j.settings : {};
               if (st[settingsKey] === false) return;
+              if (st.merged_visible) return;   // 合并模式：交由整合面板统一挂载，不单独挂载
               var opts = mountOptsFn(st);
               W.mount(opts);
               var el = document.getElementById(opts.__root);
@@ -159,6 +166,7 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭 → 不再自动挂载，直到在应用窗口重新开启
           if (st.visible === false) return;
+          if (st.merged_visible) return;   // 合并模式：交由整合面板统一挂载
           mountWidget(st.path || getLocalPath(), st.root || "", st.pos, st.size, st.pinned, st.dir_min);
         })
         .catch(function () { mountWidget(getLocalPath(), "", null, null, false); });
@@ -422,6 +430,7 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭日历 → 不再自动挂载，直到在应用窗口重新开启
           if (st.calendar_visible === false) return;
+          if (st.merged_visible) return;   // 合并模式：交由整合面板统一挂载
           mountCal(st.calendar_pos, st.calendar_size, st.calendar_notes, st.calendar_min, st.calendar_pinned,
                    st.calendar_week_start, st.calendar_show_lunar, st.calendar_show_holiday);
         })
@@ -460,11 +469,39 @@
           var st = j && j.settings ? j.settings : {};
           // 用户在桌面上点过 × 关闭天气 → 不再自动挂载，直到在应用窗口重新开启
           if (st.weather_visible === false) return;
+          if (st.merged_visible) return;   // 合并模式：交由整合面板统一挂载
           mountW(st.weather_pos, st.weather_size, st.weather_location, st.weather_min, st.weather_pinned);
         })
         .catch(function () { mountW(null, null, "", false, false); });
     };
     document.head.appendChild(ws);
+
+    // ---- 合并显示（整合面板）：合并模式下所有已开启组件收纳进同一个浮层 ----
+    // 这些脚本无论是否合并模式都加载（合并模式下面板要内嵌各组件），但仅当
+    // merged_visible 为真才挂载整合面板本身；各组件在合并模式下不单独挂载（见上方各 onload）。
+    var mlink = document.createElement("link");
+    mlink.rel = "stylesheet";
+    mlink.href = BASE + "/static/merged-widget.css";
+    document.head.appendChild(mlink);
+
+    var ms = document.createElement("script");
+    ms.async = false;   // 须在 widget-shell.js 之后（RLShell 已就绪），顺序加载保证
+    ms.src = BASE + "/static/merged-widget.js";
+    ms.onload = function () {
+      if (!window.MergedWidget) return;
+      SETTINGS_PROMISE.then(function (st) {
+        if (!st.merged_visible) return;   // 单独模式：各组件各自浮层，不挂载整合面板
+        window.MergedWidget.mount({
+          settingsApi: BASE + "/api/merged_settings",
+          pos: st.merged_pos || null, size: st.merged_size || null,
+          min: !!st.merged_min, pinned: !!st.merged_pinned,
+          settings: st, base: BASE
+        });
+        var root = document.getElementById("merged-root");
+        if (root) alignWithDesktopIcons(root);
+      });
+    };
+    document.head.appendChild(ms);
 
   }
 

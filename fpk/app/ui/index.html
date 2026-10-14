@@ -271,6 +271,21 @@
       width: 242px !important;
     }
 
+    /* 合并显示预览：整合面板作为一块整体出现在舞台里（内部再滚动列出各组件） */
+    .desk-scale #merged-root {
+      position: absolute !important;
+      left: 0;
+      top: 0;
+      width: 360px !important;
+      max-height: 760px !important;
+    }
+    /* 合并预览里隐藏面板自身的收起/关闭（避免误改真实开关） */
+    .desk-scale #merged-root .rl-bar .rl-pin,
+    .desk-scale #merged-root .rl-bar .rl-min,
+    .desk-scale #merged-root .rl-bar .rl-x {
+      display: none !important;
+    }
+
     /* 预览里隐藏关闭 / 最小化 / 固定，避免误关真实开关或回写 visible / min / pinned */
     .desk-scale #dw-root .dw-close-btn,
     .desk-scale #dw-root .dw-min-btn,
@@ -695,6 +710,13 @@
           <option value="light">日间</option>
         </select>
       </div>
+      <div class="themectl">
+        <label for="mergedChk">合并显示</label>
+        <label class="switch" style="margin:0">
+          <input id="mergedChk" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+      </div>
       <button id="refreshBtn" class="btn-save" title="重新读取服务端设置并重建预览">🔄 刷新</button>
       <button id="deskReloadBtn" class="btn-deskreload" title="让已打开的飞牛桌面页重新加载（几秒内生效），无需手动 Ctrl+Shift+R">🖥 刷新桌面</button>
       <button id="injectBtn" class="btn-inject">注入桌面</button>
@@ -985,6 +1007,7 @@
     var rescueBtn = $("rescueBtn"), diagBtn = $("diagBtn");
     var diagOut = $("diagOut");
     var themeSel = $("themeSel");
+    var mergedChk = $("mergedChk");
 
     // 主题：dark/light 直接套 data-theme；system 按系统配色解析并随系统切换
     function applyTheme(t) {
@@ -1049,6 +1072,7 @@
     var stage = $("stage");
     var stageDir = null, stageCal = null, stageWx = null;
     var stageWc = null, stageNt = null, stageTd = null, stageMn = null, stageTimer = null;
+    var stageMerged = null;
 
     // ---- 预览排版 + 自适应：浮窗按瀑布流（最短列优先）摆放，紧凑相接、互不重叠 ----
     var deskBox = document.querySelector(".desktop");
@@ -1168,8 +1192,35 @@
 
     window.addEventListener("resize", queueStageFit);
 
+    // 清空舞台里所有预览窗（含合并面板），避免切换显示方式时遗留旧实例
+    function clearStage() {
+      [stageDir, stageCal, stageWx, stageWc, stageNt, stageTd, stageMn, stageTimer, stageMerged].forEach(
+        function (h) { try { if (h) h.destroy(); } catch (e) {} });
+      stageDir = stageCal = stageWx = stageWc = stageNt = stageTd = stageMn = stageTimer = stageMerged = null;
+    }
+
+    // 合并显示开关打开时，任意子组件开关变化都需重建预览以反映最新设置
+    function syncMerged() { if (mergedChk && mergedChk.checked) mountStage(); }
+
     function mountStage(settings) {
-      if (stageDir) stageDir.destroy();
+      // 不传 settings 时从服务端重新拉取（子组件开关变动后重建用）
+      if (!settings) {
+        fetch("api/settings", { cache: "no-store" })
+          .then(function (r) { return r.json(); })
+          .then(function (j) { mountStage(j.settings || {}); })
+          .catch(function () { clearStage(); });
+        return;
+      }
+      clearStage();
+      if (settings.merged_visible) {
+        // 合并预览：把整合面板整体挂进舞台（内部再列出各组件）
+        stageMerged = MergedWidget.mount({
+          settingsApi: null, settings: settings, base: BASE, container: stage, preview: true
+        });
+        watchStage();
+        return;
+      }
+      // 单独预览（原逻辑）
       stageDir = DirWidget.mount({
         path: (settings.path || "").trim(),
         root: (settings.root || "").trim(),
@@ -1177,7 +1228,6 @@
         settingsApi: null, container: stage, preview: true
       });
 
-      if (stageCal) stageCal.destroy();
       stageCal = CalendarWidget.mount({
         notes: (settings.notes) || {}, settingsApi: BASE + "/api/settings",
         weekStart: (settings.calendar_week_start === 0) ? 0 : 1,
@@ -1186,15 +1236,13 @@
         container: stage, preview: true
       });
 
-      if (stageWx) stageWx.destroy();
       stageWx = WeatherWidget.mount({
         location: (settings.weather_location || "").trim(),
         settingsApi: BASE + "/api/settings", container: stage, preview: true
       });
 
-      // ---- 4 个新增组件预览（preview:true 不渲染关闭/最小化/固定按钮，避免误改真实状态）----
+      // ---- 4 个新增组件 + 计时器预览（preview:true 不渲染关闭/最小化/固定按钮，避免误改真实状态）----
       // 外壳 mount() 返回 { root, refresh, destroy }，销毁用 destroy()（没有 unmount 方法）
-      if (stageWc) stageWc.destroy();
       stageWc = WorldClockWidget.mount({
         settingsApi: BASE + "/api/worldclock_settings",
         cities: (settings.worldclock_cities) || [
@@ -1204,19 +1252,16 @@
         container: stage, preview: true, draggable: false
       });
 
-      if (stageNt) stageNt.destroy();
       stageNt = NotesWidget.mount({
         settingsApi: null, notesApi: BASE + "/api/notes",
         container: stage, preview: true, draggable: false
       });
 
-      if (stageTd) stageTd.destroy();
       stageTd = TodoWidget.mount({
         settingsApi: null, todosApi: BASE + "/api/todos",
         container: stage, preview: true, draggable: false
       });
 
-      if (stageMn) stageMn.destroy();
       stageMn = MonitorWidget.mount({
         settingsApi: BASE + "/api/monitor_settings", monitorApi: BASE + "/api/monitor",
         refresh: settings.monitor_refresh || 2,
@@ -1224,7 +1269,6 @@
         container: stage, preview: true, draggable: false
       });
 
-      if (stageTimer) stageTimer.destroy();
       stageTimer = TimerWidget.mount({
         settingsApi: BASE + "/api/timer_settings",
         preset: parseInt(settings.timer_preset, 10) > 0 ? parseInt(settings.timer_preset, 10) : 300,
@@ -1234,8 +1278,9 @@
       watchStage();
     }
 
-    // 改配置后只刷新受影响的那个预览窗
+    // 改配置后只刷新受影响的那个预览窗（合并预览下改目录/天气则整块重建）
     function refreshDir() {
+      if (mergedChk && mergedChk.checked) { mountStage(); return; }
       if (stageDir) stageDir.destroy();
       stageDir = DirWidget.mount({
         path: pathInput.value.trim(), root: pathInput.value.trim(),
@@ -1245,6 +1290,7 @@
       watchStage();
     }
     function refreshWx() {
+      if (mergedChk && mergedChk.checked) { mountStage(); return; }
       if (stageWx) stageWx.destroy();
       stageWx = WeatherWidget.mount({
         location: weatherLocInput.value.trim(),
@@ -1260,6 +1306,7 @@
       setStatus($("dirStatus"), v);
       saveSettings({ visible: v }, $("dirMsg"),
         v ? "✅ 已开启，刷新桌面即可看到目录浮层" : "✅ 已隐藏，目录浮层不再显示");
+      syncMerged();
     });
 
     function saveCalCfg() {
@@ -1337,6 +1384,7 @@
         setStatus($("calStatus"), v);
         saveSettings({ calendar_visible: v }, $("calVisibleMsg"),
           v ? "✅ 已开启，刷新桌面即可看到日历" : "✅ 已隐藏，日历不再显示");
+        syncMerged();
       });
     }
 
@@ -1353,6 +1401,7 @@
         setStatus($("weatherStatus"), v);
         saveSettings({ weather_visible: v }, $("weatherMsg"),
           v ? "✅ 已开启，刷新桌面即可看到天气" : "✅ 已隐藏，天气不再显示");
+        syncMerged();
       });
     }
 
@@ -1409,6 +1458,7 @@
         setStatus($("wcStatus"), v);
         saveSettings({ worldclock_visible: v }, $("wcVisibleMsg"),
           v ? "✅ 已开启，刷新桌面即可看到世界时钟" : "✅ 已隐藏，世界时钟不再显示");
+        syncMerged();
       });
     }
     // 计时器
@@ -1418,6 +1468,7 @@
         setStatus($("tmStatus"), v);
         saveSettings({ timer_visible: v }, $("tmMsg"),
           v ? "✅ 已开启，刷新桌面即可看到计时器" : "✅ 已隐藏，计时器不再显示");
+        syncMerged();
       });
     }
     if (tmPresetInput) {
@@ -1497,6 +1548,7 @@
         setStatus($("ntStatus"), v);
         saveSettings({ notes_visible: v }, $("ntVisibleMsg"),
           v ? "✅ 已开启，刷新桌面即可看到便签" : "✅ 已隐藏，便签不再显示");
+        syncMerged();
       });
     }
     // 待办清单
@@ -1554,6 +1606,7 @@
         setStatus($("tdStatus"), v);
         saveSettings({ todo_visible: v }, $("tdVisibleMsg"),
           v ? "✅ 已开启，刷新桌面即可看到待办" : "✅ 已隐藏，待办不再显示");
+        syncMerged();
       });
     }
     if (mnRefreshInput) {
@@ -1585,6 +1638,7 @@
         setStatus($("mnStatus"), v);
         saveSettings({ monitor_visible: v }, $("mnVisibleMsg"),
           v ? "✅ 已开启，刷新桌面即可看到系统监控" : "✅ 已隐藏，系统监控不再显示");
+        syncMerged();
       });
     }
 
@@ -1628,6 +1682,7 @@
               c.checked = _mg.indexOf(c.value) >= 0;
             });
           }
+          if (mergedChk) mergedChk.checked = st.merged_visible !== false;
           // 主题：用已保存值初始化下拉并套用到预览浮窗
           var savedTheme = st.theme || "system";
           if (themeSel) themeSel.value = savedTheme;
@@ -1645,7 +1700,7 @@
       var ready = function () {
         return window.DirWidget && window.CalendarWidget && window.WeatherWidget &&
           window.RLShell && window.WorldClockWidget && window.NotesWidget &&
-          window.TodoWidget && window.MonitorWidget && window.TimerWidget;
+          window.TodoWidget && window.MonitorWidget && window.TimerWidget && window.MergedWidget;
       };
       if (ready()) return fn();
       var waited = 0;
@@ -1734,6 +1789,28 @@
       if (mq.addEventListener) mq.addEventListener("change", onScheme); else if (mq.addListener) mq.addListener(onScheme);
     }
 
+    // 合并显示开关：切换后重建预览（桌面端需重新「注入桌面」生效）
+    if (mergedChk) {
+      mergedChk.addEventListener("change", function () {
+        var v = mergedChk.checked;
+        $("globalMsg").textContent = "保存中…";
+        fetch("api/merged_settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ visible: v })
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (j) {
+            if (j.status !== "success") { $("globalMsg").textContent = "⚠ 保存失败"; return; }
+            $("globalMsg").textContent = v
+              ? "✅ 已开启合并显示，重新「注入桌面」后生效"
+              : "✅ 已关闭合并显示，重新「注入桌面」后生效";
+            mountStage();
+          })
+          .catch(function (e) { $("globalMsg").textContent = "❌ " + e.message; });
+      });
+    }
+
     // 急救：默认折叠，展开时自动体检一次
     function runDiag() {
       $("rescueMsg").textContent = "检查中…";
@@ -1796,6 +1873,8 @@
   <link rel="stylesheet" href="static/dir-widget.css" />
   <link rel="stylesheet" href="static/calendar-widget.css" />
   <link rel="stylesheet" href="static/weather-widget.css" />
+  <!-- 合并显示面板样式（整合所有组件为一个浮层） -->
+  <link rel="stylesheet" href="static/merged-widget.css" />
   <script src="static/dir-widget.js"></script>
   <!-- 农历 / 法定假日数据（calendar-widget.js 依赖 window.Lunar / window.HolidayCN），须先于日历脚本加载 -->
   <script src="static/lunar.js"></script>
@@ -1810,6 +1889,8 @@
   <script src="static/todo-widget.js"></script>
   <script src="static/monitor-widget.js"></script>
   <script src="static/timer-widget.js"></script>
+  <!-- 合并显示面板脚本（依赖 RLShell 与各组件，置于最后加载） -->
+  <script src="static/merged-widget.js"></script>
 </body>
 
 </html>

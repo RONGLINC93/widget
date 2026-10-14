@@ -4,6 +4,10 @@
 
 ## [0.1.15] — 未发布
 
+### 新增
+
+- **合并显示（整合面板）**（`static/merged-widget.js` / `static/merged-widget.css` / `static/inject.js` / `ui/index.html` / `server.py`）：管理面板新增「合并显示」开关，开启后所有已开启组件收纳进**同一个浮层**（类似 Windows 小组件面板），整体可拖拽 / 缩放 / 最小化 / 关闭，内部滚动列出各组件卡片（各组件以 `preview:true + container` 模式内嵌到面板 body，去掉各自独立标题栏按钮，跟随面板流式堆叠）。后端新增 `GET/POST /api/merged_settings` 端点（复用通用 `handle_widget_settings`）持久化面板位置 / 大小 / 最小化状态；`inject.js` 按 `merged_visible` 开关在「单独浮层」与「整合面板」两种挂载方式间切换，关闭面板即退回单独浮层（与各组价开关语义一致）。管理面板桌面预览支持合并模式整块渲染，各子组件开关变化同步刷新预览。
+
 ---
 
 ## [0.1.14] — 2026-10-13
