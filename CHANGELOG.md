@@ -8,6 +8,16 @@
 
 - **合并显示（整合面板）**（`static/merged-widget.js` / `static/merged-widget.css` / `static/inject.js` / `ui/index.html` / `server.py`）：管理面板新增「合并显示」开关，开启后所有已开启组件收纳进**同一个浮层**（类似 Windows 小组件面板），整体可拖拽 / 缩放 / 最小化 / 关闭，内部滚动列出各组件卡片（各组件以 `preview:true + container` 模式内嵌到面板 body，去掉各自独立标题栏按钮，跟随面板流式堆叠）。后端新增 `GET/POST /api/merged_settings` 端点（复用通用 `handle_widget_settings`）持久化面板位置 / 大小 / 最小化状态；`inject.js` 按 `merged_visible` 开关在「单独浮层」与「整合面板」两种挂载方式间切换，关闭面板即退回单独浮层（与各组价开关语义一致）。管理面板桌面预览支持合并模式整块渲染，各子组件开关变化同步刷新预览。
 
+- **整合面板固定为右侧整高侧栏**（`static/merged-widget.css` / `static/merged-widget.js`）：整合面板从左上角浮动改为**固定贴右侧、撑满页面高度**的侧栏——顶部让出 66px、右侧留 16px 间隙、高度 `calc(100vh - 82px)`（上下都留边，不再顶到屏幕边缘）；内部各组件**保留各自原始设计高度**（如日历 320px，原先被 `height:auto / min-height:0` 覆盖清零导致压扁），跟随面板宽度纵向堆叠、面板整体滚动。面板禁用拖拽 / 缩放（`embed` 关掉 RLShell 的拖拽/缩放，隐藏缩放手柄）并隐藏「固定」按钮（已固定无意义），仅保留关闭 / 最小化；预览端同步为同一定位。
+
+- **整合面板内组件可拖动重排**（`static/merged-widget.js` / `ui/index.html` / `server.py`）：按住面板内任意组件的标题栏上下拖动即可调整排列顺序，松手自动保存。后端 `settings` 新增 `merged_order`（组件 key 列表，缺省用默认顺序「日历→天气→世界时钟→便签→待办→系统监控→目录」），`/api/merged_settings` 的 `order` 字段经 `merge_widget_box` 持久化、`widget_box_response` 回读；前端 `resolveOrder()` 按保存顺序挂载（过滤非法 / 重复项并补上新组件），`enableReorder()` 在 `document` 级监听 `pointermove/up` 实现实时重排（不能只在标题栏上监听，否则卡片被移动、光标离开标题栏后拖动即失效），`saveOrder()` 回写。管理页预览与桌面端共用同一顺序，调一次两边生效。
+
+### 修复 / 优化
+
+- **合并面板在桌面预览里高度不断漂移、显示不完整**（`ui/index.html`）：预览的 `layoutStage` 按各卡片 `offsetHeight` 反推 `--desk-h`，而合并面板高度又是 `calc(100% - 50px)`（依赖 `--desk-h`），同时面板被 `ResizeObserver` 观测——三者形成**反馈环**导致面板高度持续变化；且 `layoutStage` 在舞台无卡片时提前 `return`，`stageH` 残留上一次单独模式的旧值、被 `applyStageFit` 回写进 `--desk-h`，把面板从 750px 压扁到 281px，内容全挤在一起。现：① 合并面板（`#merged-root`）不参与瀑布流排版（`stageCards()` 跳过）也不被 `ResizeObserver` 观测；② `layoutStage` 无卡片时清零 `stageH`，杜绝旧值回写；③ 挂载合并预览时显式给舞台一个稳定高度，避免沿用上一次单独模式的 `--desk-h` 把预览撑得过高。
+
+- **合并预览里子组件全部重叠在一起**（`static/merged-widget.css`）：预览页里每个组件的预览定位规则 `.desk-scale #xx-root { position: absolute !important }`（ID 优先级）会盖过 `.rl-merged .rl-root { position: relative !important }`（类优先级），导致面板内 7 张子卡片全部 `absolute`、静态位置相同、**完全叠在同一处**（真实桌面没有 `.desk-scale` 前缀所以不受影响，只有预览中招）。新增更高优先级规则 `.desk-scale #merged-root .rl-root`（`position`/`left`/`top`/`right`/`bottom`/`width`/`max-height` 全部还原）把面板内子卡片压回文档流，预览与桌面渲染一致。
+
 ---
 
 ## [0.1.14] — 2026-10-13
