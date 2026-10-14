@@ -4,6 +4,10 @@
 
 ## [0.1.16] — 未发布
 
+### 新增
+
+- **整合面板接入计时器小组件**（`static/merged-widget.js`）：0.1.14 新增的计时器原先漏接了合并面板（组件清单 / 默认顺序 / id 映射里都没有它），现已补上——`whenReady` 等待 `TimerWidget`、开关表加 `timer_visible`、默认顺序插在「待办」与「系统监控」之间、`mountByKey` 以 `preset + /api/timer_settings` 内嵌挂载（与其他组件一致的 `preview:true + container` 模式，保留原始高度、可拖拽重排）。
+
 ---
 
 ## [0.1.15] — 2026-10-14
@@ -14,7 +18,7 @@
 
 - **整合面板固定为右侧整高侧栏**（`static/merged-widget.css` / `static/merged-widget.js`）：整合面板从左上角浮动改为**固定贴右侧、撑满页面高度**的侧栏——顶部让出 66px、右侧留 16px 间隙、高度 `calc(100vh - 82px)`（上下都留边，不再顶到屏幕边缘）；内部各组件**保留各自原始设计高度**（如日历 320px，原先被 `height:auto / min-height:0` 覆盖清零导致压扁），跟随面板宽度纵向堆叠、面板整体滚动。面板禁用拖拽 / 缩放（`embed` 关掉 RLShell 的拖拽/缩放，隐藏缩放手柄）并隐藏「固定」按钮（已固定无意义），仅保留关闭 / 最小化；预览端同步为同一定位。
 
-- **整合面板内组件可拖动重排**（`static/merged-widget.js` / `ui/index.html` / `server.py`）：按住面板内任意组件的标题栏上下拖动即可调整排列顺序，松手自动保存。后端 `settings` 新增 `merged_order`（组件 key 列表，缺省用默认顺序「日历→天气→世界时钟→便签→待办→系统监控→目录」），`/api/merged_settings` 的 `order` 字段经 `merge_widget_box` 持久化、`widget_box_response` 回读；前端 `resolveOrder()` 按保存顺序挂载（过滤非法 / 重复项并补上新组件），`enableReorder()` 在 `document` 级监听 `pointermove/up` 实现实时重排（不能只在标题栏上监听，否则卡片被移动、光标离开标题栏后拖动即失效），`saveOrder()` 回写。管理页预览与桌面端共用同一顺序，调一次两边生效。
+- **整合面板内组件可拖动重排**（`static/merged-widget.js` / `ui/index.html` / `server.py`）：按住面板内任意组件的标题栏上下拖动即可调整排列顺序，松手自动保存。后端 `settings` 新增 `merged_order`（组件 key 列表，缺省用默认顺序「日历→天气→世界时钟→便签→待办→计时器→系统监控→目录」），`/api/merged_settings` 的 `order` 字段经 `merge_widget_box` 持久化、`widget_box_response` 回读；前端 `resolveOrder()` 按保存顺序挂载（过滤非法 / 重复项并补上新组件），`enableReorder()` 在 `document` 级监听 `pointermove/up` 实现实时重排（不能只在标题栏上监听，否则卡片被移动、光标离开标题栏后拖动即失效），`saveOrder()` 回写。管理页预览与桌面端共用同一顺序，调一次两边生效。
 
 ### 修复 / 优化
 

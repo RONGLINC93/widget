@@ -30,7 +30,7 @@
     var ready = function () {
       return window.DirWidget && window.CalendarWidget && window.WeatherWidget &&
         window.WorldClockWidget && window.NotesWidget &&
-        window.TodoWidget && window.MonitorWidget;
+        window.TodoWidget && window.MonitorWidget && window.TimerWidget;
     };
     if (ready()) return fn();
     var waited = 0;
@@ -60,15 +60,18 @@
         worldclock: st.worldclock_visible !== false,
         notes: st.notes_visible !== false,
         todo: st.todo_visible !== false,
+        timer: st.timer_visible !== false,
         monitor: st.monitor_visible !== false,
         dir: st.visible !== false
       };
 
       // 面板内组件默认顺序；merged_order 可自定义（桌面 / 预览共用，持久化到设置）
-      var DEFAULT_ORDER = ["calendar", "weather", "worldclock", "notes", "todo", "monitor", "dir"];
+      var DEFAULT_ORDER = ["calendar", "weather", "worldclock", "notes", "todo",
+                           "timer", "monitor", "dir"];
       // 组件 key → 其根节点 id（用于回写 data-rl-key，拖拽排序后识别身份）
       var KEY_ID = { calendar: "cw-root", weather: "ww-root", worldclock: "wc-root",
-                     notes: "nt-root", todo: "td-root", monitor: "mn-root", dir: "dw-root" };
+                     notes: "nt-root", todo: "td-root", timer: "tm-root",
+                     monitor: "mn-root", dir: "dw-root" };
 
       function mountInto(globalName, mountOpts) {
         var W = window[globalName];
@@ -102,6 +105,9 @@
         } else if (key === "todo") {
           mountInto("TodoWidget", { todosApi: BASE + "/api/todos",
             settingsApi: BASE + "/api/todo_settings" });
+        } else if (key === "timer") {
+          mountInto("TimerWidget", { preset: st.timer_preset || 300,
+            settingsApi: BASE + "/api/timer_settings" });
         } else if (key === "monitor") {
           mountInto("MonitorWidget", { monitorApi: BASE + "/api/monitor",
             settingsApi: BASE + "/api/monitor_settings" });
