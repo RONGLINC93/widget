@@ -22,25 +22,40 @@
   border: 2px solid transparent; border-radius: 6px;
 }
 
-/* 内嵌的子组件卡片：去掉固定定位与独立尺寸，跟随面板流式排布 */
+/* 合并面板固定为右侧整高侧栏（覆盖 RLShell 默认的左上角浮动定位） */
+.rl-merged {
+  position: fixed !important;
+  top: 66px !important;        /* 顶部让出 50px */
+  right: 16px !important;      /* 右侧留点间隙 */
+  left: auto !important;
+  bottom: auto !important;
+  width: 360px !important;
+  height: calc(100vh - 82px) !important;
+  max-height: calc(100vh - 82px) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.28) !important;
+  border-right: 1px solid var(--rl-border-3) !important;
+}
+/* 面板自身标题栏不可拖拽、隐藏缩放手柄（固定侧栏） */
+.rl-merged > .rl-bar { cursor: default; }
+.rl-merged > .rl-rsz { display: none !important; }
+
+/* 内嵌的子组件卡片：去掉固定定位、跟随面板宽度，但保留各自原始高度
+   （不覆盖 height/min-height，让组件沿用自身 CSS 的设计高度，如日历 320px） */
 .rl-merged .rl-root {
   position: relative !important;
   left: auto !important; top: auto !important;
   width: auto !important;
-  height: auto !important;
-  max-height: none !important;
-  min-height: 0 !important;
   margin: 0 !important;
   z-index: auto !important;
   box-shadow: none;
   /* 子卡片之间仍保留毛玻璃质感，但不再用大投影，避免叠加过重 */
   border: 1px solid var(--rl-border-3);
+  flex: 0 0 auto;   /* 不拉伸、不压缩，保持原始高度，跟随面板纵向堆叠 */
 }
-/* 子卡片内容区不再各自滚动，交给面板统一滚动 */
-.rl-merged .rl-root .rl-body {
-  overflow: visible !important;
-  max-height: none !important;
-}
+/* 子卡片标题栏在合并面板里不可拖拽，去掉 move 光标 */
+.rl-merged .rl-root .rl-bar,
+.rl-merged .rl-root .rl-minbar { cursor: default; }
 /* 子卡片标题栏收窄一点，视觉更紧凑 */
 .rl-merged .rl-root .rl-bar,
 .rl-merged .rl-root .rl-minbar {

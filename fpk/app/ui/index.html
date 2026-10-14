@@ -271,13 +271,17 @@
       width: 242px !important;
     }
 
-    /* 合并显示预览：整合面板作为一块整体出现在舞台里（内部再滚动列出各组件） */
+    /* 合并显示预览：贴右侧、撑满舞台高度（内部各组件保留原始高度，面板自身滚动） */
     .desk-scale #merged-root {
       position: absolute !important;
-      left: 0;
-      top: 0;
+      top: 50px !important;
+      right: 16px !important;
+      left: auto !important;
+      bottom: auto !important;
       width: 360px !important;
-      max-height: 760px !important;
+      height: calc(100% - 50px) !important;
+      max-height: calc(100% - 50px) !important;
+      border-radius: 16px !important;
     }
     /* 合并预览里隐藏面板自身的收起/关闭（避免误改真实开关） */
     .desk-scale #merged-root .rl-bar .rl-pin,

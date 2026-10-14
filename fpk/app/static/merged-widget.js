@@ -160,5 +160,13 @@
     }
   });
 
-  window.MergedWidget = Board;
+  // 合并面板固定为右侧整高侧栏：禁用拖拽/缩放（由 CSS 把位置/尺寸钉死在右侧整高），
+  // 仍保留 ×（隐藏整面板，退回单独浮层）与固定按钮。
+  window.MergedWidget = {
+    mount: function (mountOpts) {
+      var o = mountOpts || {};
+      o.embed = true;   // 关闭 RLShell 的拖拽/缩放，避免与右侧整高布局冲突
+      return Board.mount(o);
+    }
+  };
 })();
