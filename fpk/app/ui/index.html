@@ -1089,6 +1089,9 @@
       var out = [];
       for (var i = 0; i < stage.children.length; i++) {
         var c = stage.children[i];
+        // 合并面板是贴右整高的侧栏，高度由 CSS 锁定（calc(100% - 50px)），
+        // 若计入瀑布流排版会和反推出来的 --desk-h 形成反馈环导致高度不断漂移，故排除
+        if (c.id === "merged-root") continue;
         if (c.offsetParent === stage) out.push(c);
       }
       return out;
@@ -1189,7 +1192,10 @@
         if (!stageRO) stageRO = new ResizeObserver(queueStageFit);
         else stageRO.disconnect();
         var kids = stage.children;
-        for (var i = 0; i < kids.length; i++) stageRO.observe(kids[i]);
+        for (var i = 0; i < kids.length; i++) {
+          if (kids[i].id === "merged-root") continue;   // 侧栏高度由 CSS 锁定，不观测
+          stageRO.observe(kids[i]);
+        }
       }
       queueStageFit();
     }
@@ -1217,7 +1223,10 @@
       }
       clearStage();
       if (settings.merged_visible) {
-        // 合并预览：把整合面板整体挂进舞台（内部再列出各组件）
+        // 合并预览：把整合面板整体挂进舞台（内部再列出各组件）。
+        // 合并面板高度由 CSS 锁定（calc(100% - 50px)），不参与瀑布流排版，
+        // 故这里给一个稳定的舞台高度，避免沿用上一次单独模式的 --desk-h 把预览撑得过高
+        deskBox.style.setProperty("--desk-h", "800px");
         stageMerged = MergedWidget.mount({
           settingsApi: null, settings: settings, base: BASE, container: stage, preview: true
         });
