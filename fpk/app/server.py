@@ -378,7 +378,8 @@ def load_settings() -> dict:
             # 合并显示（整合面板）：merged_visible 同时控制「是否启用整合模式」与
             # 「面板当前是否在桌面显示」；关闭面板即退回单独浮层，与各组价开关语义一致
             "merged_visible": False, "merged_pos": None, "merged_size": None,
-            "merged_min": False, "merged_pinned": False}
+            "merged_min": False, "merged_pinned": False,
+            "merged_order": None}   # 整合面板内各组件的排列顺序（key 列表），None 用默认顺序
     try:
         with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
             data.update(json.loads(f.read() or "{}"))
@@ -507,6 +508,11 @@ def merge_widget_box(cur: dict, prefix: str, payload: dict) -> None:
     避免与目录浮层的 dir_min/pos/size 冲突。"""
     if "visible" in payload:
         cur[prefix + "_visible"] = bool(payload.get("visible"))
+    # 合并面板组件排列顺序（拖拽重排后回写），仅 merged 前缀使用，存为 merged_order
+    if "order" in payload and prefix == "merged":
+        arr = payload.get("order")
+        if isinstance(arr, list):
+            cur["merged_order"] = [str(x) for x in arr if str(x)]
     if "pos" in payload:
         cur[prefix + "_pos"] = _pos_of(payload.get("pos"))
     if "size" in payload:
@@ -524,6 +530,7 @@ def widget_box_response(st: dict, prefix: str, extra: dict | None = None) -> dic
         "size": st.get(prefix + "_size"),
         "min": st.get(prefix + "_min", False),
         "pinned": st.get(prefix + "_pinned", False),
+        "order": st.get(prefix + "_order"),
     }
     if extra:
         resp.update(extra)

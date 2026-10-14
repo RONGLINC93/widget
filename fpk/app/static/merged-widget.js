@@ -64,6 +64,12 @@
         dir: st.visible !== false
       };
 
+      // 面板内组件默认顺序；merged_order 可自定义（桌面 / 预览共用，持久化到设置）
+      var DEFAULT_ORDER = ["calendar", "weather", "worldclock", "notes", "todo", "monitor", "dir"];
+      // 组件 key → 其根节点 id（用于回写 data-rl-key，拖拽排序后识别身份）
+      var KEY_ID = { calendar: "cw-root", weather: "ww-root", worldclock: "wc-root",
+                     notes: "nt-root", todo: "td-root", monitor: "mn-root", dir: "dw-root" };
+
       function mountInto(globalName, mountOpts) {
         var W = window[globalName];
         if (!W || typeof W.mount !== "function") return;
@@ -79,63 +85,116 @@
         } catch (e) { /* 单个组件失败不影响整体 */ }
       }
 
+      // 按 key 构建并挂载对应组件（保留各自原始配置）
+      function mountByKey(key) {
+        if (key === "calendar") {
+          mountInto("CalendarWidget", { notes: st.calendar_notes || {},
+            settingsApi: BASE + "/api/calendar_settings" });
+        } else if (key === "weather") {
+          mountInto("WeatherWidget", { location: (st.weather_location || "").trim(),
+            settingsApi: BASE + "/api/weather_settings" });
+        } else if (key === "worldclock") {
+          mountInto("WorldClockWidget", { cities: st.worldclock_cities || [{ name: "本地", tz: "" }],
+            settingsApi: BASE + "/api/worldclock_settings" });
+        } else if (key === "notes") {
+          mountInto("NotesWidget", { notesApi: BASE + "/api/notes",
+            settingsApi: BASE + "/api/notes_settings" });
+        } else if (key === "todo") {
+          mountInto("TodoWidget", { todosApi: BASE + "/api/todos",
+            settingsApi: BASE + "/api/todo_settings" });
+        } else if (key === "monitor") {
+          mountInto("MonitorWidget", { monitorApi: BASE + "/api/monitor",
+            settingsApi: BASE + "/api/monitor_settings" });
+        } else if (key === "dir") {
+          mountInto("DirWidget", { path: (st.path || "").trim(), root: (st.root || "").trim(),
+            api: BASE + "/api/list", fileApi: BASE + "/api/file",
+            searchApi: BASE + "/api/search", settingsApi: BASE + "/api/settings" });
+        }
+      }
+
+      // 解析最终排列顺序：以保存的 merged_order 为准，过滤非法 / 重复，补上未列出的新组件
+      function resolveOrder() {
+        var saved = Array.isArray(st.merged_order) ? st.merged_order : [];
+        var seq = [], seen = {};
+        saved.forEach(function (k) {
+          if (DEFAULT_ORDER.indexOf(k) >= 0 && !seen[k]) { seq.push(k); seen[k] = 1; }
+        });
+        DEFAULT_ORDER.forEach(function (k) { if (!seen[k]) seq.push(k); });
+        return seq;
+      }
+
+      // ---- 面板内拖拽重排：拖动子卡片标题栏即可调整上下顺序，松手写回 merged_order ----
+      // 注意：pointermove/up 监听挂在 document 上，而非标题栏本身——否则卡片被移动、
+      // 光标离开标题栏后拖动就失效。pointerdown 在标题栏上即可（仅用于起手）。
+      function enableReorder() {
+        function cards() {
+          return Array.prototype.slice.call(body.querySelectorAll(":scope > .rl-root[data-rl-key]"));
+        }
+        cards().forEach(function (card) {
+          var bar = card.querySelector(".rl-bar") || card.querySelector(".rl-minbar");
+          if (!bar) return;
+          bar.style.cursor = "grab";
+          bar.addEventListener("pointerdown", function (e) {
+            if (e.button !== 0 || e.target.closest("button")) return;  // 忽略非左键与按钮
+            e.preventDefault();
+            var dragEl = card, startY = e.clientY, started = false;
+            bar.style.cursor = "grabbing";
+            function onMove(ev) {
+              if (!started) {
+                if (Math.abs(ev.clientY - startY) < 5) return;
+                started = true; dragEl.classList.add("rl-reordering");
+              }
+              var y = ev.clientY, ref = null, sibs = cards();
+              for (var i = 0; i < sibs.length; i++) {
+                if (sibs[i] === dragEl) continue;
+                var r = sibs[i].getBoundingClientRect();
+                if (y < r.top + r.height / 2) { ref = sibs[i]; break; }
+              }
+              if (ref) body.insertBefore(dragEl, ref);
+              else body.appendChild(dragEl);
+            }
+            function onUp() {
+              document.removeEventListener("pointermove", onMove);
+              document.removeEventListener("pointerup", onUp);
+              document.removeEventListener("pointercancel", onUp);
+              bar.style.cursor = "grab";
+              if (started) {
+                dragEl.classList.remove("rl-reordering");
+                var order = cards().map(function (c) { return c.dataset.rlKey; });
+                saveOrder(order);
+              }
+            }
+            document.addEventListener("pointermove", onMove);
+            document.addEventListener("pointerup", onUp);
+            document.addEventListener("pointercancel", onUp);
+          });
+        });
+      }
+
+      function saveOrder(order) {
+        if (!order || !order.length) return;
+        try {
+          fetch(getBase(opts) + "/api/merged_settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order: order })
+          });
+        } catch (e) { /* 写回失败不影响本次预览 */ }
+      }
+
       function buildList() {
         // 先清空（重复挂载防御：build 可能被多次触发时 body 已含旧卡片）
         if (body.firstChild) body.innerHTML = "";
         var mounted = 0;
-        var common = { settingsApi: BASE + "/api/settings" };
-
-        if (on.calendar) {
-          mountInto("CalendarWidget", {
-            notes: st.calendar_notes || {},
-            settingsApi: BASE + "/api/calendar_settings"
-          });
-          mounted++;
-        }
-        if (on.weather) {
-          mountInto("WeatherWidget", {
-            location: (st.weather_location || "").trim(),
-            settingsApi: BASE + "/api/weather_settings"
-          });
-          mounted++;
-        }
-        if (on.worldclock) {
-          mountInto("WorldClockWidget", {
-            cities: st.worldclock_cities || [{ name: "本地", tz: "" }],
-            settingsApi: BASE + "/api/worldclock_settings"
-          });
-          mounted++;
-        }
-        if (on.notes) {
-          mountInto("NotesWidget", {
-            notesApi: BASE + "/api/notes",
-            settingsApi: BASE + "/api/notes_settings"
-          });
-          mounted++;
-        }
-        if (on.todo) {
-          mountInto("TodoWidget", {
-            todosApi: BASE + "/api/todos",
-            settingsApi: BASE + "/api/todo_settings"
-          });
-          mounted++;
-        }
-        if (on.monitor) {
-          mountInto("MonitorWidget", {
-            monitorApi: BASE + "/api/monitor",
-            settingsApi: BASE + "/api/monitor_settings"
-          });
-          mounted++;
-        }
-        if (on.dir) {
-          mountInto("DirWidget", {
-            path: (st.path || "").trim(),
-            root: (st.root || "").trim(),
-            api: BASE + "/api/list",
-            fileApi: BASE + "/api/file",
-            searchApi: BASE + "/api/search",
-            settingsApi: BASE + "/api/settings"
-          });
+        var seq = resolveOrder();
+        for (var i = 0; i < seq.length; i++) {
+          var key = seq[i];
+          if (!on[key]) continue;        // 该组件未开启则跳过
+          mountByKey(key);
+          // 给本次挂载出来的根节点打标记，供拖拽排序识别身份
+          var rid = KEY_ID[key];
+          var el = rid ? document.getElementById(rid) : null;
+          if (el && el.classList.contains("rl-root")) el.dataset.rlKey = key;
           mounted++;
         }
 
@@ -144,7 +203,9 @@
           tip.className = "rl-merged-empty";
           tip.textContent = "未开启任何组件，请到「小组件管理面板」开启后刷新。";
           body.appendChild(tip);
+          return;
         }
+        enableReorder();   // 允许在面板内拖动标题栏重排顺序
       }
 
       whenReady(buildList);

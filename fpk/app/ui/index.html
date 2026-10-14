@@ -274,13 +274,13 @@
     /* 合并显示预览：贴右侧、撑满舞台高度（内部各组件保留原始高度，面板自身滚动） */
     .desk-scale #merged-root {
       position: absolute !important;
-      top: 50px !important;
+      top: 66px !important;          /* 与桌面端一致：顶部让出 66px */
       right: 16px !important;
       left: auto !important;
       bottom: auto !important;
       width: 360px !important;
-      height: calc(100% - 50px) !important;
-      max-height: calc(100% - 50px) !important;
+      height: calc(100% - 82px) !important;   /* 66 顶 + 16 底，与桌面端一致 */
+      max-height: calc(100% - 82px) !important;
       border-radius: 16px !important;
     }
     /* 合并预览里隐藏面板自身的收起/关闭（避免误改真实开关） */
@@ -1104,7 +1104,12 @@
     // （n·maxW + (n-1)·gap ≤ rowW 恒成立）。列宽取该列实际最宽卡，横向也紧贴。
     function layoutStage(rowW) {
       var kids = stageCards(), i, c;
-      if (!kids.length) return;
+      if (!kids.length) {
+        // 无卡片（如合并模式只有贴右侧栏）时必须清零，否则 applyStageFit 会把
+        // 上一次单独模式残留的 stageH 回写进 --desk-h，把合并面板压扁/撑乱
+        stageH = 0;
+        return;
+      }
 
       // 先一次性读尺寸，再统一写位置，避免读写交替触发反复回流
       var sizes = [], maxW = 0;
