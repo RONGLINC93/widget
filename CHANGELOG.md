@@ -4,6 +4,10 @@
 
 ## [0.1.17] — 未发布
 
+### 修复 / 优化
+
+- **修复管理页版本号不显示**（`server.py` / `ui/index.html` / `build_fpk.py`）：安装后 fnOS 解 `app.tgz` 会去掉 `app/` 前缀，`server.py` 直接落在 `<APP_DEST>/` 下，包根 `manifest` 并不在它的上级目录，`_read_manifest_version()` 读到空字符串，标题旁的版本徽标只剩一个孤零零的「v」。现：① 打包时把 `manifest` 的版本写进 `app.tgz` 内的 `version.txt`（随 app 一同解包，必定与 `server.py` 同级，作为最可靠的真相源）；② `_read_manifest_version()` 改为按候选路径依次探测（`version.txt` → 同级 `manifest` → 上级 `manifest` → `<APP_DEST>/manifest`），并用正则严格匹配 `version =` 行，避免误命中 `version_released`；③ 新增 `GET /api/version`，管理页在占位符 `__APP_VERSION__` 未被替换（首页被静态直出）时兜底回源取版本，取不到则隐藏徽标。
+
 ---
 
 ## [0.1.16] — 2026-10-27
