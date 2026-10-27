@@ -47,19 +47,45 @@ GATEWAY_PREFIX = "/app/" + APP_NAME
 
 # 版本号唯一真相源：包根目录的 manifest（build_fpk.py 打包时由它生成版本）。
 # 这样管理页头部显示、CHANGELOG、fnOS 应用中心三处都从同一个文件取，不会漂移。
-def _read_manifest_version():
-    manifest = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "manifest")
-    try:
-        with open(manifest, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("version"):
-                    return line.split("=", 1)[1].strip()
-    except OSError:
-        pass
+#
+# 注意安装后的目录布局：fnOS 解 app.tgz 时会去掉 app/ 前缀，server.py 直接落在
+# <APP_DEST>/ 下（见下方 INJECT_JS_DIRECT 的说明），manifest 并不在它的上级目录，
+# 所以只认「server.py 的上一级/manifest」会读到空 —— 徽标就只剩一个 v。
+# 因此这里按候选路径依次探测，并优先读打包时写进 app.tgz 的 version.txt
+# （它随 app 一起解包，位置必定与 server.py 同级）。
+def _parse_manifest_version(text):
+    """从 manifest 文本里取 version 字段（严格匹配，避免命中 version_released）。"""
+    for line in text.splitlines():
+        m = re.match(r"^version\s*=\s*(\S+)$", line.strip())
+        if m:
+            return m.group(1)
     return ""
-APP_VERSION = _read_manifest_version()
+
+
+def _read_manifest_version():
+    here = os.path.dirname(os.path.abspath(__file__))
+    app_dest = os.environ.get("TRIM_APPDEST", "/vol1/@appcenter/" + APP_NAME)
+    candidates = [
+        os.path.join(here, "version.txt"),                 # 打包生成，随 app.tgz 解包
+        os.path.join(here, "manifest"),                    # manifest 与 app 内容同级
+        os.path.join(os.path.dirname(here), "manifest"),   # 源码布局：fpk/manifest
+        os.path.join(app_dest, "manifest"),
+        os.path.join(os.path.dirname(app_dest), APP_NAME, "manifest"),
+    ]
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            continue
+        if os.path.basename(path) == "version.txt":
+            v = text.strip().splitlines()[0].strip() if text.strip() else ""
+        else:
+            v = _parse_manifest_version(text)
+        if v:
+            return v
+    return ""
+
 
 # 文本预览：单次最多读取的字节数（超出截断，前端会提示）
 TEXT_PREVIEW_MAX = 512 * 1024
@@ -106,6 +132,8 @@ TEXT_EXTENSIONS = {
 # ======================================================================
 APP_DATA_DIR = os.environ.get("TRIM_PKGVAR", "/vol1/@appdata/" + APP_NAME)
 APP_DEST_DIR = os.environ.get("TRIM_APPDEST", "/vol1/@appcenter/" + APP_NAME)
+# 版本号须在 APP_DEST_DIR 之后求值：_read_manifest_version 要用它拼候选路径
+APP_VERSION = _read_manifest_version()
 DESKTOP_INDEX = os.path.join(APP_DATA_DIR, "desktop", "index.html")
 SETTINGS_FILE = os.path.join(APP_DATA_DIR, "settings.json")
 # 便签 / 待办清单 的持久化数据文件（与 settings.json 同级，独立存放避免单文件过大）
@@ -1405,6 +1433,11 @@ class DirHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/health":
             self._send_json({"status": "ok"})
+            return
+
+        # 版本号：供管理页兜底显示（首页若由静态服务直出、占位符没被替换时用）
+        if parsed.path == "/api/version":
+            self._send_json({"status": "success", "version": APP_VERSION})
             return
 
         # ===== 文件预览 / 下载 =====

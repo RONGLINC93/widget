@@ -1770,6 +1770,23 @@
         }
       }, 50);
     }
+    // 版本号徽标：正常情况下服务端发首页时已把占位符 __APP_VERSION__ 换成真实版本；
+    // 若首页被静态直出（没走服务端替换）或服务端读不到 manifest，这里再回源取一次，
+    // 仍取不到就隐藏徽标，免得只剩一个孤零零的「v」。
+    (function fillVersion() {
+      var el = $("appVer");
+      if (!el) return;
+      var txt = (el.textContent || "").trim();
+      if (/\d/.test(txt)) return;                 // 已带版本号，无需兜底
+      fetch("api/version", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var v = j && j.version;
+          if (v) el.textContent = "v" + v; else el.style.display = "none";
+        })
+        .catch(function () { el.style.display = "none"; });
+    })();
+
     whenWidgetsReady(boot);
 
     // 全局：刷新本页（重读服务端设置 + 重建预览）/ 刷新桌面（让已打开的桌面页重载）

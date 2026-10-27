@@ -27,8 +27,12 @@ def should_skip(name):
     return False
 
 
-def build_app_tgz():
-    """app.tgz：目录条目(DIRTYPE, 带尾斜杠)先于其内容，否则服务端解包成 0 字节文件"""
+def build_app_tgz(version):
+    """app.tgz：目录条目(DIRTYPE, 带尾斜杠)先于其内容，否则服务端解包成 0 字节文件
+
+    额外写入 version.txt（内容取自 manifest 的 version）：fnOS 解包会去掉 app/ 前缀，
+    manifest 不在 server.py 的上一级目录，服务端靠这个文件可靠地读到版本号。
+    """
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode='w:gz', compresslevel=6) as tar:
         base = APP_DIR
@@ -62,6 +66,15 @@ def build_app_tgz():
                 ti.mode = 0o755 if os.access(ap, os.X_OK) else 0o644
                 ti.mtime = 0
                 tar.addfile(ti, io.BytesIO(data))
+
+        # 版本号随 app 一起解包，位置与 server.py 同级（虚拟条目，不写进工作区）
+        vdata = (version or '').encode('utf-8')
+        vti = tarfile.TarInfo('version.txt')
+        vti.type = tarfile.REGTYPE
+        vti.size = len(vdata)
+        vti.mode = 0o644
+        vti.mtime = 0
+        tar.addfile(vti, io.BytesIO(vdata))
     return buf.getvalue()
 
 
@@ -98,13 +111,13 @@ def add_regular(tar, arc, data, mode=0o644):
 
 
 def main():
-    app_tgz = build_app_tgz()
-    checksum = hashlib.md5(app_tgz).hexdigest()
     fields = parse_source_manifest(os.path.join(SRC, 'manifest'))
     fields_dict = dict(fields)
     appname = fields_dict['appname']
     version = fields_dict['version']
     platform = fields_dict.get('platform', 'all')
+    app_tgz = build_app_tgz(version)
+    checksum = hashlib.md5(app_tgz).hexdigest()
     manifest = build_manifest(fields, checksum)
 
     def read(rel):
