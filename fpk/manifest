@@ -7,8 +7,8 @@
 appname = ronglinc93widget
 name = ronglinc93widget
 display_name = RONGLINC93小组件
-version = 0.1.17
-version_released = 0.1.16
+version = 0.1.18
+version_released = 0.1.17
 desc = 飞牛 fnOS 桌面小组件：目录/日历/天气/世界时钟/便签/待办/系统监控，支持拖拽缩放与日间·夜间·跟随系统主题，零依赖，仅用 Python 标准库。
 author = RONGLINC93
 maintainer = RONGLINC93
