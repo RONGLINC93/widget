@@ -242,12 +242,12 @@
         ":" + pad2(n.getSeconds());
       var isToday = isoDate(n) === self.selectedKey;
       var lunStr = "";
-      if (this.showLunar && window.Lunar) {
+      if (self.showLunar && window.Lunar) {
         var lun = Lunar.solarToLunar(n.getFullYear(), n.getMonth() + 1, n.getDate());
         lunStr = Lunar.fullLabel(lun);
       }
       var holStr = "";
-      if (this.showHoliday && window.HolidayCN) {
+      if (self.showHoliday && window.HolidayCN) {
         var hol = HolidayCN.get(n.getFullYear(), n.getMonth() + 1, n.getDate());
         if (hol) holStr = hol.name + (hol.off ? "（休）" : "（班）");
       }

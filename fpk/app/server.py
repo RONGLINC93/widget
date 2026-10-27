@@ -45,6 +45,22 @@ API_SEARCH = "/api/search"
 APP_NAME = os.environ.get("TRIM_APPNAME", "ronglinc93widget")
 GATEWAY_PREFIX = "/app/" + APP_NAME
 
+# 版本号唯一真相源：包根目录的 manifest（build_fpk.py 打包时由它生成版本）。
+# 这样管理页头部显示、CHANGELOG、fnOS 应用中心三处都从同一个文件取，不会漂移。
+def _read_manifest_version():
+    manifest = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "manifest")
+    try:
+        with open(manifest, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("version"):
+                    return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+APP_VERSION = _read_manifest_version()
+
 # 文本预览：单次最多读取的字节数（超出截断，前端会提示）
 TEXT_PREVIEW_MAX = 512 * 1024
 # 单次列表最多返回的条目数（超大目录不至于把浏览器卡死）
@@ -1237,6 +1253,26 @@ class DirHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _send_html(self, path: str):
+        """发送 HTML 页面，并把 __APP_VERSION__ 占位符替换为当前版本号。"""
+        if not os.path.isfile(path):
+            self.send_error(404)
+            return
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+        except OSError:
+            self.send_error(404)
+            return
+        data = data.replace(b"__APP_VERSION__",
+                            APP_VERSION.encode("utf-8") or b"")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
     def _send_file_content(self, path: str, download: bool = False):
         """返回文件内容。支持断点续传（Range），视频/音频才能拖动进度条。
         download=True 时用 Content-Disposition: attachment 触发浏览器下载。"""
@@ -1409,8 +1445,7 @@ class DirHandler(BaseHTTPRequestHandler):
 
         # 桌面入口
         if parsed.path in ("/", "/index.html"):
-            self._send_file(os.path.join(UI_DIR, "index.html"),
-                            "text/html; charset=utf-8")
+            self._send_html(os.path.join(UI_DIR, "index.html"))
             return
 
         # 静态资源（限定在 STATIC_DIR 内）

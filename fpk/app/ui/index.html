@@ -30,6 +30,20 @@
       margin: 0 0 22px;
     }
 
+    /* 标题旁的版本徽标 */
+    .ver {
+      font-size: 12px;
+      font-weight: 600;
+      vertical-align: middle;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(88,166,255,.16);
+      color: #58a6ff;
+      font-variant-numeric: tabular-nums;
+    }
+    [data-theme="light"] .ver { background: rgba(9,105,218,.12); color: #0969da; }
+
     /* 顶部主操作栏：吸顶，配置时始终可见、无需滚回顶部点「注入桌面」 */
     .bar {
       position: sticky;
@@ -221,7 +235,10 @@
     /* 浮窗在预览里的 left / top 由脚本统一排版后写进 inline style：排满一行再换行、
        与前一个卡片之间留间距，保证互不重叠（内容变高会把后面的卡片往下推）。
        所以下面这些 left / top 只是脚本跑之前的初始占位，不能带 !important（否则 inline 改不动）。 */
-    .desk-scale #dw-root {
+    /* 注意：必须用「子代 >」而非「后代（空格）」——合并预览时这些组件卡片会被
+       内嵌进 #merged-root 内部，若是后代选择器会把面板里的子卡片也套上绝对定位、
+       错位散开，导致合并预览显示异常。只有在舞台（.desk-scale）里的直接浮窗才需要。 */
+    .desk-scale > #dw-root {
       position: absolute !important;
       left: 0;
       right: auto !important;
@@ -229,54 +246,68 @@
       max-height: 450px !important;
     }
 
-    .desk-scale #cw-root {
+    .desk-scale > #cw-root {
       position: absolute !important;
       left: 442px;
       right: auto !important;
       top: 0;
     }
 
-    .desk-scale #ww-root {
+    .desk-scale > #ww-root {
       position: absolute !important;
       left: 784px;
       top: 0;
     }
 
     /* 第二排组件：宽度在这里定死（排版脚本按它算换行），left / top 同样是初始占位 */
-    .desk-scale #wc-root {
+    .desk-scale > #wc-root {
       position: absolute !important;
       left: 0;
       top: 666px;
       width: 250px !important;
     }
 
-    .desk-scale #nt-root {
+    .desk-scale > #nt-root {
       position: absolute !important;
       left: 270px;
       top: 666px;
       width: 260px !important;
     }
 
-    .desk-scale #td-root {
+    .desk-scale > #td-root {
       position: absolute !important;
       left: 550px;
       top: 666px;
       width: 280px !important;
     }
 
-    .desk-scale #mn-root {
+    .desk-scale > #mn-root {
       position: absolute !important;
       left: 850px;
       top: 666px;
       width: 242px !important;
     }
 
-    /* 合并显示预览：贴右侧、撑满舞台高度（内部各组件保留原始高度，面板自身滚动） */
+    /* 合并预览内部各组件卡片：撤销浮层定位，回到面板内的正常文档流
+       （纵向堆叠、面板自身滚动）。否则 .rl-root 的 position:fixed / 上面的绝对定位
+       会让子卡片脱离面板、按舞台/视口散开，合并预览就乱了。 */
+    .desk-scale #merged-root .rl-root {
+      position: relative !important;
+      left: auto !important;
+      top: auto !important;
+      right: auto !important;
+      bottom: auto !important;
+      width: auto !important;
+      max-height: none !important;
+    }
+
+    /* 合并显示预览：水平居中、撑满舞台高度（内部各组件保留原始高度，面板自身滚动） */
     .desk-scale #merged-root {
       position: absolute !important;
       top: 66px !important;          /* 与桌面端一致：顶部让出 66px */
-      right: 16px !important;
-      left: auto !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translateX(-50%);
       bottom: auto !important;
       width: 360px !important;
       height: calc(100% - 82px) !important;   /* 66 顶 + 16 底，与桌面端一致 */
@@ -697,7 +728,7 @@
 
 <body>
   <div class="wrap">
-    <h2>🧩 RONGLINC93 小组件</h2>
+    <h2>🧩 RONGLINC93 小组件 <span class="ver" id="appVer">v__APP_VERSION__</span></h2>
     <p class="sub">管理显示在飞牛桌面上的小组件。下方是桌面上真实的悬浮窗（可拖拽 / 缩放），改完配置点「注入桌面」生效。</p>
 
     <!-- 顶部主操作栏 -->
@@ -1211,6 +1242,15 @@
     function clearStage() {
       [stageDir, stageCal, stageWx, stageWc, stageNt, stageTd, stageMn, stageTimer, stageMerged].forEach(
         function (h) { try { if (h) h.destroy(); } catch (e) {} });
+      // 兜底：任何组件若因异常（如内容渲染抛错）导致挂上了 DOM 却没拿到句柄，
+      // 上面的句柄销毁不会移除它，会留下孤儿节点污染后续排版。这里按 DOM 维度
+      // 扫一遍舞台，移除所有残留的游离根节点（合并面板本身除外）。
+      try {
+        var stray = stage.querySelectorAll(":scope > .rl-root");
+        for (var s = 0; s < stray.length; s++) {
+          if (stray[s].id !== "merged-root" && stray[s].parentNode) stray[s].parentNode.removeChild(stray[s]);
+        }
+      } catch (e) {}
       stageDir = stageCal = stageWx = stageWc = stageNt = stageTd = stageMn = stageTimer = stageMerged = null;
     }
 
