@@ -8,6 +8,14 @@
 
 - **整合面板接入计时器小组件**（`static/merged-widget.js`）：0.1.14 新增的计时器原先漏接了合并面板（组件清单 / 默认顺序 / id 映射里都没有它），现已补上——`whenReady` 等待 `TimerWidget`、开关表加 `timer_visible`、默认顺序插在「待办」与「系统监控」之间、`mountByKey` 以 `preset + /api/timer_settings` 内嵌挂载（与其他组件一致的 `preview:true + container` 模式，保留原始高度、可拖拽重排）。
 
+- **管理页显示版本号**（`server.py` / `ui/index.html`）：从包根 `manifest` 读取版本号作为唯一真相源，发送首页时把占位符 `__APP_VERSION__` 替换掉；标题旁新增版本徽标，CHANGELOG / 应用中心与之一致不再漂移。
+
+### 修复 / 优化
+
+- **合并预览面板水平居中**（`ui/index.html`）：合并预览面板原先 `right:16px` 贴右侧，改为 `left:50%; transform:translateX(-50%)` 水平居中，缩放时跟随舞台整体缩放居中。
+
+- **合并预览显示不正常**（`ui/index.html` / `static/calendar-widget.js`）：① 独立模式各组件预览定位规则由后代选择器改为子代 `.desk-scale > #xx-root`，避免误伤合并面板内嵌的子卡片，并新增 `.desk-scale #merged-root .rl-root` 复位规则让面板内子卡片回归文档流；② `clearStage()` 兜底清理舞台残留的游离根节点，任何组件异常都不会再污染排版；③ 修复 `calendar-widget.js` 的 `tick()` 误用 `this.showLunar/this.showHoliday`（严格模式下 `this` 为 `undefined` 抛异常，导致日历卡渲染一半即崩溃、句柄丢失成孤儿节点把合并面板压扁到 322px，并使时钟行农历 / 节假日功能失效），改用实例引用后合并面板高度恢复正常、农历与「休/班」角标正确显示。
+
 ---
 
 ## [0.1.15] — 2026-10-14
